@@ -44,7 +44,7 @@ function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: Analyse
       let bass = 0, mid = 0, high = 0
       if (analyser && speaking) {
         if (!freqData.current || freqData.current.length !== analyser.frequencyBinCount) {
-          freqData.current = new Uint8Array(analyser.frequencyBinCount)
+          freqData.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount))
         }
         analyser.getByteFrequencyData(freqData.current)
         const bins = freqData.current
@@ -803,9 +803,6 @@ export default function CourseModulePage() {
   const [micActive, setMicActive] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [userActivated, setUserActivated] = useState(false)
-  const [selectedVoiceId, setSelectedVoiceId] = useState(() => typeof window !== 'undefined' ? (localStorage.getItem('tts_voice_id') ?? 'onwK4e9ZLuTAKqWW03F9') : 'onwK4e9ZLuTAKqWW03F9')
-  const [showVoiceMenu, setShowVoiceMenu] = useState(false)
-  const selectedVoiceIdRef = useRef('onwK4e9ZLuTAKqWW03F9')
 
   // Key points being built from current session
   const [sessionKeyPoints, setSessionKeyPoints] = useState<string[]>([])
@@ -835,10 +832,7 @@ export default function CourseModulePage() {
   const autoMicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startMicRef = useRef<() => void>(() => {})
   const speakTextRef = useRef<(text: string) => void>(() => {})
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const audioQueueRef = useRef<ArrayBuffer[]>([])
   const isAudioPlayingRef = useRef(false)
-  const nextChunkStartRef = useRef(0)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const currentSectionRef = useRef<Section | null>(null)
   const completedSectionsRef = useRef<string[]>([])
@@ -850,7 +844,6 @@ export default function CourseModulePage() {
   useEffect(() => { partNumberRef.current = partNumber }, [partNumber])
   useEffect(() => { partTitleRef.current = partTitle }, [partTitle])
   useEffect(() => { audioEnabledRef.current = audioEnabled }, [audioEnabled])
-  useEffect(() => { selectedVoiceIdRef.current = selectedVoiceId; if (typeof window !== 'undefined') localStorage.setItem('tts_voice_id', selectedVoiceId) }, [selectedVoiceId])
   useEffect(() => { micActiveRef.current = micActive }, [micActive])
   useEffect(() => { currentSectionRef.current = currentSection }, [currentSection])
   useEffect(() => {
@@ -859,85 +852,34 @@ export default function CourseModulePage() {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streaming])
 
-  // ─── Audio ───────────────────────────────────────────────────────────────
-  const startAnalyser = useCallback(() => { /* canvas reads analyser directly — no-op */ }, [])
-  const stopAnalyser = useCallback(() => { /* canvas reads analyser directly — no-op */ }, [])
-
-  const initAudioCtx = useCallback(() => {
-    if (audioCtxRef.current) { void audioCtxRef.current.resume(); return audioCtxRef.current }
-    const ctx = new AudioContext()
-    const analyser = ctx.createAnalyser()
-    analyser.fftSize = 256
-    analyser.connect(ctx.destination)
-    analyserRef.current = analyser
-    audioCtxRef.current = ctx
-    return ctx
-  }, [])
-
-  const getAudioCtx = useCallback((): AudioContext | null => {
-    if (!audioCtxRef.current) return null
-    if (audioCtxRef.current.state === 'suspended') void audioCtxRef.current.resume()
-    return audioCtxRef.current
-  }, [])
-
-  const playNextAudio = useCallback(() => {
-    const buffer = audioQueueRef.current.shift()
-    if (!buffer) { isAudioPlayingRef.current = false; setIsSpeaking(false); stopAnalyser(); return }
-    isAudioPlayingRef.current = true; setIsSpeaking(true)
-    const ctx = getAudioCtx()
-    if (!ctx) { isAudioPlayingRef.current = false; setIsSpeaking(false); return }
-    ctx.decodeAudioData(buffer,
-      (decoded) => {
-        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') { isAudioPlayingRef.current = false; return }
-        const src = ctx.createBufferSource()
-        src.buffer = decoded
-        src.connect(analyserRef.current ?? ctx.destination)
-        const first = nextChunkStartRef.current === 0
-        const earliest = ctx.currentTime + (first ? 0.05 : 0.005)
-        const startAt = Math.max(earliest, nextChunkStartRef.current)
-        nextChunkStartRef.current = startAt + decoded.duration
-        src.start(startAt)
-        if (first) startAnalyser()
-        if (audioQueueRef.current.length > 0) { playNextAudio() }
-        else {
-          src.onended = () => {
-            if (audioQueueRef.current.length === 0) {
-              isAudioPlayingRef.current = false; setIsSpeaking(false); stopAnalyser(); nextChunkStartRef.current = 0
-            } else playNextAudio()
-          }
-        }
-      },
-      () => { isAudioPlayingRef.current = false; playNextAudio() },
-    )
-  }, [getAudioCtx, startAnalyser, stopAnalyser])
+  // ─── Audio (Web Speech API) ───────────────────────────────────────────────
+  const initAudioCtx = useCallback(() => { /* no-op: using Web Speech API */ }, [])
 
   const speakText = useCallback((text: string) => {
     if (!audioEnabledRef.current) return
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
     // Stop mic while bot is speaking to prevent feedback loop
     if (micActiveRef.current) { recognitionRef.current?.stop(); setMicActive(false) }
-    void fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voiceId: selectedVoiceIdRef.current }) })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('TTS failed')
-        audioQueueRef.current.push(await res.arrayBuffer())
-        if (!isAudioPlayingRef.current) playNextAudio()
-      }).catch(() => {
-        if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-        const utt = new SpeechSynthesisUtterance(text)
-        utt.lang = 'en-GB'; utt.rate = 1.05
-        const v = window.speechSynthesis.getVoices()
-        const gb = v.find(x => x.lang === 'en-GB') ?? v.find(x => x.lang.startsWith('en'))
-        if (gb) utt.voice = gb
-        setIsSpeaking(true); utt.onend = () => setIsSpeaking(false)
-        window.speechSynthesis.speak(utt)
-      })
-  }, [playNextAudio])
+    isAudioPlayingRef.current = true
+    setIsSpeaking(true)
+    window.speechSynthesis.cancel()
+    const utt = new SpeechSynthesisUtterance(text)
+    utt.lang = 'en-GB'
+    utt.rate = 1.05
+    const voices = window.speechSynthesis.getVoices()
+    const gb = voices.find(v => v.lang === 'en-GB') ?? voices.find(v => v.lang.startsWith('en'))
+    if (gb) utt.voice = gb
+    utt.onend = () => { isAudioPlayingRef.current = false; setIsSpeaking(false) }
+    utt.onerror = () => { isAudioPlayingRef.current = false; setIsSpeaking(false) }
+    window.speechSynthesis.speak(utt)
+  }, [])
 
   const cancelSpeech = useCallback(() => {
-    audioQueueRef.current = []; isAudioPlayingRef.current = false; nextChunkStartRef.current = 0
-    setIsSpeaking(false); stopAnalyser()
+    isAudioPlayingRef.current = false
+    setIsSpeaking(false)
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
     speechBufferRef.current = ''
-  }, [stopAnalyser])
+  }, [])
 
   const feedToken = useCallback((token: string) => {
     if (!audioEnabledRef.current) return
@@ -955,13 +897,7 @@ export default function CourseModulePage() {
   }, [speakText])
 
   useEffect(() => { speakTextRef.current = speakText }, [speakText])
-  useEffect(() => () => { audioCtxRef.current?.close().catch(() => {}) }, [])
-  useEffect(() => {
-    if (!showVoiceMenu) return
-    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('[data-voice-menu]')) setShowVoiceMenu(false) }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [showVoiceMenu])
+  useEffect(() => () => { if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
 
   // ─── Core send ────────────────────────────────────────────────────────────
   const doSend = useCallback(async (text: string, silent: boolean) => {
@@ -1341,29 +1277,6 @@ export default function CourseModulePage() {
             {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
             <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}>{audioEnabled ? 'AUDIO ON' : 'MUTED'}</span>
           </button>
-          {/* Voice selector */}
-          <div style={{ position: 'relative' }} data-voice-menu>
-            <button onClick={() => setShowVoiceMenu(v => !v)} style={{ padding: '6px 10px', borderRadius: 8, background: showVoiceMenu ? 'rgba(166,0,255,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${showVoiceMenu ? 'rgba(166,0,255,0.4)' : 'rgba(255,255,255,0.1)'}`, color: showVoiceMenu ? '#d080ff' : 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-              VOICE
-            </button>
-            {showVoiceMenu && (
-              <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 200, background: 'rgba(10,10,20,0.97)', border: '1px solid rgba(166,0,255,0.3)', borderRadius: 10, backdropFilter: 'blur(20px)', minWidth: 220, padding: '6px 0', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-                {[
-                  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', desc: 'British male, warm' },
-                  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', desc: 'British male, authoritative' },
-                  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', desc: 'Deep British male' },
-                  { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', desc: 'British female, warm' },
-                  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'British female, confident' },
-                ].map(v => (
-                  <button key={v.id} onClick={() => { setSelectedVoiceId(v.id); setShowVoiceMenu(false) }}
-                    style={{ width: '100%', padding: '8px 14px', background: selectedVoiceId === v.id ? 'rgba(166,0,255,0.18)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: selectedVoiceId === v.id ? '#d080ff' : 'rgba(255,255,255,0.85)', fontFamily: 'monospace' }}>{v.name} {selectedVoiceId === v.id ? '✓' : ''}</span>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{v.desc}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           {currentSection && currentSectionIdx < sections.length - 1 && (
             <button onClick={completeSection} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(0,255,120,0.12)', border: '1px solid rgba(0,255,120,0.35)', color: '#00ff88', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
               <Check size={12} /> SECTION COMPLETE
