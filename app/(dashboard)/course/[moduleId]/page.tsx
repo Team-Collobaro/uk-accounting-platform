@@ -6,7 +6,7 @@ import { createClientComponentClient } from '@/lib/supabase'
 import {
   Send, Loader2, ChevronLeft, ChevronRight, Brain,
   CheckCircle2, XCircle, Mic, MicOff, Volume2, VolumeX,
-  Download, PenLine, ChevronDown, ChevronUp, Check,
+  Download, PenLine, ChevronDown, ChevronUp, Check, Lock,
 } from 'lucide-react'
 import type { QuizQuestion } from '@/types'
 
@@ -238,6 +238,14 @@ function SectionTrail({
     })
   }
 
+  // A section is unlocked if it is the first, or if the previous section is completed
+  function isSectionUnlocked(idx: number): boolean {
+    if (idx === 0) return true
+    const prev = sections[idx - 1]
+    const prevProg = progress.find(p => p.section_id === prev.section_id)
+    return prevProg?.status === 'completed'
+  }
+
   return (
     <div className="flex-1 overflow-y-auto py-2 px-2 space-y-1">
       {sections.map((s, i) => {
@@ -246,6 +254,7 @@ function SectionTrail({
         const isCurrent = i === currentIdx
         const isDone = st === 'completed'
         const isExpanded = expanded.has(s.section_id)
+        const isLocked = !isSectionUnlocked(i)
 
         // Prefer saved teaching_points (with done state), fall back to fetched titles
         const topics: TeachingPoint[] = prog?.teaching_points && prog.teaching_points.length > 0
@@ -256,9 +265,11 @@ function SectionTrail({
         return (
           <div key={s.section_id}>
             {/* Section row */}
-            <button onClick={() => onSelect(i)} style={{
+            <button onClick={() => !isLocked && onSelect(i)} style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
               padding: '7px 10px', borderRadius: 10, textAlign: 'left', transition: 'all 0.2s',
+              cursor: isLocked ? 'default' : 'pointer',
+              opacity: isLocked ? 0.4 : 1,
               background: isCurrent
                 ? 'linear-gradient(135deg, rgba(0,255,255,0.12), rgba(166,0,255,0.12))'
                 : isDone ? 'rgba(0,255,180,0.06)' : 'transparent',
@@ -274,7 +285,7 @@ function SectionTrail({
                 border: isCurrent ? '1px solid #00ffff' : isDone ? '1px solid #00ffb3' : '1px solid rgba(255,255,255,0.15)',
                 color: isCurrent ? '#00ffff' : isDone ? '#00ffb3' : 'rgba(255,255,255,0.4)',
               }}>
-                {isDone ? <Check size={9} /> : s.section_id}
+                {isLocked ? <Lock size={8} /> : isDone ? <Check size={9} /> : s.section_id}
               </span>
               {/* Title */}
               <span style={{
@@ -284,8 +295,8 @@ function SectionTrail({
               }}>
                 {s.section_title}
               </span>
-              {/* Expand toggle */}
-              {topics.length > 0 && (
+              {/* Expand toggle — only show for unlocked sections */}
+              {!isLocked && topics.length > 0 && (
                 <span onClick={e => toggleExpand(s.section_id, e)} style={{
                   display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
                   cursor: 'pointer', padding: '2px 4px', borderRadius: 4,
@@ -301,7 +312,7 @@ function SectionTrail({
             </button>
 
             {/* Sub-topics list */}
-            {isExpanded && topics.length > 0 && (
+            {!isLocked && isExpanded && topics.length > 0 && (
               <div style={{ marginLeft: 12, marginBottom: 4, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {topics.map((pt, ti) => {
                   const isCurrentTopic = isCurrent && prog?.teaching_point_idx === ti && !pt.done
@@ -462,6 +473,171 @@ function NotesPanel({
   )
 }
 
+// ─── Section note-points panel (structured bullets for student note-taking) ───
+function SectionNotePoints({ content }: { content: string }) {
+  const [copied, setCopied] = useState<string | null>(null)
+  const groups = extractNotePoints(content)
+
+  const copyAll = () => {
+    const lines: string[] = []
+    for (const g of groups) {
+      if (g.subHeading) lines.push(`\n▸ ${g.subHeading}`)
+      for (const b of g.bullets) lines.push(`  • ${b}`)
+    }
+    void navigator.clipboard.writeText(lines.join('\n').trim()).then(() => {
+      setCopied('all')
+      setTimeout(() => setCopied(null), 1800)
+    })
+  }
+
+  const copyBullet = (text: string) => {
+    void navigator.clipboard.writeText(`• ${text}`).then(() => {
+      setCopied(text)
+      setTimeout(() => setCopied(null), 1500)
+    })
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '20px 0' }}>
+        No key points extracted yet.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <PenLine size={11} color="rgba(0,255,255,0.6)" />
+          <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(0,255,255,0.6)', letterSpacing: '0.15em', fontWeight: 700 }}>KEY POINTS TO NOTE</span>
+        </div>
+        <button onClick={copyAll} title="Copy all points" style={{
+          background: copied === 'all' ? 'rgba(0,255,120,0.15)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${copied === 'all' ? 'rgba(0,255,120,0.4)' : 'rgba(255,255,255,0.1)'}`,
+          borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+          fontSize: 9, fontFamily: 'monospace', color: copied === 'all' ? '#00ff88' : 'rgba(255,255,255,0.4)',
+          letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 4,
+          transition: 'all 0.2s',
+        }}>
+          {copied === 'all' ? <Check size={9} /> : <Download size={9} />}
+          {copied === 'all' ? 'COPIED' : 'COPY ALL'}
+        </button>
+      </div>
+
+      {/* Bullet groups */}
+      {groups.map((group, gi) => (
+        <div key={gi} style={{
+          background: 'rgba(255,255,255,0.025)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: 10,
+          overflow: 'hidden',
+        }}>
+          {/* Sub-heading */}
+          {group.subHeading && (
+            <div style={{
+              padding: '7px 12px',
+              background: 'rgba(166,0,255,0.08)',
+              borderBottom: '1px solid rgba(166,0,255,0.15)',
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#c080ff', lineHeight: 1.3, fontFamily: 'monospace' }}>
+                ▸ {group.subHeading}
+              </span>
+            </div>
+          )}
+
+          {/* Bullet list */}
+          <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {group.bullets.map((bullet, bi) => (
+              <div key={bi}
+                onClick={() => copyBullet(bullet)}
+                title="Click to copy"
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
+                  padding: '5px 8px', borderRadius: 7, cursor: 'pointer',
+                  background: copied === bullet ? 'rgba(0,255,120,0.08)' : 'transparent',
+                  border: `1px solid ${copied === bullet ? 'rgba(0,255,120,0.3)' : 'transparent'}`,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (copied !== bullet) (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,255,255,0.05)' }}
+                onMouseLeave={e => { if (copied !== bullet) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+              >
+                <span style={{
+                  width: 5, height: 5, borderRadius: '50%', flexShrink: 0, marginTop: 5,
+                  background: copied === bullet ? '#00ff88' : '#00ffff',
+                  boxShadow: copied === bullet ? '0 0 6px #00ff88' : '0 0 4px rgba(0,255,255,0.5)',
+                  transition: 'all 0.2s',
+                }} />
+                <span style={{
+                  fontSize: 11, lineHeight: 1.55,
+                  color: copied === bullet ? 'rgba(0,255,120,0.9)' : 'rgba(255,255,255,0.7)',
+                  flex: 1,
+                }}>
+                  {bullet}
+                </span>
+                {copied === bullet
+                  ? <Check size={9} color="#00ff88" style={{ flexShrink: 0, marginTop: 4 }} />
+                  : <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)', flexShrink: 0, marginTop: 5, fontFamily: 'monospace' }}>COPY</span>
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.08em', marginTop: 2 }}>
+        CLICK ANY POINT TO COPY · ADD TO NOTES TAB
+      </p>
+    </div>
+  )
+}
+
+// ─── Extract concise note-worthy bullet points from raw section content ───────
+function extractNotePoints(content: string): { subHeading: string | null; bullets: string[] }[] {
+  if (!content) return []
+
+  // Split content by sub-section markers like [1.2.1 Title text]
+  const subRe = /\[(\d+\.\d+\.\d+(?:\.\d+)?\s+[^\]]{2,80})\]/g
+  const parts: { heading: string | null; text: string }[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = subRe.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ heading: null, text: content.slice(lastIndex, match.index) })
+    }
+    const headingStart = match.index + match[0].length
+    lastIndex = headingStart
+    // peek ahead to next marker for text
+    const nextMatch = subRe.exec(content)
+    if (nextMatch) {
+      parts.push({ heading: match[1].trim(), text: content.slice(headingStart, nextMatch.index) })
+      lastIndex = nextMatch.index
+      subRe.lastIndex = nextMatch.index
+    } else {
+      parts.push({ heading: match[1].trim(), text: content.slice(headingStart) })
+      lastIndex = content.length
+    }
+  }
+  if (lastIndex < content.length) parts.push({ heading: null, text: content.slice(lastIndex) })
+
+  // If no sub-markers found treat whole content as one block
+  if (parts.length === 0) parts.push({ heading: null, text: content })
+
+  return parts.map(part => {
+    const raw = part.text.replace(/\s+/g, ' ').trim()
+    // Extract sentences that are short enough to be useful bullet points (15–160 chars)
+    const sentences = raw.match(/[^.!?]+[.!?]/g) ?? []
+    const bullets = sentences
+      .map(s => s.trim())
+      .filter(s => s.length >= 15 && s.length <= 180)
+      .filter(s => !/^(the|a|an|this|that|these|those|it|in|at|on|for|and|or)\b/i.test(s))
+      .slice(0, 5)
+    return { subHeading: part.heading, bullets }
+  }).filter(p => p.bullets.length > 0 || p.subHeading !== null)
+}
+
 // ─── Typing indicator ─────────────────────────────────────────────────────────
 function TypingIndicator() {
   return (
@@ -619,6 +795,8 @@ export default function CourseModulePage() {
   const [exchangeCount, setExchangeCount] = useState(0)
   const [showQuiz, setShowQuiz] = useState(false)
   const [quizPassed, setQuizPassed] = useState(false)
+  // True if this module was already completed before this session (allows forward nav without re-quiz)
+  const [moduleAlreadyCompleted, setModuleAlreadyCompleted] = useState(false)
 
   // Audio
   const [audioEnabled, setAudioEnabled] = useState(true)
@@ -932,19 +1110,23 @@ export default function CourseModulePage() {
 
   // ─── Load module + sections ───────────────────────────────────────────────
   useEffect(() => {
-    fetch(`/api/module-meta?moduleId=${moduleId}`)
-      .then(r => r.json() as Promise<{ module_title: string; part_number: number; part_title: string } | null>)
-      .then(data => {
-        if (data) {
-          setModuleTitle(data.module_title ?? moduleId.toUpperCase())
-          setPartNumber(data.part_number ?? 1)
-          setPartTitle(data.part_title ?? '')
-        }
-        const num = parseInt(moduleId.replace('m', ''), 10)
-        if (num < 87) setNextModule(`m${String(num + 1).padStart(2, '0')}`)
-        setModuleLoaded(true)
-      })
-      .catch(() => { setModuleLoaded(true) })
+    const num = parseInt(moduleId.replace('m', ''), 10)
+    if (num < 87) setNextModule(`m${String(num + 1).padStart(2, '0')}`)
+
+    Promise.all([
+      fetch(`/api/module-meta?moduleId=${moduleId}`).then(r => r.json() as Promise<{ module_title: string; part_number: number; part_title: string } | null>),
+      fetch('/api/progress').then(r => r.json() as Promise<{ completedModules: string[] }>),
+    ]).then(([meta, prog]) => {
+      if (meta) {
+        setModuleTitle(meta.module_title ?? moduleId.toUpperCase())
+        setPartNumber(meta.part_number ?? 1)
+        setPartTitle(meta.part_title ?? '')
+      }
+      if (prog?.completedModules?.includes(moduleId)) {
+        setModuleAlreadyCompleted(true)
+      }
+      setModuleLoaded(true)
+    }).catch(() => { setModuleLoaded(true) })
   }, [moduleId])
 
   // Load sections for this module
@@ -1009,12 +1191,7 @@ export default function CourseModulePage() {
     }
   }, [sessionKeyPoints, currentSection])
 
-  // Auto-start once module loaded and user activated
-  useEffect(() => {
-    if (!moduleLoaded || !userActivated || hasAutoStarted.current) return
-    hasAutoStarted.current = true
-    void doSend('__AUTO_START__', true)
-  }, [moduleLoaded, userActivated, doSend])
+  // No auto-start — student initiates the conversation
 
   // When section changes mid-session, reset chat and start new section
   // Load content for the current section
@@ -1036,14 +1213,7 @@ export default function CourseModulePage() {
     setCurrentPointIdx(0)
     hasAutoStarted.current = false
     cancelSpeech()
-    // Start the new section immediately if already activated
-    if (userActivated) {
-      setTimeout(() => {
-        hasAutoStarted.current = true
-        void doSend('__AUTO_START__', true)
-      }, 300)
-    }
-  }, [currentSectionIdx, cancelSpeech, userActivated, doSend])
+  }, [currentSectionIdx, cancelSpeech])
 
   // Mark current section as complete and advance
   const completeSection = useCallback(() => {
@@ -1110,6 +1280,8 @@ export default function CourseModulePage() {
   const completedCount = sectionProgress.filter(p => p.status === 'completed').length
   const totalSections = sections.length
   const progressPct = totalSections > 0 ? Math.round(completedCount / totalSections * 100) : 0
+  // Can navigate forward only if quiz was passed this session OR module was already completed
+  const canGoNext = quizPassed || moduleAlreadyCompleted
 
   // panel visibility toggles
   const [showSections, setShowSections] = useState(true)
@@ -1202,10 +1374,15 @@ export default function CourseModulePage() {
               <Brain size={12} /> QUIZ
             </button>
           )}
-          {quizPassed && nextModule && (
+          {canGoNext && nextModule && (
             <button onClick={() => router.push(`/course/${nextModule}`)} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(0,255,120,0.15)', border: '1px solid rgba(0,255,120,0.4)', color: '#00ff88', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
               NEXT MODULE <ChevronRight size={12} />
             </button>
+          )}
+          {!canGoNext && nextModule && exchangeCount > 0 && (
+            <div title="Pass the quiz to unlock next module" style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.25)', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Lock size={10} /> NEXT MODULE
+            </div>
           )}
           {/* Panel toggles */}
           <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)' }} />
@@ -1299,10 +1476,16 @@ export default function CourseModulePage() {
                 <ChevronLeft size={13} /> PREV
               </button>
               {nextModule && (
-                <button onClick={() => router.push(`/course/${nextModule}`)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-                  NEXT <ChevronRight size={13} />
-                </button>
+                canGoNext ? (
+                  <button onClick={() => router.push(`/course/${nextModule}`)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
+                    NEXT <ChevronRight size={13} />
+                  </button>
+                ) : (
+                  <span title="Pass the quiz to unlock" style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
+                    <Lock size={10} /> NEXT
+                  </span>
+                )
               )}
             </div>
           </div>
@@ -1346,8 +1529,12 @@ export default function CourseModulePage() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {messages.length === 0 && !streaming && userActivated && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                  <Loader2 size={24} color="rgba(0,255,255,0.4)" className="animate-spin" />
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,255,255,0.1)', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#00ffff' }}>A</div>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, maxWidth: 260 }}>
+                    Hi, I&apos;m Alex — your AI tutor.<br />
+                    Ask me anything about <span style={{ color: '#00ffff' }}>{currentSection?.section_title ?? moduleTitle}</span>, or say &ldquo;let&apos;s start&rdquo; to begin.
+                  </p>
                 </div>
               </div>
             )}
@@ -1477,9 +1664,7 @@ export default function CourseModulePage() {
                   </div>
                 )}
                 {sectionContent ? (
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.8, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {sectionContent}
-                  </div>
+                  <SectionNotePoints content={sectionContent} />
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, flexDirection: 'column', gap: 8 }}>
                     <Loader2 size={16} color="rgba(0,255,255,0.3)" className="animate-spin" />
