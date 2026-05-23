@@ -36,7 +36,7 @@ function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: Analyse
   const outerRef = useRef<HTMLDivElement>(null)
   const coreRef  = useRef<HTMLDivElement>(null)
   const frameRef = useRef<number>(0)
-  const freqData = useRef<Uint8Array | null>(null)
+  const freqData = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
   // Drive ring scale + opacity from live frequency data
   useEffect(() => {
