@@ -719,13 +719,13 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
               {result.weakAreas.length > 0 && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Revisit: {result.weakAreas.join(', ')}</p>}
             </div>
           )}
-          {!loading && !result && questions.map((q, qi) => (
+          {!loading && questions.map((q, qi) => (
             <div key={q.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 500, lineHeight: 1.5 }}>{qi + 1}. {q.question}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {q.options.map(opt => (
-                  <label key={opt} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s', background: answers[q.id] === opt ? 'rgba(0,255,255,0.1)' : 'rgba(255,255,255,0.03)', border: answers[q.id] === opt ? '1px solid rgba(0,255,255,0.4)' : '1px solid rgba(255,255,255,0.08)' }}>
-                    <input type="radio" name={q.id} value={opt} checked={answers[q.id] === opt} onChange={() => setAnswers(p => ({ ...p, [q.id]: opt }))} style={{ marginTop: 2, accentColor: '#00ffff' }} />
+                  <label key={opt} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: result ? 'default' : 'pointer', transition: 'all 0.15s', background: answers[q.id] === opt ? 'rgba(0,255,255,0.1)' : 'rgba(255,255,255,0.03)', border: answers[q.id] === opt ? '1px solid rgba(0,255,255,0.4)' : '1px solid rgba(255,255,255,0.08)' }}>
+                    <input type="radio" name={q.id} value={opt} checked={answers[q.id] === opt} onChange={() => !result && setAnswers(p => ({ ...p, [q.id]: opt }))} style={{ marginTop: 2, accentColor: '#00ffff' }} />
                     <span style={{ fontSize: 12, color: answers[q.id] === opt ? '#e0ffff' : 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{opt}</span>
                   </label>
                 ))}
