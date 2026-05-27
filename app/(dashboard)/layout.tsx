@@ -11,14 +11,14 @@ import {
 } from 'lucide-react'
 
 const navLinks = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard, color: '#00ffff' },
-  { href: '/dashboard', label: 'My Courses',  icon: BookOpen,         color: '#a855f7' },
-  { href: '/dashboard', label: 'Progress',    icon: TrendingUp,       color: '#22c55e' },
-  { href: '/dashboard', label: 'Certificate', icon: Award,            color: '#f59e0b' },
+  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard, color: '#00dcff', glow: '0,220,255' },
+  { href: '/dashboard', label: 'My Courses',  icon: BookOpen,         color: '#9632ff', glow: '150,50,255' },
+  { href: '/dashboard', label: 'Progress',    icon: TrendingUp,       color: '#00c8b4', glow: '0,200,180' },
+  { href: '/dashboard', label: 'Certificate', icon: Award,            color: '#ffc832', glow: '255,200,50' },
 ]
 
-const EXPANDED_W = 240
-const COLLAPSED_W = 64
+const EXPANDED_W = 248
+const COLLAPSED_W = 66
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -27,6 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [studentName, setStudentName] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [hoveredLink, setHoveredLink] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -48,172 +49,310 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (isCourse) return <>{children}</>
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#060a12', color: '#fff', fontFamily: 'Inter,system-ui,sans-serif', overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex', height: '100vh',
+      background: 'rgb(3,7,18)',
+      color: '#dce8ff',
+      fontFamily: "'Inter', system-ui, sans-serif",
+      overflow: 'hidden',
+      position: 'relative',
+    }}>
+
+      {/* ── Aurora background ── */}
+      <div className="aurora-bg" aria-hidden="true">
+        <div className="aurora-layer-3" />
+      </div>
 
       {/* Mobile overlay */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setMobileOpen(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 20, backdropFilter: 'blur(4px)' }} />
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,10,0.72)', zIndex: 20, backdropFilter: 'blur(6px)' }}
+          />
         )}
       </AnimatePresence>
 
-      {/* ── Sidebar wrapper — overflow visible so toggle button peeks out ── */}
+      {/* ── Sidebar wrapper ── */}
       <div style={{ position: 'relative', flexShrink: 0, zIndex: 30 }}>
-      {/* ── Sidebar ── */}
-      <motion.aside
-        animate={{ width: sideW }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        style={{
-          height: '100vh',
-          background: 'rgba(6,10,18,0.97)', borderRight: '1px solid rgba(0,255,255,0.08)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}
-      >
-        {/* ── Logo row ── */}
-        <div style={{ padding: collapsed ? '20px 0' : '22px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 10, transition: 'padding 0.2s' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: 'linear-gradient(135deg,rgba(0,255,255,0.25),rgba(120,0,255,0.25))', border: '1px solid rgba(0,255,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 14px rgba(0,255,255,0.15)' }}>
-            <Brain size={18} color="#00ffff" />
+
+        <motion.aside
+          animate={{ width: sideW }}
+          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          style={{
+            height: '100vh',
+            background: 'rgba(3,7,18,0.96)',
+            borderRight: '1px solid rgba(0,220,255,0.1)',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          {/* Sidebar aurora glow strip */}
+          <div style={{
+            position: 'absolute', top: 0, right: 0, width: 1, height: '100%',
+            background: 'linear-gradient(180deg, transparent, rgba(0,220,255,0.4), rgba(150,50,255,0.5), rgba(255,50,180,0.3), transparent)',
+            pointerEvents: 'none',
+          }} />
+
+          {/* ── Logo row ── */}
+          <div style={{
+            padding: collapsed ? '20px 0' : '20px 18px 16px',
+            borderBottom: '1px solid rgba(0,220,255,0.07)',
+            display: 'flex', alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: 12, transition: 'padding 0.2s',
+          }}>
+            <div style={{
+              width: 38, height: 38, borderRadius: 11, flexShrink: 0,
+              background: 'linear-gradient(135deg, rgba(0,220,255,0.2), rgba(150,50,255,0.3))',
+              border: '1px solid rgba(0,220,255,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 18px rgba(0,220,255,0.25), 0 0 40px rgba(150,50,255,0.15)',
+            }}>
+              <Brain size={19} color="#00dcff" />
+            </div>
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.18 }}
+                  style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
+                >
+                  <p style={{ fontSize: 14, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', color: '#dce8ff' }}>UK Accounting</p>
+                  <p className="aurora-text" style={{ fontSize: 9, margin: 0, fontFamily: 'monospace', letterSpacing: '0.14em', fontWeight: 700 }}>PRO · AI TUTOR</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
+
+          {/* ── AI status pill ── */}
           <AnimatePresence>
-            {!collapsed && (
-              <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.18 }} style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                <p style={{ fontSize: 14, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>UK Accounting</p>
-                <p style={{ fontSize: 10, color: '#00ffff', margin: 0, fontFamily: 'monospace', letterSpacing: '0.1em' }}>PRO</p>
+            {!collapsed ? (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                style={{
+                  margin: '14px 14px 0', padding: '10px 14px',
+                  background: 'rgba(0,220,255,0.04)',
+                  border: '1px solid rgba(0,220,255,0.12)',
+                  borderRadius: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <motion.div animate={{ scale: [1,1.4,1], opacity: [1,0.5,1] }} transition={{ duration: 2, repeat: Infinity }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
+                  </motion.div>
+                  <Sparkles size={12} color="rgba(0,220,255,0.6)" />
+                  <span style={{ fontSize: 10, color: 'rgba(0,220,255,0.75)', fontFamily: 'monospace', letterSpacing: '0.1em' }}>ALEX ONLINE</span>
+                  <motion.span
+                    animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2.5, repeat: Infinity, delay: 0.4 }}
+                    style={{ marginLeft: 'auto', fontSize: 8, color: 'rgba(150,50,255,0.7)', fontFamily: 'monospace', letterSpacing: '0.12em' }}
+                  >SYNAPSE LINK ●</motion.span>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                style={{ margin: '14px auto 0', width: 38, display: 'flex', justifyContent: 'center' }}
+              >
+                <motion.div animate={{ scale: [1,1.35,1], opacity: [1,0.5,1] }} transition={{ duration: 2, repeat: Infinity }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 12px #22c55e, 0 0 24px rgba(34,197,94,0.4)' }} />
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
 
-        {/* toggle button rendered in wrapper, not here */}
-
-        {/* ── AI status pill ── */}
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ margin: '14px 14px 0', padding: '10px 14px', background: 'rgba(0,255,255,0.05)', border: '1px solid rgba(0,255,255,0.1)', borderRadius: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <motion.div animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
-                </motion.div>
-                <Sparkles size={13} color="rgba(0,255,255,0.6)" />
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>ALEX ONLINE</span>
-              </div>
-            </motion.div>
-          )}
-          {collapsed && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ margin: '14px auto 0', width: 36, display: 'flex', justifyContent: 'center' }}>
-              <motion.div animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Nav links ── */}
-        <nav style={{ flex: 1, padding: collapsed ? '16px 10px' : '16px 12px', display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', overflowX: 'hidden' }}>
-          {navLinks.map(({ href, label, icon: Icon, color }) => {
-            const active = pathname === href
-            return (
-              <Link key={label} href={href} style={{ textDecoration: 'none' }} title={collapsed ? label : undefined}>
-                <motion.div whileHover={{ x: collapsed ? 0 : 3, scale: collapsed ? 1.08 : 1 }} whileTap={{ scale: 0.95 }}
-                  style={{
-                    display: 'flex', alignItems: 'center',
-                    gap: collapsed ? 0 : 11,
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    padding: collapsed ? '11px 0' : '10px 14px',
-                    borderRadius: 11,
-                    background: active ? `${color}14` : 'transparent',
-                    border: active ? `1px solid ${color}35` : '1px solid transparent',
-                    transition: 'all 0.15s',
-                    position: 'relative',
-                  }}>
-                  <Icon size={18} color={active ? color : 'rgba(255,255,255,0.35)'} style={{ flexShrink: 0 }} />
-                  <AnimatePresence>
-                    {!collapsed && (
-                      <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
-                        transition={{ duration: 0.16 }}
-                        style={{ fontSize: 13, fontWeight: active ? 600 : 400, color: active ? color : 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        {label}
-                      </motion.span>
+          {/* ── Nav links ── */}
+          <nav style={{
+            flex: 1, padding: collapsed ? '18px 10px' : '18px 12px',
+            display: 'flex', flexDirection: 'column', gap: 5,
+            overflowY: 'auto', overflowX: 'hidden',
+          }}>
+            {navLinks.map(({ href, label, icon: Icon, color, glow }) => {
+              const active = pathname === href
+              const isHovered = hoveredLink === label
+              return (
+                <Link key={label} href={href} style={{ textDecoration: 'none' }} title={collapsed ? label : undefined}>
+                  <motion.div
+                    whileHover={{ x: collapsed ? 0 : 4, scale: collapsed ? 1.1 : 1 }}
+                    whileTap={{ scale: 0.94 }}
+                    onHoverStart={() => setHoveredLink(label)}
+                    onHoverEnd={() => setHoveredLink(null)}
+                    style={{
+                      display: 'flex', alignItems: 'center',
+                      gap: collapsed ? 0 : 12,
+                      justifyContent: collapsed ? 'center' : 'flex-start',
+                      padding: collapsed ? '12px 0' : '10px 14px',
+                      borderRadius: 12,
+                      background: active
+                        ? `rgba(${glow},0.1)`
+                        : isHovered ? `rgba(${glow},0.06)` : 'transparent',
+                      border: active
+                        ? `1px solid rgba(${glow},0.32)`
+                        : `1px solid ${isHovered ? `rgba(${glow},0.18)` : 'transparent'}`,
+                      transition: 'all 0.18s ease',
+                      position: 'relative',
+                      boxShadow: active ? `0 0 20px rgba(${glow},0.12), inset 0 0 12px rgba(${glow},0.06)` : 'none',
+                    }}
+                  >
+                    <Icon size={18} color={active ? color : isHovered ? color : 'rgba(255,255,255,0.32)'} style={{ flexShrink: 0, transition: 'color 0.18s' }} />
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }}
+                          exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.16 }}
+                          style={{
+                            fontSize: 13, fontWeight: active ? 600 : 400,
+                            color: active ? color : isHovered ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.42)',
+                            whiteSpace: 'nowrap', overflow: 'hidden',
+                            transition: 'color 0.18s',
+                          }}
+                        >
+                          {label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {/* Active dot */}
+                    {active && !collapsed && (
+                      <motion.div
+                        layoutId="activeNavDot"
+                        style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}`, flexShrink: 0 }}
+                      />
                     )}
-                  </AnimatePresence>
-                  {active && !collapsed && (
-                    <div style={{ marginLeft: 'auto', width: 4, height: 4, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}`, flexShrink: 0 }} />
-                  )}
-                  {active && collapsed && (
-                    <div style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', width: 3, height: 16, borderRadius: 2, background: color, boxShadow: `0 0 6px ${color}` }} />
-                  )}
-                </motion.div>
-              </Link>
-            )
-          })}
-        </nav>
+                    {active && collapsed && (
+                      <div style={{
+                        position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)',
+                        width: 3, height: 18, borderRadius: 2,
+                        background: color, boxShadow: `0 0 8px ${color}`,
+                      }} />
+                    )}
+                  </motion.div>
+                </Link>
+              )
+            })}
+          </nav>
 
-        {/* ── User + sign out ── */}
-        <div style={{ padding: collapsed ? '14px 10px' : '14px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          {!collapsed ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 6, background: 'rgba(255,255,255,0.03)', borderRadius: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,rgba(0,255,255,0.3),rgba(120,0,255,0.3))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#00ffff', flexShrink: 0 }}>
+          {/* ── User + sign out ── */}
+          <div style={{
+            padding: collapsed ? '14px 10px' : '14px 12px',
+            borderTop: '1px solid rgba(0,220,255,0.07)',
+          }}>
+            {!collapsed ? (
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 12px', marginBottom: 6,
+                  background: 'rgba(0,220,255,0.03)',
+                  border: '1px solid rgba(0,220,255,0.08)',
+                  borderRadius: 10,
+                }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                    background: 'linear-gradient(135deg, rgba(0,220,255,0.3), rgba(150,50,255,0.35))',
+                    border: '1px solid rgba(0,220,255,0.35)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, color: '#00dcff',
+                    boxShadow: '0 0 12px rgba(0,220,255,0.2)',
+                  }}>
+                    {initials || '?'}
+                  </div>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: 'rgba(220,232,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, margin: 0 }}>
+                    {studentName}
+                  </p>
+                </div>
+                <motion.button
+                  whileHover={{ x: 3 }} onClick={handleSignOut}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '9px 14px', background: 'none', border: 'none', borderRadius: 10,
+                    cursor: 'pointer', color: 'rgba(255,255,255,0.32)', fontSize: 13,
+                  }}
+                >
+                  <LogOut size={15} color="rgba(255,255,255,0.28)" />
+                  Sign out
+                </motion.button>
+              </>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(0,220,255,0.28), rgba(150,50,255,0.32))',
+                  border: '1px solid rgba(0,220,255,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, color: '#00dcff', cursor: 'default',
+                }} title={studentName}>
                   {initials || '?'}
                 </div>
-                <p style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, margin: 0 }}>{studentName}</p>
+                <motion.button
+                  whileHover={{ scale: 1.14 }} onClick={handleSignOut} title="Sign out"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 36, height: 36,
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 10, cursor: 'pointer',
+                  }}
+                >
+                  <LogOut size={15} color="rgba(255,255,255,0.28)" />
+                </motion.button>
               </div>
-              <motion.button whileHover={{ x: 2 }} onClick={handleSignOut}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 14px', background: 'none', border: 'none', borderRadius: 10, cursor: 'pointer', color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>
-                <LogOut size={15} color="rgba(255,255,255,0.3)" />
-                Sign out
-              </motion.button>
-            </>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,rgba(0,255,255,0.3),rgba(120,0,255,0.3))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#00ffff', cursor: 'default' }} title={studentName}>
-                {initials || '?'}
-              </div>
-              <motion.button whileHover={{ scale: 1.12 }} onClick={handleSignOut} title="Sign out"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, cursor: 'pointer' }}>
-                <LogOut size={15} color="rgba(255,255,255,0.3)" />
-              </motion.button>
-            </div>
-          )}
-        </div>
-      </motion.aside>
+            )}
+          </div>
+        </motion.aside>
 
-        {/* ── Collapse toggle — lives in wrapper so it's not clipped ── */}
+        {/* ── Collapse toggle ── */}
         <motion.button
-          animate={{ left: sideW - 12 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          animate={{ left: sideW - 13 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           onClick={() => setCollapsed(v => !v)}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           style={{
             position: 'absolute', top: 26, zIndex: 40,
-            width: 24, height: 24, borderRadius: '50%',
-            background: '#060a12', border: '1px solid rgba(0,255,255,0.3)',
+            width: 26, height: 26, borderRadius: '50%',
+            background: 'rgb(3,7,18)',
+            border: '1px solid rgba(0,220,255,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', boxShadow: '0 0 12px rgba(0,255,255,0.2)',
+            cursor: 'pointer',
+            boxShadow: '0 0 14px rgba(0,220,255,0.3), 0 0 28px rgba(150,50,255,0.15)',
           }}
         >
           {collapsed
-            ? <ChevronRight size={12} color="rgba(0,255,255,0.8)" />
-            : <ChevronLeft  size={12} color="rgba(0,255,255,0.8)" />}
+            ? <ChevronRight size={13} color="rgba(0,220,255,0.85)" />
+            : <ChevronLeft  size={13} color="rgba(0,220,255,0.85)" />}
         </motion.button>
 
       </div>{/* end sidebar wrapper */}
 
       {/* ── Main area ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', position: 'relative', zIndex: 1 }}>
         {/* Top bar */}
-        <header style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'rgba(6,10,18,0.8)', backdropFilter: 'blur(20px)' }}>
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden"
-            style={{ padding: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
-            {mobileOpen ? <X size={18} color="rgba(255,255,255,0.6)" /> : <Menu size={18} color="rgba(255,255,255,0.6)" />}
+        <header style={{
+          borderBottom: '1px solid rgba(0,220,255,0.07)',
+          padding: '13px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0,
+          background: 'rgba(3,7,18,0.8)',
+          backdropFilter: 'blur(24px) saturate(160%)',
+        }}>
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="lg:hidden"
+            style={{ padding: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,220,255,0.1)', borderRadius: 9, cursor: 'pointer' }}
+          >
+            {mobileOpen
+              ? <X    size={18} color="rgba(255,255,255,0.6)" />
+              : <Menu size={18} color="rgba(255,255,255,0.6)" />}
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{studentName}</span>
-            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,rgba(0,255,255,0.25),rgba(120,0,255,0.25))', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#00ffff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
+            <span style={{ fontSize: 13, color: 'rgba(220,232,255,0.38)' }}>{studentName}</span>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(0,220,255,0.24), rgba(150,50,255,0.28))',
+              border: '1px solid rgba(0,220,255,0.35)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 700, color: '#00dcff',
+              boxShadow: '0 0 14px rgba(0,220,255,0.22)',
+            }}>
               {initials || '?'}
             </div>
           </div>

@@ -1,3 +1,7 @@
+-- ─── FULL SCHEMA — idempotent, safe to run multiple times ────────────────────
+-- Run in Supabase SQL Editor.
+-- @dialect postgresql
+
 -- ─── DROP EVERYTHING ──────────────────────────────────────────────────────────
 drop table if exists section_progress cascade;
 drop table if exists token_usage cascade;

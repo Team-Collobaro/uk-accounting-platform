@@ -30,6 +30,9 @@ function compressHistory(history: ChatMessage[]): ChatMessage[] {
 
 // ─── Streaming tutor ──────────────────────────────────────────────────────────
 
+// Teaching phases that drive the structured loop
+export type TeachingPhase = 'PRE_NOTES' | 'EXPLAIN' | 'CHECK' | 'POST_NOTES' | 'WRAP'
+
 export async function* tutorStream(params: {
   student: Student
   module: Module
@@ -41,16 +44,85 @@ export async function* tutorStream(params: {
   teachingPointIdx?: number
   teachingPointTitle?: string | null
   totalTeachingPoints?: number
+  allTeachingPoints?: string[]
+  phase?: TeachingPhase
 }): AsyncGenerator<string | { done: true; inputTokens: number; outputTokens: number }> {
-  const { student, module: mod, history, message, ragContext, currentSection, completedSections = [], teachingPointIdx = 0, teachingPointTitle, totalTeachingPoints = 0 } = params
+  const {
+    student, module: mod, history, message, ragContext,
+    currentSection, completedSections = [],
+    teachingPointIdx = 0, teachingPointTitle,
+    totalTeachingPoints = 0, allTeachingPoints = [],
+    phase = 'EXPLAIN',
+  } = params
 
   const isAutoStart = message === '__AUTO_START__'
-  const exchangeCount = Math.floor(history.length / 2)
-  const isTeachingPhase = exchangeCount < 4
   const sectionLabel = currentSection ? `${currentSection.sectionId} — ${currentSection.sectionTitle}` : mod.title
   const completedLabel = completedSections.length > 0 ? `Completed so far: ${completedSections.join(', ')}` : 'No sections completed yet'
   const pointLabel = teachingPointTitle ?? null
-  const pointProgress = totalTeachingPoints > 0 ? `Teaching point ${teachingPointIdx + 1} of ${totalTeachingPoints}` : ''
+  const pointProgress = totalTeachingPoints > 0 ? `topic ${teachingPointIdx + 1} of ${totalTeachingPoints}` : ''
+  const isLastPoint = teachingPointIdx >= totalTeachingPoints - 1
+  const topicOutline = allTeachingPoints.length > 0
+    ? allTeachingPoints.map((t, i) => `  ${i + 1}. ${t}`).join('\n')
+    : '  (topics loading)'
+
+  // Phase-specific instruction blocks
+  const phaseInstruction = (() => {
+    if (isAutoStart) {
+      return `OPENING — do ALL of the following in order, in plain spoken sentences:
+1. Greet ${student.name} warmly by first name (one short sentence).
+2. Say what section ${currentSection?.sectionId ?? '1.1'} (${currentSection?.sectionTitle ?? sectionLabel}) covers and why it matters (one sentence).
+3. Say: "Before we dive in, I'd like you to write these headings in your notes." Then read out each topic title from the list below, numbering them clearly (e.g. "Number one: [topic]. Number two: [topic]..."). Tell the student to leave space under each to fill in as we go.
+4. After reading the outline say: "Ready? Let's start with topic one." Then teach the FIRST topic "${pointLabel ?? 'the opening concept'}" in exactly 2 plain sentences using ONLY COURSE CONTENT facts.
+5. End with ONE clear question about that first topic only.
+
+Topics the student should write down:
+${topicOutline}`
+    }
+
+    switch (phase) {
+      case 'PRE_NOTES':
+        return `PRE-TOPIC NOTES PROMPT for topic "${pointLabel}" (${pointProgress}):
+- Say: "Before I explain this next topic, write the heading '${pointLabel}' in your notes and leave a few lines underneath."
+- Add one sentence about WHY this topic is important (from COURSE CONTENT only).
+- End with: "Ready? Tell me when you've written it and I'll explain." — do NOT start explaining yet.
+- Maximum 3 sentences total.`
+
+      case 'EXPLAIN':
+        return `EXPLAIN phase — teaching "${pointLabel}" (${pointProgress}):
+- Confirm the student is ready (one warm sentence acknowledging their note-taking).
+- Explain "${pointLabel}" in exactly 2-3 plain spoken sentences using ONLY COURSE CONTENT facts.
+- Say: "Now add those key points under your heading in your notes." (one sentence nudge).
+- End with ONE specific check question about "${pointLabel}" only — do NOT ask about other topics.
+- Maximum 5 sentences total.`
+
+      case 'CHECK':
+        return `CHECK phase — checking understanding of "${pointLabel}" (${pointProgress}):
+- Read the student's answer and respond in ONE sentence: affirm warmly if correct, or gently correct if wrong.
+- If CORRECT: say "Great — note that down!" then say "Let's move on to the next topic." (use exactly this phrase so the system can detect it). Do NOT explain the next topic yet.
+- If INCORRECT: give ONE warm hint, re-ask the SAME question — do NOT move on.
+- Maximum 3 sentences total.`
+
+      case 'POST_NOTES':
+        return `POST-TOPIC NOTES phase after "${pointLabel}" (${pointProgress}):
+- Confirm what the student should now have written under the "${pointLabel}" heading.
+- Give them ONE crisp bullet-point summary sentence they can copy: "The key point is: [fact from COURSE CONTENT]."
+- ${isLastPoint
+    ? `This was the LAST topic. Say "You've now covered all the topics in this section! Click 'Section Complete' when you're happy with your notes."`
+    : `Transition: "The next topic is '${allTeachingPoints[teachingPointIdx + 1] ?? 'the next point'}'. Write that heading now and leave some space."  End with "Ready when you are!"`}
+- Maximum 4 sentences total.`
+
+      case 'WRAP':
+        return `WRAP-UP for section ${currentSection?.sectionId ?? 'this'}:
+- Ask ONE connecting question that links two topics from the outline below.
+- If correct: affirm and say "You've covered section ${currentSection?.sectionId ?? 'this'} really well! Click 'Section Complete' when you're ready."
+- If incorrect: give a warm hint and re-ask.
+- Maximum 3 sentences total.
+Topics covered: ${topicOutline}`
+
+      default:
+        return `Respond naturally to the student's message in 2-3 warm spoken sentences using ONLY COURSE CONTENT facts.`
+    }
+  })()
 
   const systemPrompt = `You are Alex, a warm and encouraging UK accounting tutor speaking out loud to a student.
 
@@ -60,41 +132,16 @@ ${completedLabel}
 Student: ${student.name} | ${student.completedModules.length}/87 modules done | avg score ${student.avgQuizScore}%
 
 VOICE & TONE:
-- Warm, conversational, encouraging — like a human tutor, not a textbook
-- Use "you", "let's", "great question" naturally
+- Warm, conversational, encouraging — like a human tutor not a textbook
+- Use "you", "let's", "great" naturally
 - Short sentences that sound natural spoken aloud
 - NEVER use markdown: no #, *, **, -, bullet points — plain spoken sentences only
-- Max 2-3 sentences per reply, NEVER more — keep it brief and focused
-- Only use facts from COURSE CONTENT below — never invent figures or rules
+- Only use facts from COURSE CONTENT — never invent figures or rules
 - Always state the tax year for any figure, e.g. 2024/25
-- If the student is wrong, gently correct in one warm sentence then continue
 
-TOPIC-BY-TOPIC TEACHING METHOD — follow this strictly:
-${pointLabel ? `- You are currently teaching: "${pointLabel}" (${pointProgress})` : '- Begin with the first topic from COURSE CONTENT'}
-- Teach ONLY this one topic this reply. Do not mention other topics yet.
-- Say the topic title naturally in your opening sentence, e.g. "So let's talk about ${pointLabel ?? 'this first idea'}..."
-- Explain the topic in 2-3 warm, spoken sentences using ONLY facts from COURSE CONTENT
-- End with ONE specific question about ONLY this topic
-- When the student answers correctly, say "Great, let's move on to the next point" to signal you are done with this topic
-- If answered poorly: give one gentle hint and ask again — do NOT move on yet
-- Never skip ahead or teach multiple topics in one reply
+${phaseInstruction}
 
-${isAutoStart ? `OPENING — do all of these in order:
-1. Greet ${student.name} warmly by first name (one sentence)
-2. One sentence: what section ${currentSection?.sectionId ?? '1.1'} is about and why it matters
-3. Say "Let's start with..." then teach the FIRST topic: "${pointLabel ?? 'the opening concept'}" — 2 sentences, then one question` :
-
-isTeachingPhase ? `CURRENT EXCHANGE (${exchangeCount + 1}):
-- Respond to the student's answer (affirm warmly or correct gently) in ONE sentence
-- If they answered well: say "Great, let's move on to the next point." then teach the next topic from COURSE CONTENT
-- If they answered poorly: give a warm hint and re-ask the SAME topic — don't advance` :
-
-`WRAP-UP (exchange ${exchangeCount + 1}):
-- Ask a connecting question that ties two topics from this section together
-- If correct: affirm and say "You've covered section ${currentSection?.sectionId ?? 'this'} really well! Click 'Section Complete' when you're ready."
-- If incorrect: give a warm hint and re-ask`}
-
-COURSE CONTENT for "${pointLabel ?? sectionLabel}" — use ONLY these facts, teach the current topic first:
+COURSE CONTENT for "${pointLabel ?? sectionLabel}":
 ${ragContext}`
 
   const compressed = compressHistory(history)

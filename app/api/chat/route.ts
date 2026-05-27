@@ -31,9 +31,11 @@ export async function POST(req: NextRequest) {
       teachingPointIdx?: number
       teachingPointTitle?: string | null
       totalTeachingPoints?: number
+      allTeachingPoints?: string[]
+      phase?: import('@/lib/anthropic').TeachingPhase
     }
 
-    const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, totalTeachingPoints } = body
+    const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, totalTeachingPoints, allTeachingPoints, phase } = body
 
     if (!message || !moduleId) {
       return NextResponse.json({ error: 'message and moduleId are required' }, { status: 400 })
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of tutorStream({ student, module: mod, history, message, ragContext, currentSection, completedSections, teachingPointIdx, teachingPointTitle, totalTeachingPoints })) {
+          for await (const chunk of tutorStream({ student, module: mod, history, message, ragContext, currentSection, completedSections, teachingPointIdx, teachingPointTitle, totalTeachingPoints, allTeachingPoints, phase })) {
             if (typeof chunk === 'string') {
               fullResponse += chunk
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: chunk })}\n\n`))
