@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import ContentProtection from '@/components/ContentProtection'
 
 export const metadata: Metadata = {
   title: 'UK Accounting Pro — AI-Powered Learning Platform',
@@ -15,7 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <ContentProtection />
+        {children}
+      </body>
     </html>
   )
 }

@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createClientComponentClient } from '@/lib/supabase'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import {
   Brain, BookOpen, Award, TrendingUp, CheckCircle2,
@@ -255,6 +257,15 @@ const TESTIMONIALS = [
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
+  const router  = useRouter()
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) router.replace('/dashboard')
+    })
+  }, [router, supabase])
+
   const { scrollY } = useScroll()
   const heroY       = useTransform(scrollY, [0, 400], [0, -50])
   const heroOpacity = useTransform(scrollY, [0, 280], [1, 0])
@@ -352,15 +363,15 @@ export default function HomePage() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
                 {[
-                  { v: '87', l: 'Modules' },
-                  { v: '150h', l: 'Curriculum' },
-                  { v: '12', l: 'Subject Areas' },
-                  { v: 'ACCA', l: 'Grade Depth' },
-                ].map(({ v, l }) => (
-                  <div key={l} style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 18, fontWeight: 800, color: '#E8F0FC', lineHeight: 1 }}>{v}</p>
+                  { v: '87', l: 'Modules', color: '#4ECDC4' },
+                  { v: '150h', l: 'Curriculum', color: '#9B6FD0' },
+                  { v: '12', l: 'Subject Areas', color: '#52D98B' },
+                  { v: 'ACCA', l: 'Grade Depth', color: '#E8B84B' },
+                ].map(({ v, l, color }) => (
+                  <motion.div key={l} whileHover={{ scale: 1.05 }} style={{ textAlign: 'center', cursor: 'default' }}>
+                    <p style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1, textShadow: `0 0 20px ${color}50` }}>{v}</p>
                     <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.1em', marginTop: 2 }}>{l.toUpperCase()}</p>
-                  </div>
+                  </motion.div>
                 ))}
               </motion.div>
             </div>
@@ -517,6 +528,35 @@ export default function HomePage() {
         </div>
         <p style={{ fontSize: 11, color: '#4A6285' }}>© {new Date().getFullYear()} AI-Powered Professional Learning</p>
       </footer>
+
+      {/* ── Sticky mobile CTA ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 60 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.5, type: 'spring', stiffness: 200 }}
+        style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          padding: '12px 20px',
+          background: 'rgba(5,8,16,0.95)',
+          borderTop: '1px solid rgba(78,205,196,0.12)',
+          backdropFilter: 'blur(20px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          zIndex: 90,
+          // hide on large screens via inline media — handled below by min-width check
+        }}
+        className="mobile-sticky-cta"
+      >
+        <div>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#E8F0FC', marginBottom: 1 }}>Start learning free</p>
+          <p style={{ fontSize: 10, color: '#4A6285' }}>87 modules · AI tutor included</p>
+        </div>
+        <Link href="/register" style={{ textDecoration: 'none', flexShrink: 0 }}>
+          <motion.span whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 20px', borderRadius: 11, background: 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, fontSize: 13, cursor: 'pointer', boxShadow: '0 0 20px rgba(78,205,196,0.2)' }}>
+            Get started <ArrowRight size={13} />
+          </motion.span>
+        </Link>
+      </motion.div>
     </div>
   )
 }

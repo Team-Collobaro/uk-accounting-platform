@@ -7,16 +7,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import {
   LayoutDashboard, BookOpen, TrendingUp, Award, LogOut,
-  Menu, X, Brain, Sparkles, ChevronLeft, ChevronRight,
+  Menu, X, Brain, Sparkles, ChevronLeft, ChevronRight, Play,
 } from 'lucide-react'
 import LiquidEther from '@/components/LiquidEther'
 import ShinyText from '@/components/reactbits/ShinyText'
 
 const navLinks = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard, color: '#4ECDC4', glow: '78,205,196'  },
-  { href: '/dashboard', label: 'My Courses',  icon: BookOpen,         color: '#9B6FD0', glow: '155,111,208' },
-  { href: '/dashboard', label: 'Progress',    icon: TrendingUp,       color: '#52D98B', glow: '82,217,139'  },
-  { href: '/dashboard', label: 'Certificate', icon: Award,            color: '#E8B84B', glow: '232,184,75'  },
+  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, color: '#4ECDC4', glow: '78,205,196',  hint: 'Overview & progress' },
+  { href: '/dashboard',   label: 'My Courses',  icon: BookOpen,         color: '#9B6FD0', glow: '155,111,208', hint: 'Browse all 87 modules' },
+  { href: '/dashboard',   label: 'Progress',    icon: TrendingUp,       color: '#52D98B', glow: '82,217,139',  hint: 'Quiz scores & stats' },
+  { href: '/dashboard',   label: 'Certificate', icon: Award,            color: '#E8B84B', glow: '232,184,75',  hint: 'View your certificate' },
 ]
 
 const EXPANDED_W = 248
@@ -26,10 +26,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClientComponentClient()
-  const [studentName, setStudentName] = useState('')
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
-  const [hoveredLink, setHoveredLink] = useState<string | null>(null)
+  const [studentName,    setStudentName]    = useState('')
+  const [mobileOpen,     setMobileOpen]     = useState(false)
+  const [collapsed,      setCollapsed]      = useState(false)
+  const [nextModule,     setNextModule]     = useState<string | null>(null)
+  const [completedCount, setCompletedCount] = useState(0)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -37,6 +38,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       supabase.from('students').select('name').eq('id', data.user.id).single()
         .then(({ data: s }) => { if (s) setStudentName(s.name) })
     })
+    fetch('/api/progress')
+      .then(r => r.json() as Promise<{ nextRecommendedModule: string; completedModules: string[] }>)
+      .then(d => { setNextModule(d.nextRecommendedModule); setCompletedCount(d.completedModules?.length ?? 0) })
+      .catch(() => {})
   }, [supabase])
 
   const initials = studentName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -67,8 +72,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }}>
         <LiquidEther
           colors={['#4ECDC4', '#5B78D8', '#9B6FD0', '#FF6FD8']}
-          mouseForce={20}
-          cursorSize={120}
+          mouseForce={0}
+          cursorSize={0}
           resolution={0.4}
           autoDemo={true}
           autoSpeed={0.35}
@@ -190,32 +195,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}>
             {navLinks.map(({ href, label, icon: Icon, color, glow }) => {
               const active = pathname === href
-              const isHovered = hoveredLink === label
               return (
                 <Link key={label} href={href} style={{ textDecoration: 'none' }} title={collapsed ? label : undefined}>
-                  <motion.div
-                    whileHover={{ x: collapsed ? 0 : 4, scale: collapsed ? 1.1 : 1 }}
-                    whileTap={{ scale: 0.94 }}
-                    onHoverStart={() => setHoveredLink(label)}
-                    onHoverEnd={() => setHoveredLink(null)}
+                  <div
+                    className={`nav-item-${glow.replace(/,/g,'')}`}
                     style={{
                       display: 'flex', alignItems: 'center',
                       gap: collapsed ? 0 : 12,
                       justifyContent: collapsed ? 'center' : 'flex-start',
                       padding: collapsed ? '12px 0' : '10px 14px',
                       borderRadius: 12,
-                      background: active
-                        ? `rgba(${glow},0.1)`
-                        : isHovered ? `rgba(${glow},0.06)` : 'transparent',
-                      border: active
-                        ? `1px solid rgba(${glow},0.32)`
-                        : `1px solid ${isHovered ? `rgba(${glow},0.18)` : 'transparent'}`,
-                      transition: 'all 0.18s ease',
+                      background: active ? `rgba(${glow},0.1)` : 'transparent',
+                      border: active ? `1px solid rgba(${glow},0.32)` : '1px solid transparent',
+                      transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
                       position: 'relative',
+                      cursor: 'pointer',
                       boxShadow: active ? `0 0 20px rgba(${glow},0.12), inset 0 0 12px rgba(${glow},0.06)` : 'none',
                     }}
+                    onMouseEnter={e => {
+                      if (!active) {
+                        const el = e.currentTarget as HTMLElement
+                        el.style.background = `rgba(${glow},0.06)`
+                        el.style.borderColor = `rgba(${glow},0.18)`
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (!active) {
+                        const el = e.currentTarget as HTMLElement
+                        el.style.background = 'transparent'
+                        el.style.borderColor = 'transparent'
+                      }
+                    }}
                   >
-                    <Icon size={18} color={active ? color : isHovered ? color : 'rgba(255,255,255,0.32)'} style={{ flexShrink: 0, transition: 'color 0.18s' }} />
+                    <Icon size={18} color={active ? color : 'rgba(255,255,255,0.32)'} style={{ flexShrink: 0, transition: 'color 0.18s' }} />
                     <AnimatePresence>
                       {!collapsed && (
                         <motion.span
@@ -223,16 +235,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.16 }}
                           style={{
                             fontSize: 13, fontWeight: active ? 600 : 400,
-                            color: active ? color : isHovered ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.42)',
+                            color: active ? color : 'rgba(255,255,255,0.42)',
                             whiteSpace: 'nowrap', overflow: 'hidden',
-                            transition: 'color 0.18s',
                           }}
                         >
                           {label}
                         </motion.span>
                       )}
                     </AnimatePresence>
-                    {/* Active dot */}
                     {active && !collapsed && (
                       <motion.div
                         layoutId="activeNavDot"
@@ -246,11 +256,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         background: color, boxShadow: `0 0 8px ${color}`,
                       }} />
                     )}
-                  </motion.div>
+                  </div>
                 </Link>
               )
             })}
           </nav>
+
+          {/* ── Continue Learning quick button ── */}
+          {nextModule && (
+            <div style={{ padding: collapsed ? '0 10px 10px' : '0 12px 10px' }}>
+              <Link href={`/course/${nextModule}`} style={{ textDecoration: 'none' }} title={collapsed ? `Continue: ${nextModule.toUpperCase()}` : undefined}>
+                <motion.div
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    gap: collapsed ? 0 : 10,
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    padding: collapsed ? '10px 0' : '10px 14px',
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg,rgba(78,205,196,0.14),rgba(82,217,139,0.1))',
+                    border: '1px solid rgba(78,205,196,0.3)',
+                    boxShadow: '0 0 16px rgba(78,205,196,0.1)',
+                    cursor: 'pointer',
+                  }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 7, background: 'rgba(78,205,196,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Play size={10} color="#4ECDC4" style={{ marginLeft: 1 }} />
+                  </div>
+                  <AnimatePresence>
+                    {!collapsed && (
+                      <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.16 }} style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.1em', marginBottom: 1 }}>CONTINUE</p>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#4ECDC4' }}>{nextModule.toUpperCase()}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </Link>
+              {!collapsed && (
+                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+                  <span style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace' }}>{completedCount}/87 DONE</span>
+                  <div style={{ flex: 1, height: 2, borderRadius: 2, background: 'rgba(255,255,255,0.05)', margin: '0 8px', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(completedCount / 87 * 100)}%`, height: '100%', background: '#4ECDC4', borderRadius: 2, transition: 'width 0.6s ease' }} />
+                  </div>
+                  <span style={{ fontSize: 9, color: '#4ECDC4', fontFamily: 'monospace' }}>{Math.round(completedCount / 87 * 100)}%</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── User + sign out ── */}
           <div style={{

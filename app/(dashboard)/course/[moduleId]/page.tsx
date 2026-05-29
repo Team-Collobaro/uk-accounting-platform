@@ -3,10 +3,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@/lib/supabase'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Loader2, ChevronLeft, ChevronRight, Brain,
   CheckCircle2, XCircle, Mic, MicOff, Volume2, VolumeX,
   Download, PenLine, ChevronDown, ChevronUp, Check, Lock,
+  Keyboard, Sparkles,
 } from 'lucide-react'
 import type { QuizQuestion } from '@/types'
 import StarBorder from '@/components/reactbits/StarBorder'
@@ -21,6 +23,7 @@ interface SectionProgress {
   section_id: string; section_title: string; status: string
   notes: string; key_points: string[]
   teaching_point_idx?: number; teaching_points?: TeachingPoint[]
+  t_phase?: string
 }
 
 function AuroraStatus({ speaking }: { speaking: boolean }) {
@@ -43,36 +46,41 @@ function AuroraStatus({ speaking }: { speaking: boolean }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   SECTION TRAIL
+   SECTION TRAIL — H2 topics with H3 sub-sections nested inside
    ══════════════════════════════════════════════════════════════════════════════ */
-function SectionTrail({ sections, currentIdx, progress, moduleId, onSelect }: {
+
+function isSubSection(id: string) { return (id.match(/\./g) ?? []).length >= 2 }
+
+function groupSections(sections: Section[]) {
+  const groups: Array<{ parent: Section; parentIdx: number; children: Array<{ section: Section; idx: number }> }> = []
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i]
+    if (!isSubSection(s.section_id)) {
+      groups.push({ parent: s, parentIdx: i, children: [] })
+    } else {
+      const last = groups[groups.length - 1]
+      if (last) last.children.push({ section: s, idx: i })
+    }
+  }
+  return groups
+}
+
+function SectionTrail({ sections, currentIdx, progress, quizUnlocked, onSelect, onStartFinalQuiz }: {
   sections: Section[]; currentIdx: number; progress: SectionProgress[]
-  moduleId: string; onSelect: (i: number) => void
+  quizUnlocked: boolean
+  onSelect: (i: number) => void
+  onStartFinalQuiz: () => void
 }) {
-  const [fetched,  setFetched]  = useState<Record<string, string[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    sections.forEach(s => {
-      const saved = progress.find(p => p.section_id === s.section_id)
-      if (saved?.teaching_points?.length) return
-      fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${s.section_id}`)
-        .then(r => r.json() as Promise<{ points: string[]; pointContents: string[] }>)
-        .then(d => { if (d.points?.length) setFetched(prev => ({ ...prev, [s.section_id]: d.points })) })
-        .catch(() => {})
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections, moduleId])
-
-  useEffect(() => {
     const cur = sections[currentIdx]
-    if (cur) setExpanded(prev => new Set(prev).add(cur.section_id))
+    if (!cur) return
+    const parentId = isSubSection(cur.section_id)
+      ? cur.section_id.split('.').slice(0, 2).join('.')
+      : cur.section_id
+    setExpanded(prev => new Set(prev).add(parentId))
   }, [currentIdx, sections])
-
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
 
   const isUnlocked = (idx: number) => {
     if (idx === 0) return true
@@ -80,103 +88,105 @@ function SectionTrail({ sections, currentIdx, progress, moduleId, onSelect }: {
     return progress.find(p => p.section_id === prev.section_id)?.status === 'completed'
   }
 
+  const groups = groupSections(sections)
+
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {sections.map((s, i) => {
-        const prog      = progress.find(p => p.section_id === s.section_id)
-        const isDone    = prog?.status === 'completed'
-        const isCurrent = i === currentIdx
-        const locked    = !isUnlocked(i)
-        const topics: TeachingPoint[] = prog?.teaching_points?.length
-          ? prog.teaching_points
-          : (fetched[s.section_id] ?? []).map(t => ({ title: t, content: '', done: false }))
-        const doneCount = topics.filter(t => t.done).length
-        const isExp     = expanded.has(s.section_id)
+      {groups.map(({ parent, parentIdx, children }) => {
+        const parentDone = progress.find(p => p.section_id === parent.section_id)?.status === 'completed'
+        const isCurParent = currentIdx === parentIdx
+        const parentLocked = !isUnlocked(parentIdx)
+        const isExp = expanded.has(parent.section_id)
+        const hasChildren = children.length > 0
+        const groupIds = [parent.section_id, ...children.map(c => c.section.section_id)]
+        const groupDone = groupIds.filter(id => progress.find(p => p.section_id === id)?.status === 'completed').length
 
         return (
-          <div key={s.section_id}>
-            {/* row */}
+          <div key={parent.section_id}>
+            {/* H2 topic row */}
             <button
-              onClick={() => !locked && onSelect(i)}
-              className={isCurrent ? 'trail-active' : ''}
+              onClick={() => {
+                if (!parentLocked) {
+                  if (hasChildren) setExpanded(prev => { const n = new Set(prev); n.has(parent.section_id) ? n.delete(parent.section_id) : n.add(parent.section_id); return n })
+                  onSelect(parentIdx)
+                }
+              }}
+              className={isCurParent ? 'trail-active' : ''}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 10px', borderRadius: 9, textAlign: 'left',
-                cursor: locked ? 'default' : 'pointer', opacity: locked ? 0.35 : 1,
-                border: isCurrent
-                  ? '1px solid var(--border-medium)'
-                  : isDone ? '1px solid rgba(110,201,160,0.18)' : '1px solid transparent',
-                background: isCurrent
-                  ? undefined  /* .trail-active handles bg */
-                  : isDone ? 'rgba(110,201,160,0.05)' : 'transparent',
-                boxShadow: isCurrent ? 'var(--shadow-sm)' : 'none',
-                transition: 'all 0.2s ease',
+                padding: '8px 10px', borderRadius: 9, textAlign: 'left',
+                cursor: parentLocked ? 'default' : 'pointer', opacity: parentLocked ? 0.3 : 1,
+                border: isCurParent ? '1px solid var(--border-medium)' : parentDone ? '1px solid rgba(82,217,139,0.15)' : '1px solid transparent',
+                background: isCurParent ? undefined : parentDone ? 'rgba(82,217,139,0.04)' : 'transparent',
+                boxShadow: isCurParent ? 'var(--shadow-sm)' : 'none',
+                transition: 'all 0.18s',
               }}
             >
-              {/* badge */}
               <span style={{
-                minWidth: 30, height: 20, borderRadius: 6, padding: '0 4px',
+                minWidth: 32, height: 20, borderRadius: 6, padding: '0 4px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 9, fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
-                background: isCurrent ? 'rgba(126,207,206,0.14)' : isDone ? 'rgba(110,201,160,0.12)' : 'rgba(255,255,255,0.05)',
-                border: isCurrent ? '1px solid rgba(126,207,206,0.40)' : isDone ? '1px solid rgba(110,201,160,0.35)' : '1px solid rgba(255,255,255,0.1)',
-                color: isCurrent ? 'var(--ac-cyan)' : isDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+                background: isCurParent ? 'rgba(78,205,196,0.14)' : parentDone ? 'rgba(82,217,139,0.12)' : 'rgba(255,255,255,0.05)',
+                border: isCurParent ? '1px solid rgba(78,205,196,0.4)' : parentDone ? '1px solid rgba(82,217,139,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                color: isCurParent ? 'var(--ac-cyan)' : parentDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
               }}>
-                {locked ? <Lock size={8} /> : isDone ? <Check size={9} /> : s.section_id}
+                {parentLocked ? <Lock size={8} /> : parentDone ? <Check size={9} /> : parent.section_id}
               </span>
-
-              {/* title */}
               <span style={{
-                flex: 1, fontSize: 11, lineHeight: 1.35,
-                color: isCurrent ? 'var(--text-primary)' : isDone ? 'var(--ac-mint)' : 'var(--text-secondary)',
+                flex: 1, fontSize: 11, fontWeight: isCurParent ? 600 : 400, lineHeight: 1.35,
+                color: isCurParent ? 'var(--text-primary)' : parentDone ? 'var(--ac-mint)' : 'var(--text-secondary)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                {s.section_title}
+                {parent.section_title}
               </span>
-
-              {!locked && topics.length > 0 && (
-                <span onClick={e => toggleExpand(s.section_id, e)} style={{ display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}>
-                  <span style={{ fontSize: 9, fontFamily: 'monospace', color: isDone ? 'var(--ac-mint)' : 'var(--text-tertiary)', opacity: 0.7 }}>
-                    {doneCount}/{topics.length}
+              {!parentLocked && hasChildren && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  <span style={{ fontSize: 8, fontFamily: 'monospace', color: 'var(--text-tertiary)', opacity: 0.5 }}>
+                    {groupDone}/{groupIds.length}
                   </span>
-                  {isExp
-                    ? <ChevronUp   size={10} color="var(--text-tertiary)" />
-                    : <ChevronDown size={10} color="var(--text-tertiary)" />}
+                  {isExp ? <ChevronUp size={9} color="var(--text-tertiary)" /> : <ChevronDown size={9} color="var(--text-tertiary)" />}
                 </span>
               )}
             </button>
 
-            {/* sub-topics */}
-            {!locked && isExp && topics.length > 0 && (
-              <div style={{ marginLeft: 12, marginBottom: 3, borderLeft: '1px solid var(--border-subtle)', paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {topics.map((pt, ti) => {
-                  const isCurTopic = isCurrent && prog?.teaching_point_idx === ti && !pt.done
+            {/* H3 sub-sections */}
+            {isExp && hasChildren && (
+              <div style={{ marginLeft: 14, paddingLeft: 8, borderLeft: '1px solid rgba(78,205,196,0.1)', display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
+                {children.map(({ section: child, idx: childIdx }) => {
+                  const childDone = progress.find(p => p.section_id === child.section_id)?.status === 'completed'
+                  const isCurChild = currentIdx === childIdx
+                  const childLocked = !isUnlocked(childIdx)
                   return (
-                    <div key={ti} style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 7,
-                      padding: '4px 6px', borderRadius: 6,
-                      background: isCurTopic ? 'rgba(139,126,200,0.08)' : 'transparent',
-                      border: isCurTopic ? '1px solid rgba(139,126,200,0.2)' : '1px solid transparent',
-                    }}>
-                      <div style={{
-                        width: 14, height: 14, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-                        background: pt.done ? 'rgba(110,201,160,0.15)' : isCurTopic ? 'rgba(139,126,200,0.18)' : 'rgba(255,255,255,0.04)',
-                        border: pt.done ? '1px solid rgba(110,201,160,0.5)' : isCurTopic ? '1px solid rgba(139,126,200,0.45)' : '1px solid rgba(255,255,255,0.1)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {pt.done
-                          ? <Check size={8} color="var(--ac-mint)" />
-                          : <span style={{ fontSize: 6, color: isCurTopic ? 'var(--ac-violet)' : 'var(--text-tertiary)', fontWeight: 700 }}>{ti + 1}</span>
-                        }
-                      </div>
+                    <button key={child.section_id}
+                      onClick={() => !childLocked && onSelect(childIdx)}
+                      className={isCurChild ? 'trail-active' : ''}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 7,
+                        padding: '5px 8px', borderRadius: 7, textAlign: 'left',
+                        cursor: childLocked ? 'default' : 'pointer', opacity: childLocked ? 0.3 : 1,
+                        border: isCurChild ? '1px solid rgba(155,111,208,0.3)' : childDone ? '1px solid rgba(82,217,139,0.1)' : '1px solid transparent',
+                        background: isCurChild ? 'rgba(155,111,208,0.07)' : childDone ? 'rgba(82,217,139,0.03)' : 'transparent',
+                        transition: 'all 0.15s',
+                      }}
+                    >
                       <span style={{
-                        fontSize: 10, lineHeight: 1.4,
-                        color: pt.done ? 'var(--ac-mint)' : isCurTopic ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                        textDecoration: pt.done ? 'line-through' : 'none', opacity: pt.done ? 0.6 : 1,
+                        minWidth: 30, height: 17, borderRadius: 5, padding: '0 3px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 8, fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
+                        background: isCurChild ? 'rgba(155,111,208,0.18)' : childDone ? 'rgba(82,217,139,0.1)' : 'rgba(255,255,255,0.04)',
+                        border: isCurChild ? '1px solid rgba(155,111,208,0.4)' : childDone ? '1px solid rgba(82,217,139,0.25)' : '1px solid rgba(255,255,255,0.06)',
+                        color: isCurChild ? 'var(--ac-violet)' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
                       }}>
-                        {pt.title}
+                        {childLocked ? <Lock size={7} /> : childDone ? <Check size={8} /> : child.section_id}
                       </span>
-                    </div>
+                      <span style={{
+                        flex: 1, fontSize: 10, lineHeight: 1.35,
+                        color: isCurChild ? '#C4A8F0' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {child.section_title}
+                      </span>
+                    </button>
                   )
                 })}
               </div>
@@ -184,6 +194,34 @@ function SectionTrail({ sections, currentIdx, progress, moduleId, onSelect }: {
           </div>
         )
       })}
+
+      {/* Module Quiz — unlocks after all sections done */}
+      <div style={{ marginTop: 4, paddingTop: 6, borderTop: '1px solid var(--border-subtle)' }}>
+        <button
+          onClick={() => quizUnlocked && onStartFinalQuiz()}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 10px', borderRadius: 9, textAlign: 'left',
+            cursor: quizUnlocked ? 'pointer' : 'default', opacity: quizUnlocked ? 1 : 0.3,
+            border: quizUnlocked ? '1px solid rgba(232,184,75,0.3)' : '1px solid rgba(255,255,255,0.06)',
+            background: quizUnlocked ? 'rgba(232,184,75,0.05)' : 'transparent',
+            transition: 'all 0.18s',
+          }}
+        >
+          <span style={{ width: 32, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: quizUnlocked ? 'rgba(232,184,75,0.15)' : 'rgba(255,255,255,0.04)', border: quizUnlocked ? '1px solid rgba(232,184,75,0.35)' : '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+            <Brain size={10} color={quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)'} />
+          </span>
+          <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Module Quiz · 10 Questions
+          </span>
+          {quizUnlocked ? <ChevronRight size={10} color="#E8B84B" style={{ flexShrink: 0 }} /> : <Lock size={9} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />}
+        </button>
+        {!quizUnlocked && (
+          <p style={{ fontSize: 9, color: 'var(--text-tertiary)', fontFamily: 'monospace', textAlign: 'center', marginTop: 3, opacity: 0.4 }}>
+            Complete all topics to unlock
+          </p>
+        )}
+      </div>
     </div>
   )
 }
@@ -614,23 +652,164 @@ function MCQBlock({ data, onAnswer, answered }: { data: MCQData; onAnswer: (lett
   )
 }
 
-/* ── Renders a full assistant message: plain text + inline structured blocks ── */
-function AssistantMessage({ content, svg, onAnswer, answeredMcq }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null }) {
-  const segments = parseContent(content)
+/* ── Smart plain-text renderer — converts prose into readable formatted elements ── */
+function FormattedText({ text }: { text: string }) {
+  if (!text.trim()) return null
+
+  // Split into logical paragraphs first (double newlines or sentence groups)
+  const rawParas = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {rawParas.map((para, pi) => {
+        // Detect inline numbered list: "Number one: ... Number two: ..." or "1. ... 2. ..."
+        const numberedInline = para.match(/\bNumber\s+(?:one|two|three|four|five|six)\s*:/i) ||
+          para.match(/\b(?:one|two|three|four|five|six)\s*:\s+[A-Z]/i)
+
+        // Detect dash-separated items: "Term — definition. Term — definition."
+        const dashItems = para.match(/[A-Z][^.!?]*\s+—\s+[^.!?]+[.!?]/g)
+
+        // Detect "First, ... Second, ... Third, ..."
+        const ordinalInline = para.match(/\b(?:First|Second|Third|Fourth|Fifth)[,.:]/i)
+
+        // Detect "• item" or "- item" bullets already in text
+        const bulletLines = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim()))
+
+        if (bulletLines.length >= 2) {
+          // Already has bullets — render as list
+          const intro = para.split('\n').find(l => !/^[•\-]\s/.test(l.trim()))?.trim()
+          const items = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim())).map(l => l.replace(/^[•\-]\s*/, '').trim())
+          return (
+            <div key={pi}>
+              {intro && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 6px' }}>{renderInline(intro)}</p>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
+                {items.map((item, ii) => <BulletItem key={ii} text={item} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} />)}
+              </div>
+            </div>
+          )
+        }
+
+        if (numberedInline || ordinalInline) {
+          // Split on "Number X:" or ordinal words
+          const parts = para
+            .split(/(?=\bNumber\s+(?:one|two|three|four|five|six)\s*:|\b(?:First|Second|Third|Fourth|Fifth)[,.:]\s)/i)
+            .map(p => p.trim()).filter(Boolean)
+
+          // First part might be intro text (no number prefix)
+          const isIntro = (p: string) => !/^\bNumber\s+|^\b(?:First|Second|Third|Fourth|Fifth)/i.test(p)
+          const intro = parts.find(isIntro)
+          const numbered = parts.filter(p => !isIntro(p))
+
+          if (numbered.length >= 2) {
+            return (
+              <div key={pi}>
+                {intro && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 8px' }}>{renderInline(intro)}</p>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
+                  {numbered.map((item, ii) => {
+                    const clean = item.replace(/^Number\s+\w+\s*:\s*/i, '').replace(/^\w+[,.:]\s*/i, '').trim()
+                    return <BulletItem key={ii} text={clean} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} index={ii + 1} />
+                  })}
+                </div>
+              </div>
+            )
+          }
+        }
+
+        if (dashItems && dashItems.length >= 2) {
+          // Dash-separated definitions — render as mini term cards
+          const preText = para.slice(0, para.indexOf(dashItems[0])).trim()
+          return (
+            <div key={pi}>
+              {preText && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 8px' }}>{renderInline(preText)}</p>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {dashItems.map((item, ii) => {
+                  const dashIdx = item.indexOf(' — ')
+                  const label = dashIdx >= 0 ? item.slice(0, dashIdx).trim() : item
+                  const def   = dashIdx >= 0 ? item.slice(dashIdx + 3).replace(/[.!?]$/, '').trim() : ''
+                  const color = BLOCK_COLORS[ii % BLOCK_COLORS.length]
+                  return (
+                    <div key={ii} style={{ display: 'flex', alignItems: 'flex-start', gap: 0, borderRadius: 8, overflow: 'hidden', border: `1px solid ${color}18` }}>
+                      <div style={{ background: `${color}15`, borderRight: `2px solid ${color}50`, padding: '6px 10px', minWidth: 110, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color, lineHeight: 1.4 }}>{label}</span>
+                      </div>
+                      {def && <div style={{ padding: '6px 10px', background: `${color}05` }}>
+                        <span style={{ fontSize: 12, color: '#8EA8CC', lineHeight: 1.5 }}>{def}</span>
+                      </div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        }
+
+        // Plain paragraph — split on newlines if any, render each line
+        const lines = para.split('\n').map(l => l.trim()).filter(Boolean)
+        if (lines.length === 1) {
+          return <p key={pi} style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.75, margin: 0 }}>{renderInline(para)}</p>
+        }
+        return (
+          <div key={pi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {lines.map((line, li) => (
+              <p key={li} style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.75, margin: 0 }}>{renderInline(line)}</p>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BulletItem({ text, color, index }: { text: string; color: string; index?: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <div style={{ width: 20, height: 20, borderRadius: index !== undefined ? 6 : '50%', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${color}15`, border: `1px solid ${color}30` }}>
+        {index !== undefined
+          ? <span style={{ fontSize: 9, fontWeight: 800, color, fontFamily: 'monospace' }}>{index}</span>
+          : <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'block', boxShadow: `0 0 4px ${color}` }} />
+        }
+      </div>
+      <span style={{ fontSize: 12, color: '#8EA8CC', lineHeight: 1.6, paddingTop: 2, flex: 1 }}>{renderInline(text)}</span>
+    </div>
+  )
+}
+
+// Inline formatting: bold **text**, "quoted terms", and term — definition splits
+function renderInline(text: string): React.ReactNode {
+  if (!text) return null
+  // Split on **bold** markers
+  const parts = text.split(/(\*\*[^*]+\*\*)/)
+  if (parts.length === 1) return text
   return (
     <>
+      {parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**')
+          ? <strong key={i} style={{ color: '#E8F0FC', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
+}
+
+/* ── Renders a full assistant message: plain text + inline structured blocks ── */
+function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null; isStreaming?: boolean }) {
+  // While streaming, hide any incomplete :::MCQ block so raw text never shows
+  const displayContent = isStreaming
+    ? content.replace(/\n?:::MCQ[\s\S]*$/, '')
+    : content
+  const segments = parseContent(displayContent)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {segments.map((seg, i) => {
-        if (seg.kind === 'text')    return <span key={i} style={{ display: 'block' }}>{seg.text}</span>
-        if (seg.kind === 'pillars' || seg.kind === 'steps' || seg.kind === 'terms') {
-          if (seg.kind === 'pillars') return <PillarsBlock key={i} title={seg.title} items={seg.items} />
-          if (seg.kind === 'steps')   return <StepsBlock   key={i} title={seg.title} items={seg.items} />
-          return                             <TermsBlock   key={i} title={seg.title} items={seg.items} />
-        }
-        if (seg.kind === 'mcq')     return <MCQBlock     key={i} data={seg.data} onAnswer={onAnswer ?? (()=>{})} answered={answeredMcq ?? null} />
+        if (seg.kind === 'text')    return <FormattedText key={i} text={seg.text} />
+        if (seg.kind === 'pillars') return <PillarsBlock  key={i} title={seg.title} items={seg.items} />
+        if (seg.kind === 'steps')   return <StepsBlock    key={i} title={seg.title} items={seg.items} />
+        if (seg.kind === 'terms')   return <TermsBlock    key={i} title={seg.title} items={seg.items} />
+        if (seg.kind === 'mcq')     return <MCQBlock      key={i} data={seg.data} onAnswer={onAnswer ?? (()=>{})} answered={answeredMcq ?? null} />
         return null
       })}
       {svg && <VisualCard svg={svg} />}
-    </>
+    </div>
   )
 }
 
@@ -1012,7 +1191,13 @@ export default function CourseModulePage() {
   const [sectionContent, setSectionContent] = useState('')
   const [rightTab,       setRightTab]       = useState<'notes'|'content'>('content')
 
-  const [messages,      setMessages]      = useState<Message[]>([])
+  const CHAT_KEY = `chat_history_${moduleId}`
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem(`chat_history_${moduleId}`)
+      return saved ? (JSON.parse(saved) as Message[]) : []
+    } catch { return [] }
+  })
   const [input,         setInput]         = useState('')
   const [streaming,     setStreaming]      = useState(false)
   const [sessionId,     setSessionId]     = useState<string|undefined>()
@@ -1020,6 +1205,12 @@ export default function CourseModulePage() {
   const [showQuiz,      setShowQuiz]      = useState(false)
   const [quizPassed,    setQuizPassed]    = useState(false)
   const [moduleAlreadyCompleted, setModuleAlreadyCompleted] = useState(false)
+
+  // Persist chat history to localStorage on every change (skip empty streaming placeholder)
+  useEffect(() => {
+    if (messages.length === 0) return
+    try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)) } catch { /* quota exceeded */ }
+  }, [messages, CHAT_KEY])
 
   const [audioEnabled,    setAudioEnabled]    = useState(true)
   const [micActive,       setMicActive]       = useState(false)
@@ -1039,6 +1230,7 @@ export default function CourseModulePage() {
   const [tPhase,  setTPhase]  = useState<TPhase>('PRE_NOTES')
   const tPhaseRef = useRef<TPhase>('PRE_NOTES')
   useEffect(() => { tPhaseRef.current = tPhase }, [tPhase])
+
 
   const chatEndRef     = useRef<HTMLDivElement>(null)
   const msgsRef        = useRef<Message[]>([])
@@ -1365,19 +1557,38 @@ export default function CourseModulePage() {
 
   useEffect(()=>{
     if (!currentSection) return
+    // 1. Restore from DB (sectionProgress loaded on mount)
     const sv=sectionProgress.find(p=>p.section_id===currentSection.section_id)
-    if (sv?.teaching_points?.length){setTeachingPoints(sv.teaching_points);setCurrentPtIdx(sv.teaching_point_idx??0);return}
+    if (sv?.teaching_points?.length){
+      // DB stores {title,done} — re-merge with full content from API
+      void fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${currentSection.section_id}`)
+        .then(r=>r.json() as Promise<{points:string[];pointContents:string[]}>)
+        .then(d=>{
+          const merged = (sv.teaching_points ?? []).map((p,i)=>({
+            title: p.title,
+            content: d.pointContents?.[i] ?? '',
+            done: p.done,
+          }))
+          setTeachingPoints(merged)
+          setCurrentPtIdx(sv.teaching_point_idx ?? 0)
+          setTPhase((sv.t_phase as TPhase) ?? 'PRE_NOTES')
+        })
+        .catch(()=>{})
+      return
+    }
+    // 2. Fresh start — fetch from API
     void fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${currentSection.section_id}`)
       .then(r=>r.json() as Promise<{points:string[];pointContents:string[]}>)
       .then(d=>{
         if (d.points?.length){
           setTeachingPoints(d.points.map((t,i)=>({title:t,content:d.pointContents?.[i]??'',done:false})))
           setCurrentPtIdx(0)
+          setTPhase('PRE_NOTES')
         }
       })
       .catch(()=>{})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[currentSection?.section_id,moduleId])
+  },[currentSection?.section_id,moduleId,sectionProgress])
 
   useEffect(()=>{
     if (sessionKP.length&&currentSection){
@@ -1398,22 +1609,17 @@ export default function CourseModulePage() {
       .catch(()=>{})
   },[currentSection,moduleId])
 
-  /* ── Auto-start: fire as soon as sections are loaded, no tap required ── */
-  useEffect(()=>{
-    if (!sectionsLoaded || !currentSection || hasStarted.current) return
-    hasStarted.current = true
-    setUserActivated(true)
-    setTPhase('PRE_NOTES')
-    void doSend('__AUTO_START__', true)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[sectionsLoaded, currentSection])
+  // Auto-start removed — student taps "Start Lesson" to begin
 
   const switchSection = useCallback((idx:number)=>{
     if (idx===currentSectionIdx) return
+    // Clear chat history for the old section
+    const oldSectionId = sections[currentSectionIdx]?.section_id ?? ''
+    if (oldSectionId) try { localStorage.removeItem(`tp_progress_${moduleId}_${oldSectionId}`) } catch { /* ignore */ }
     setCurrentSectionIdx(idx); setMessages([]); setSessionKP([])
     setTeachingPoints([]); setCurrentPtIdx(0); setTPhase('PRE_NOTES')
     hasStarted.current=false; cancelSpeech()
-  },[currentSectionIdx,cancelSpeech])
+  },[currentSectionIdx, sections, moduleId, cancelSpeech])
 
   const completeSection = useCallback(()=>{
     if (!currentSection) return
@@ -1424,7 +1630,11 @@ export default function CourseModulePage() {
         body:JSON.stringify({moduleId,sectionId:currentSection.section_id,sectionTitle:currentSection.section_title,status:'completed',keyPoints:sessionKP})})
       return ex?prev.map(p=>p.section_id===currentSection.section_id?upd:p):[...prev,upd]
     })
-    if (currentSectionIdx<sections.length-1) switchSection(currentSectionIdx+1)
+    setSectionCompleted(true)
+    if (currentSectionIdx<sections.length-1) {
+      setShowAdvancePrompt(true)
+      setTimeout(()=>{ setShowAdvancePrompt(false); setSectionCompleted(false); switchSection(currentSectionIdx+1) }, 2800)
+    }
   },[currentSection,currentSectionIdx,sections.length,switchSection,sessionKP,moduleId])
 
   /* ── mic ── */
@@ -1465,8 +1675,31 @@ export default function CourseModulePage() {
   const totalSections  = sections.length
   const progressPct    = totalSections>0 ? Math.round(completedCount/totalSections*100) : 0
   const canGoNext      = quizPassed||moduleAlreadyCompleted
-  const [showSections, setShowSections] = useState(true)
-  const [showNotes,    setShowNotes]    = useState(true)
+  const [showSections,       setShowSections]       = useState(true)
+  const [showNotes,          setShowNotes]          = useState(true)
+  const [showKeyboardHelp,   setShowKeyboardHelp]   = useState(false)
+  const [sectionCompleted,   setSectionCompleted]   = useState(false)
+  const [showAdvancePrompt,  setShowAdvancePrompt]  = useState(false)
+
+  /* ── keyboard shortcuts ── */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Escape: stop everything
+      if (e.key === 'Escape') { stopAll(); return }
+      // Alt+N: next section
+      if (e.altKey && e.key === 'n') { e.preventDefault(); if (currentSectionIdx < sections.length - 1) completeSection(); return }
+      // Alt+Q: open quiz
+      if (e.altKey && e.key === 'q') { e.preventDefault(); setShowQuiz(true); return }
+      // Alt+M: toggle mic
+      if (e.altKey && e.key === 'm') { e.preventDefault(); toggleMic(); return }
+      // Alt+A: toggle audio
+      if (e.altKey && e.key === 'a') { e.preventDefault(); setAudioEnabled(v => !v); return }
+      // Alt+K: toggle keyboard help
+      if (e.altKey && e.key === 'k') { e.preventDefault(); setShowKeyboardHelp(v => !v); return }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [stopAll, completeSection, currentSectionIdx, sections.length, toggleMic])
 
   /* ── shared button styles ── */
   const hudBtn = (active: boolean, accent = 'var(--ac-cyan)', accentRgb = '126,207,206'): React.CSSProperties => ({
@@ -1491,6 +1724,70 @@ export default function CourseModulePage() {
       fontFamily: "'Inter', system-ui, sans-serif",
       position: 'relative',
     }}>
+      {/* ── Section advance toast ── */}
+      <AnimatePresence>
+        {showAdvancePrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            style={{
+              position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 200, pointerEvents: 'none',
+              background: 'linear-gradient(135deg, rgba(82,217,139,0.15), rgba(78,205,196,0.1))',
+              border: '1px solid rgba(82,217,139,0.4)',
+              borderRadius: 14, padding: '12px 20px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              backdropFilter: 'blur(20px)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 20px rgba(82,217,139,0.15)',
+            }}>
+            <CheckCircle2 size={18} color="#52D98B" />
+            <div>
+              <p style={{ fontSize: 11, color: '#52D98B', fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 2 }}>SECTION COMPLETE</p>
+              <p style={{ fontSize: 13, color: '#E8F0FC', fontWeight: 600 }}>
+                Moving to next section…
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Keyboard shortcuts help panel ── */}
+      <AnimatePresence>
+        {showKeyboardHelp && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+            onClick={() => setShowKeyboardHelp(false)}
+            style={{
+              position: 'fixed', top: 62, right: 16, zIndex: 150,
+              background: 'rgba(9,13,26,0.96)', border: '1px solid rgba(78,205,196,0.2)',
+              borderRadius: 14, padding: '16px 18px', minWidth: 240,
+              backdropFilter: 'blur(20px)', boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+              cursor: 'pointer',
+            }}>
+            <p style={{ fontSize: 11, color: 'rgba(78,205,196,0.7)', fontFamily: 'monospace', letterSpacing: '0.14em', marginBottom: 12 }}>KEYBOARD SHORTCUTS</p>
+            {[
+              { key: 'Alt+N', label: 'Next section' },
+              { key: 'Alt+Q', label: 'Open quiz' },
+              { key: 'Alt+M', label: 'Toggle mic' },
+              { key: 'Alt+A', label: 'Toggle audio' },
+              { key: 'Alt+K', label: 'This help panel' },
+              { key: 'Escape', label: 'Stop speaking' },
+              { key: 'Enter', label: 'Send message' },
+              { key: 'Shift+Enter', label: 'New line' },
+            ].map(({ key, label }) => (
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                <span style={{ fontSize: 12, color: '#8EA8CC' }}>{label}</span>
+                <kbd style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', borderRadius: 5, padding: '2px 7px' }}>{key}</kbd>
+              </div>
+            ))}
+            <p style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace', marginTop: 8, textAlign: 'center' }}>click to close</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── HUD BAR ── */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1593,6 +1890,9 @@ export default function CourseModulePage() {
           )}
 
           <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
+          <button onClick={()=>setShowKeyboardHelp(v=>!v)} style={hudBtn(showKeyboardHelp)} title="Keyboard shortcuts (Alt+K)">
+            <Keyboard size={13} />
+          </button>
           <button onClick={()=>setShowSections(v=>!v)} style={hudBtn(showSections)} title="Toggle sections">
             <ChevronLeft size={13} />
           </button>
@@ -1613,12 +1913,24 @@ export default function CourseModulePage() {
             borderRight: '1px solid var(--border-subtle)',
             boxShadow: '2px 0 18px rgba(0,0,0,0.4), inset -1px 0 0 rgba(255,255,255,0.025)',
           }}>
-            <div style={{ padding: '10px 12px 7px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-              <p className="label-mono aurora-text">Course Sections</p>
+            <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+              <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.16em', marginBottom: 3, opacity: 0.7 }}>
+                M{moduleId.replace('m','').padStart(2,'0')} · TOPICS
+              </p>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {moduleTitle}
+              </p>
             </div>
 
             {sections.length > 0 ? (
-              <SectionTrail sections={sections} currentIdx={currentSectionIdx} progress={sectionProgress} moduleId={moduleId} onSelect={switchSection} />
+              <SectionTrail
+                sections={sections}
+                currentIdx={currentSectionIdx}
+                progress={sectionProgress}
+                quizUnlocked={sections.length > 0 && sections.every(s => sectionProgress.find(p => p.section_id === s.section_id)?.status === 'completed')}
+                onSelect={switchSection}
+                onStartFinalQuiz={() => setShowQuiz(true)}
+              />
             ) : !sectionsLoaded ? (
               <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:8 }}>
                 <Loader2 size={17} color="var(--ac-cyan)" className="animate-spin" style={{ opacity:0.5 }} />
@@ -1630,44 +1942,38 @@ export default function CourseModulePage() {
               </div>
             )}
 
-            {/* teaching topics */}
-            {teachingPoints.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-                <div style={{ padding:'7px 12px 4px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <p className="label-mono" style={{ color:'var(--ac-violet)', opacity:0.8 }}>Topics</p>
-                  <p style={{ fontSize:9, color:'var(--text-tertiary)', fontFamily:'monospace' }}>
-                    {teachingPoints.filter(p=>p.done).length}/{teachingPoints.length}
-                  </p>
+
+            {/* module-end items — always shown at the very bottom */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', flexShrink: 0, padding: '7px 8px 4px' }}>
+              {[
+                { label: `Module ${parseInt(moduleId.replace('m',''),10)} — Summary`,               done: moduleAlreadyCompleted },
+                { label: `Module ${parseInt(moduleId.replace('m',''),10)} — End-of-Section MCQ (10 questions)`, done: quizPassed || moduleAlreadyCompleted },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 8px', borderRadius: 8, marginBottom: 3,
+                  background: item.done ? 'rgba(110,201,160,0.05)' : 'rgba(255,255,255,0.02)',
+                  border: item.done ? '1px solid rgba(110,201,160,0.18)' : '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div style={{
+                    width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: item.done ? 'rgba(110,201,160,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: item.done ? '1px solid rgba(110,201,160,0.45)' : '1px solid rgba(255,255,255,0.1)',
+                  }}>
+                    {item.done
+                      ? <Check size={9} color="var(--ac-mint)" />
+                      : <span style={{ fontSize: 6, color: 'var(--text-tertiary)', fontWeight: 700 }}>{i === 0 ? '★' : '?'}</span>
+                    }
+                  </div>
+                  <span style={{
+                    fontSize: 10, lineHeight: 1.4, flex: 1,
+                    color: item.done ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+                    textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.65 : 1,
+                  }}>{item.label}</span>
                 </div>
-                <div style={{ padding:'2px 8px 10px', display:'flex', flexDirection:'column', gap:2 }}>
-                  {teachingPoints.map((pt,i)=>{
-                    const isCur=i===currentPtIdx&&!pt.done
-                    const icon=isCur ? ({PRE_NOTES:'✏️',EXPLAIN:'📖',CONFIRM:'📝',POST_NOTES:'💬',CHECK:'💬',WRAP:'🏁'}[tPhase]??'') : ''
-                    return (
-                      <div key={i} style={{ display:'flex',alignItems:'flex-start',gap:7,padding:'4px 8px',borderRadius:8,
-                        background:isCur?'rgba(139,126,200,0.08)':'transparent',
-                        border:isCur?'1px solid rgba(139,126,200,0.2)':'1px solid transparent',transition:'all 0.2s' }}>
-                        <div style={{ width:15,height:15,borderRadius:'50%',flexShrink:0,marginTop:1,
-                          display:'flex',alignItems:'center',justifyContent:'center',
-                          background:pt.done?'rgba(110,201,160,0.14)':isCur?'rgba(139,126,200,0.18)':'rgba(255,255,255,0.04)',
-                          border:pt.done?'1px solid rgba(110,201,160,0.45)':isCur?'1px solid rgba(139,126,200,0.42)':'1px solid rgba(255,255,255,0.09)' }}>
-                          {pt.done ? <Check size={8} color="var(--ac-mint)" />
-                            : <span style={{fontSize:6,color:isCur?'var(--ac-violet)':'var(--text-tertiary)',fontWeight:700}}>{i+1}</span>}
-                        </div>
-                        <div style={{ flex:1,minWidth:0 }}>
-                          <span style={{ fontSize:10,lineHeight:1.4,
-                            color:pt.done?'var(--ac-mint)':isCur?'var(--text-primary)':'var(--text-tertiary)',
-                            textDecoration:pt.done?'line-through':'none', opacity:pt.done?0.6:1 }}>
-                            {pt.title}
-                          </span>
-                          {isCur&&icon&&<span style={{fontSize:9,marginLeft:4}}>{icon}</span>}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
 
             {/* module nav */}
             <div style={{ padding:'9px 12px',borderTop:'1px solid var(--border-subtle)',display:'flex',justifyContent:'space-between',flexShrink:0 }}>
@@ -1757,44 +2063,73 @@ export default function CourseModulePage() {
               background:'linear-gradient(to bottom, var(--bg-base) 0%, transparent 100%)', flexShrink:0 }} />
 
             {messages.length === 0 && !streaming && (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', paddingTop:32 }}>
+              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <div style={{
-                  textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:14,
-                  background:'rgba(10,14,28,0.6)', border:'1px solid var(--border-subtle)',
-                  borderRadius:16, padding:'24px 28px', maxWidth:280,
-                  boxShadow:'var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.04)',
-                  backdropFilter:'blur(12px)',
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:20,
+                  background:'rgba(10,14,28,0.7)', border:'1px solid rgba(78,205,196,0.14)',
+                  borderRadius:20, padding:'32px 36px', maxWidth:320, textAlign:'center',
+                  boxShadow:'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)',
+                  backdropFilter:'blur(16px)',
                 }}>
-                  <div style={{
-                    width:48, height:48, borderRadius:'50%',
-                    background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.22))',
-                    border:'1.5px solid rgba(78,205,196,0.35)',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:20, fontWeight:700, color:'var(--ac-cyan)',
-                    boxShadow:'0 0 24px rgba(78,205,196,0.25)',
-                  }}>A</div>
+                  {/* Alex avatar */}
+                  <div style={{ position:'relative' }}>
+                    <div style={{
+                      width:64, height:64, borderRadius:'50%',
+                      background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.22))',
+                      border:'2px solid rgba(78,205,196,0.4)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:24, fontWeight:800, color:'var(--ac-cyan)',
+                      boxShadow:'0 0 32px rgba(78,205,196,0.2)',
+                    }}>A</div>
+                    <div style={{ position:'absolute', bottom:2, right:2, width:14, height:14, borderRadius:'50%', background:'#22c55e', border:'2px solid rgba(10,14,28,0.9)', boxShadow:'0 0 8px #22c55e' }} />
+                  </div>
+
+                  {/* Intro text */}
                   <div>
-                    <p style={{ fontSize:13, fontWeight:600, color:'var(--text-primary)', marginBottom:6 }}>
+                    <p style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', margin:'0 0 6px' }}>
                       Hi, I&apos;m Alex
                     </p>
-                    <p style={{ fontSize:12, color:'var(--text-secondary)', lineHeight:1.7 }}>
+                    <p style={{ fontSize:12, color:'var(--text-secondary)', lineHeight:1.7, margin:0 }}>
                       Your AI tutor for<br/>
-                      <span style={{ color:'var(--ac-cyan)', fontWeight:500 }}>{currentSection?.section_title ?? moduleTitle}</span>
+                      <span style={{ color:'var(--ac-cyan)', fontWeight:600 }}>
+                        {currentSection?.section_title ?? moduleTitle}
+                      </span>
                     </p>
+                    {currentSection && (
+                      <p style={{ fontSize:11, color:'var(--text-tertiary)', marginTop:8, lineHeight:1.6 }}>
+                        Select a topic from the left panel,<br/>then tap <strong style={{ color:'var(--ac-cyan)' }}>Start Lesson</strong> to begin.
+                      </p>
+                    )}
                   </div>
-                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'center' }}>
-                    {['Explain this topic','Give me an example','Quiz me'].map(s => (
-                      <button key={s} onClick={()=>{ setInput(s) }}
-                        style={{
-                          padding:'5px 11px', borderRadius:20, fontSize:11, cursor:'pointer',
-                          background:'rgba(78,205,196,0.07)', border:'1px solid rgba(78,205,196,0.2)',
-                          color:'var(--ac-cyan)', transition:'all 0.18s', fontFamily:'inherit',
-                        }}
-                        onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(78,205,196,0.14)'}
-                        onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='rgba(78,205,196,0.07)'}
-                      >{s}</button>
-                    ))}
-                  </div>
+
+                  {/* Start Lesson button */}
+                  <button
+                    onClick={() => {
+                      setUserActivated(true)
+                      hasStarted.current = true
+                      setTPhase('PRE_NOTES')
+                      void doSend('__AUTO_START__', true)
+                    }}
+                    style={{
+                      display:'flex', alignItems:'center', gap:8,
+                      padding:'12px 28px', borderRadius:13,
+                      background:'linear-gradient(135deg, #4ECDC4 0%, #52D98B 100%)',
+                      border:'none', cursor:'pointer',
+                      fontSize:14, fontWeight:700, color:'#050810',
+                      boxShadow:'0 4px 20px rgba(78,205,196,0.3)',
+                      transition:'box-shadow 0.18s, transform 0.18s',
+                    }}
+                    onMouseEnter={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 6px 28px rgba(78,205,196,0.45)'; (e.currentTarget as HTMLElement).style.transform='translateY(-1px)' }}
+                    onMouseLeave={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 4px 20px rgba(78,205,196,0.3)'; (e.currentTarget as HTMLElement).style.transform='none' }}
+                  >
+                    <Brain size={16} />
+                    Start Lesson
+                  </button>
+
+                  {/* Or ask a question */}
+                  <p style={{ fontSize:11, color:'var(--text-tertiary)', margin:0 }}>
+                    or type a question below
+                  </p>
                 </div>
               </div>
             )}
@@ -1879,6 +2214,7 @@ export default function CourseModulePage() {
                               content={msg.content}
                               svg={msg.visual}
                               answeredMcq={msg.mcqAnswer ?? null}
+                              isStreaming={isLastAss && streaming}
                               onAnswer={(letter, fullText) => {
                                 if (msg.mcqAnswer) return // already answered
                                 // Lock the MCQ immediately
