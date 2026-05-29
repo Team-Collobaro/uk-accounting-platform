@@ -45,9 +45,54 @@ function AuroraStatus({ speaking }: { speaking: boolean }) {
   )
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   SECTION TRAIL — H2 topics with H3 sub-sections nested inside
-   ══════════════════════════════════════════════════════════════════════════════ */
+// ─── Liquid Core Orb (concentric ripple waves, audio-reactive) ───────────────
+function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: AnalyserNode | null }) {
+  const innerRef = useRef<HTMLDivElement>(null)
+  const midRef   = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
+  const coreRef  = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<number>(0)
+  const freqData = useRef<Uint8Array<ArrayBuffer> | null>(null)
+
+  // Drive ring scale + opacity from live frequency data
+  useEffect(() => {
+    const tick = () => {
+      let bass = 0, mid = 0, high = 0
+      if (analyser && speaking) {
+        if (!freqData.current || freqData.current.length !== analyser.frequencyBinCount) {
+          freqData.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount))
+        }
+        analyser.getByteFrequencyData(freqData.current)
+        const bins = freqData.current
+        const len = bins.length
+        // Split frequency spectrum into thirds
+        for (let i = 0; i < Math.floor(len * 0.15); i++) bass  += bins[i]
+        for (let i = Math.floor(len * 0.15); i < Math.floor(len * 0.5); i++) mid  += bins[i]
+        for (let i = Math.floor(len * 0.5);  i < Math.floor(len * 0.85); i++) high += bins[i]
+        bass  = bass  / (Math.floor(len * 0.15) * 255)
+        mid   = mid   / (Math.floor(len * 0.35) * 255)
+        high  = high  / (Math.floor(len * 0.35) * 255)
+      }
+
+      const t = performance.now() / 1000
+      const idle = !speaking
+
+      // Core breathe
+      if (coreRef.current) {
+        const breathe = idle ? 1 + 0.04 * Math.sin(t * 0.8) : 1 + bass * 0.18
+        coreRef.current.style.transform = `scale(${breathe})`
+        coreRef.current.style.filter = idle
+          ? `brightness(1)`
+          : `brightness(${1 + bass * 0.4})`
+      }
+
+      // Inner ring — bass driven
+      if (innerRef.current) {
+        const s = idle ? 0.95 + 0.05 * Math.sin(t * 1.2) : 0.9 + bass * 0.35
+        const op = idle ? 0.5 + 0.1 * Math.sin(t) : 0.6 + bass * 0.4
+        innerRef.current.style.transform = `scale(${s})`
+        innerRef.current.style.opacity = `${Math.min(1, op)}`
+      }
 
 function isSubSection(id: string) { return (id.match(/\./g) ?? []).length >= 2 }
 
