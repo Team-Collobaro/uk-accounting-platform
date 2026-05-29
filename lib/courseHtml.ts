@@ -74,26 +74,124 @@ export function getSectionContent(moduleId: string, sectionId: string): string {
   return section?.content ?? ''
 }
 
+export interface TeachingPoint {
+  title: string
+  content: string
+}
+
+// Extract ordered teaching points from a section — each point maps to a specific
+// content block in the HTML (paragraph, list, table, callout, sub-heading block).
+// These are the EXACT items Alex must teach, in order, from the course file.
+export function getSectionTeachingPoints(moduleId: string, sectionId: string): TeachingPoint[] {
+  const $ = getCheerio()
+  const moduleEl = $(`#${moduleId}`)
+  if (!moduleEl.length) return []
+
+  const { parseModuleSections } = require('./courseParser') as typeof import('./courseParser')
+  const sections = parseModuleSections($, moduleEl)
+  const section = sections.find(s => s.sectionId === sectionId)
+  if (!section) return []
+
+  // Re-parse this section's raw HTML for granular blocks
+  // Find the h2/h3 that starts this section, collect until next same-level heading
+  const points: TeachingPoint[] = []
+
+  let inSection = false
+  let sectionLevel = 0
+  let currentSubTitle = ''
+  let currentParts: string[] = []
+
+  const flush = (title: string, parts: string[]) => {
+    const text = parts.join(' ').replace(/\s+/g, ' ').trim()
+    if (text.length > 30) points.push({ title: title || 'Key concept', content: text })
+  }
+
+  moduleEl.find('h2, h3, h4, p, ul, ol, table, div').each((_i, el) => {
+    const tag = ((el as unknown as { tagName?: string }).tagName ?? '').toLowerCase()
+    const text = $(el).text().replace(/\s+/g, ' ').trim()
+
+    // Detect section start
+    if ((tag === 'h2' || tag === 'h3') && text.startsWith(sectionId)) {
+      inSection = true
+      sectionLevel = tag === 'h2' ? 2 : 3
+      currentSubTitle = text.replace(/^\d+\.\d+(?:\.\d+)?\s*/, '').trim()
+      currentParts = []
+      return
+    }
+
+    // Detect section end (next same-or-higher heading)
+    if (inSection && (tag === 'h2' || tag === 'h3')) {
+      const level = tag === 'h2' ? 2 : 3
+      if (level <= sectionLevel) {
+        flush(currentSubTitle, currentParts)
+        inSection = false
+        return
+      }
+      // Sub-heading within section — flush current and start new block
+      flush(currentSubTitle, currentParts)
+      currentSubTitle = text.replace(/^\d+\.\d+(?:\.\d+)?\s*/, '').trim()
+      currentParts = []
+      return
+    }
+
+    if (!inSection) return
+
+    // h4 sub-headings — start a new block
+    if (tag === 'h4') {
+      flush(currentSubTitle, currentParts)
+      currentSubTitle = text.replace(/^\d+\.\d+(?:\.\d+)?\s*/, '').trim()
+      currentParts = []
+      return
+    }
+
+    // Tables — extract as structured text with heading row
+    if (tag === 'table') {
+      const rows: string[] = []
+      $(el).find('tr').each((_ri, row) => {
+        const cells = $(row).find('th, td').map((_ci, cell) => $(cell).text().trim()).get()
+        if (cells.some(c => c.length > 0)) rows.push(cells.join(' | '))
+      })
+      if (rows.length > 0) currentParts.push('TABLE: ' + rows.join(' /// '))
+      return
+    }
+
+    // Lists — join as bullet items
+    if (tag === 'ul' || tag === 'ol') {
+      const items = $(el).find('li').map((_li, item) => '• ' + $(item).text().trim()).get()
+      if (items.length > 0) currentParts.push(items.join(' '))
+      return
+    }
+
+    // Callout/tip/warn divs
+    if (tag === 'div') {
+      const cls = $(el).attr('class') ?? ''
+      if (/callout|example|warn|tip|danger|info|legal|journal|formula|scenario/.test(cls)) {
+        const divText = $(el).text().replace(/\s+/g, ' ').trim()
+        if (divText.length > 20) currentParts.push(divText)
+      }
+      return
+    }
+
+    // Regular paragraphs
+    if (tag === 'p' && text.length > 20) {
+      currentParts.push(text)
+    }
+  })
+
+  // Flush last block
+  if (inSection) flush(currentSubTitle, currentParts)
+
+  // If no blocks found (small section), create one point from full content
+  if (points.length === 0 && section.content.length > 20) {
+    points.push({ title: section.sectionTitle, content: section.content })
+  }
+
+  return points
+}
+
+// Legacy: returns just titles for backward compatibility
 export function getSectionSubTopics(moduleId: string, sectionId: string): string[] {
-  const content = getSectionContent(moduleId, sectionId)
-  if (!content) return []
-
-  const points: string[] = []
-  const seen = new Set<string>()
-
-  // courseParser stores h4 sub-headings as "[1.2.1 Title text]"
-  const bracketRe = /\[(\d+\.\d+\.\d+(?:\.\d+)?)\s+([^\]]{3,80})\]/g
-  for (const m of content.matchAll(bracketRe)) {
-    const title = `${m[1]} ${m[2].trim()}`
-    if (!seen.has(title)) { seen.add(title); points.push(title) }
-  }
-
-  // Also catch bare "x.x.x Title" patterns in plain text
-  const bareRe = /(\d+\.\d+\.\d+(?:\.\d+)?)\s+([A-Z][^.!?\n]{3,70})/g
-  for (const m of content.matchAll(bareRe)) {
-    const title = `${m[1]} ${m[2].trim()}`
-    if (!seen.has(title)) { seen.add(title); points.push(title) }
-  }
-
-  return points.slice(0, 10)
+  const pts = getSectionTeachingPoints(moduleId, sectionId)
+  if (pts.length > 0) return pts.map(p => p.title)
+  return []
 }

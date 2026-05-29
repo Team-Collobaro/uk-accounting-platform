@@ -3,30 +3,46 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@/lib/supabase'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Loader2, ChevronLeft, ChevronRight, Brain,
   CheckCircle2, XCircle, Mic, MicOff, Volume2, VolumeX,
   Download, PenLine, ChevronDown, ChevronUp, Check, Lock,
+  Keyboard, Sparkles,
 } from 'lucide-react'
 import type { QuizQuestion } from '@/types'
+import StarBorder from '@/components/reactbits/StarBorder'
+import DecryptedText from '@/components/reactbits/DecryptedText'
+import SoftAurora from '@/components/SoftAurora'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Message { role: 'user' | 'assistant'; content: string; timestamp: string }
-interface Section { section_id: string; section_title: string; section_order: number }
-interface TeachingPoint { title: string; done: boolean }
+/* ─── types ──────────────────────────────────────────────────────────────────── */
+interface Message       { role: 'user' | 'assistant'; content: string; timestamp: string; visual?: string; mcqAnswer?: string; mcqCorrect?: string }
+interface Section       { section_id: string; section_title: string; section_order: number }
+interface TeachingPoint { title: string; content: string; done: boolean }
 interface SectionProgress {
   section_id: string; section_title: string; status: string
   notes: string; key_points: string[]
-  teaching_point_idx?: number
-  teaching_points?: TeachingPoint[]
+  teaching_point_idx?: number; teaching_points?: TeachingPoint[]
+  t_phase?: string
 }
 
-const PART_TITLES: Record<number, string> = {
-  0: 'Front Matter', 1: 'Foundations', 2: 'Cloud Software Platforms',
-  3: 'VAT', 4: 'Payroll PAYE & CIS', 5: 'Year-End Accounts',
-  6: 'Corporation Tax', 7: 'Self Assessment', 8: 'Incorporation',
-  9: 'Cessation', 10: 'Structure Changes', 11: 'Specialist Tax',
-  12: 'Practice & Ethics', 13: 'Appendices',
+function AuroraStatus({ speaking }: { speaking: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', gap: 4, position: 'relative', zIndex: 2 }}>
+      <p className="aurora-text" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', fontFamily: 'monospace' }}>
+        ALEX · AI TUTOR
+      </p>
+      <p style={{
+        fontSize: 9, letterSpacing: '0.16em', fontFamily: 'monospace',
+        color: speaking ? 'var(--ac-cyan)' : 'var(--text-tertiary)',
+        opacity: speaking ? 1 : 0.5,
+        transition: 'all 0.3s',
+        textShadow: speaking ? '0 0 8px rgba(78,205,196,0.7)' : 'none',
+      }}>
+        {speaking ? '◉ SPEAKING' : '○ READY'}
+      </p>
+    </div>
+  )
 }
 
 // ─── Liquid Core Orb (concentric ripple waves, audio-reactive) ───────────────
@@ -78,273 +94,144 @@ function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: Analyse
         innerRef.current.style.opacity = `${Math.min(1, op)}`
       }
 
-      // Mid ring — mid frequencies
-      if (midRef.current) {
-        const s = idle ? 1 + 0.04 * Math.sin(t * 0.7 + 1) : 0.88 + mid * 0.28
-        const op = idle ? 0.35 + 0.1 * Math.sin(t * 0.9) : 0.4 + mid * 0.5
-        midRef.current.style.transform = `scale(${s})`
-        midRef.current.style.opacity = `${Math.min(1, op)}`
-      }
+function isSubSection(id: string) { return (id.match(/\./g) ?? []).length >= 2 }
 
-      // Outer ring — high / ambient
-      if (outerRef.current) {
-        const s = idle ? 1 + 0.03 * Math.sin(t * 0.5 + 2) : 0.92 + high * 0.2
-        const op = idle ? 0.2 + 0.08 * Math.sin(t * 0.6) : 0.2 + high * 0.45
-        outerRef.current.style.transform = `scale(${s})`
-        outerRef.current.style.opacity = `${Math.min(1, op)}`
-      }
-
-      frameRef.current = requestAnimationFrame(tick)
+function groupSections(sections: Section[]) {
+  const groups: Array<{ parent: Section; parentIdx: number; children: Array<{ section: Section; idx: number }> }> = []
+  for (let i = 0; i < sections.length; i++) {
+    const s = sections[i]
+    if (!isSubSection(s.section_id)) {
+      groups.push({ parent: s, parentIdx: i, children: [] })
+    } else {
+      const last = groups[groups.length - 1]
+      if (last) last.children.push({ section: s, idx: i })
     }
-    frameRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frameRef.current)
-  }, [speaking, analyser])
-
-  return (
-    <div className="flex flex-col items-center select-none w-full" style={{ paddingTop: 0, paddingBottom: 0 }}>
-
-      {/* Orb stage */}
-      <div style={{ position: 'relative', width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-
-        {/* Ambient room glow */}
-        <div style={{
-          position: 'absolute', width: 280, height: 280, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(166,0,255,0.18) 0%, rgba(0,255,255,0.06) 55%, transparent 75%)',
-          filter: 'blur(36px)',
-          pointerEvents: 'none',
-        }} />
-
-        {/* Bloom filter wrapper */}
-        <div style={{
-          position: 'relative', width: '100%', height: '100%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          filter: speaking
-            ? 'drop-shadow(0 0 22px #00ffff) drop-shadow(0 0 60px #a600ff)'
-            : 'drop-shadow(0 0 10px rgba(0,255,255,0.5)) drop-shadow(0 0 30px rgba(166,0,255,0.3))',
-          transition: 'filter 0.5s ease',
-        }}>
-
-          {/* Outer atmospheric ring */}
-          <div ref={outerRef} style={{
-            position: 'absolute',
-            width: 200, height: 200, borderRadius: '50%',
-            border: '1px solid rgba(0,255,255,0.25)',
-            background: 'radial-gradient(circle, transparent 60%, rgba(0,85,255,0.04) 100%)',
-            boxShadow: '0 0 40px rgba(0,85,255,0.3)',
-            animation: 'liquidMorph 9s ease-in-out infinite',
-            filter: 'blur(0.5px)',
-          }} />
-
-          {/* Mid dashed ring */}
-          <div ref={midRef} style={{
-            position: 'absolute',
-            width: 152, height: 152, borderRadius: '50%',
-            border: '2px dashed rgba(166,0,255,0.6)',
-            boxShadow: '0 0 24px rgba(166,0,255,0.5)',
-            animation: 'liquidMorph 6s ease-in-out infinite reverse',
-          }} />
-
-          {/* Inner solid ring */}
-          <div ref={innerRef} style={{
-            position: 'absolute',
-            width: 110, height: 110, borderRadius: '50%',
-            border: '2.5px solid #00ffff',
-            boxShadow: '0 0 20px #00ffff, inset 0 0 18px rgba(0,255,255,0.15)',
-            animation: 'liquidMorph 4s ease-in-out infinite',
-          }} />
-
-          {/* Core sphere */}
-          <div ref={coreRef} style={{
-            position: 'relative',
-            width: 76, height: 76, borderRadius: '50%',
-            background: 'radial-gradient(circle, #ffffff 0%, #d4ffff 30%, #00ffff 70%)',
-            boxShadow: '0 0 30px #fff, 0 0 64px #0055ff, inset 0 0 20px rgba(255,255,255,0.6)',
-            zIndex: 6,
-            animation: 'coreBreathe 4s ease-in-out infinite',
-          }} />
-        </div>
-      </div>
-
-      {/* Label */}
-      <div style={{ textAlign: 'center', marginTop: 10 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(0,255,255,0.85)', letterSpacing: '0.2em', textShadow: '0 0 8px #00ffff', fontFamily: 'monospace' }}>
-          ALEX · AI TUTOR
-        </p>
-        <p style={{ fontSize: 9, color: speaking ? 'rgba(0,255,255,0.7)' : 'rgba(255,255,255,0.3)', letterSpacing: '0.18em', marginTop: 3, fontFamily: 'monospace' }}>
-          {speaking ? 'VOCAL OUTPUT ACTIVE' : 'SYNAPSE LINK ONLINE'}
-        </p>
-      </div>
-
-      <style>{`
-        @keyframes coreBreathe {
-          0%,100% { transform: scale(1); filter: brightness(1); }
-          50%      { transform: scale(1.07); filter: brightness(1.25); box-shadow: 0 0 40px #fff, 0 0 80px #00ffff; }
-        }
-        @keyframes liquidMorph {
-          0%,100% { border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
-          33%      { border-radius: 45% 55% 48% 52% / 52% 46% 54% 48%; }
-          66%      { border-radius: 54% 46% 52% 48% / 44% 53% 47% 56%; }
-        }
-      `}</style>
-    </div>
-  )
+  }
+  return groups
 }
 
-// ─── Section list (dark glassmorphic) ────────────────────────────────────────
-function SectionTrail({
-  sections, currentIdx, progress, moduleId, onSelect,
-}: {
-  sections: Section[]
-  currentIdx: number
-  progress: SectionProgress[]
-  moduleId: string
-  onSelect: (idx: number) => void
+function SectionTrail({ sections, currentIdx, progress, quizUnlocked, onSelect, onStartFinalQuiz }: {
+  sections: Section[]; currentIdx: number; progress: SectionProgress[]
+  quizUnlocked: boolean
+  onSelect: (i: number) => void
+  onStartFinalQuiz: () => void
 }) {
-  // fetched sub-topics keyed by section_id (for sections not yet in progress)
-  const [fetchedTopics, setFetchedTopics] = useState<Record<string, string[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
-  // Eagerly fetch sub-topics for all sections
-  useEffect(() => {
-    if (sections.length === 0) return
-    sections.forEach(s => {
-      // Skip if we already have saved teaching_points in progress
-      const saved = progress.find(p => p.section_id === s.section_id)
-      if (saved?.teaching_points && saved.teaching_points.length > 0) return
-      fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${s.section_id}`)
-        .then(r => r.json() as Promise<{ points: string[] }>)
-        .then(d => {
-          if (d.points && d.points.length > 0) {
-            setFetchedTopics(prev => ({ ...prev, [s.section_id]: d.points }))
-          }
-        })
-        .catch(() => {})
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections, moduleId])
-
-  // Auto-expand current section
   useEffect(() => {
     const cur = sections[currentIdx]
-    if (cur) setExpanded(prev => new Set(prev).add(cur.section_id))
+    if (!cur) return
+    const parentId = isSubSection(cur.section_id)
+      ? cur.section_id.split('.').slice(0, 2).join('.')
+      : cur.section_id
+    setExpanded(prev => new Set(prev).add(parentId))
   }, [currentIdx, sections])
 
-  const toggleExpand = (sectionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setExpanded(prev => {
-      const next = new Set(prev)
-      next.has(sectionId) ? next.delete(sectionId) : next.add(sectionId)
-      return next
-    })
-  }
-
-  // A section is unlocked if it is the first, or if the previous section is completed
-  function isSectionUnlocked(idx: number): boolean {
+  const isUnlocked = (idx: number) => {
     if (idx === 0) return true
     const prev = sections[idx - 1]
-    const prevProg = progress.find(p => p.section_id === prev.section_id)
-    return prevProg?.status === 'completed'
+    return progress.find(p => p.section_id === prev.section_id)?.status === 'completed'
   }
 
-  return (
-    <div className="flex-1 overflow-y-auto py-2 px-2 space-y-1">
-      {sections.map((s, i) => {
-        const prog = progress.find(p => p.section_id === s.section_id)
-        const st = prog?.status ?? 'not_started'
-        const isCurrent = i === currentIdx
-        const isDone = st === 'completed'
-        const isExpanded = expanded.has(s.section_id)
-        const isLocked = !isSectionUnlocked(i)
+  const groups = groupSections(sections)
 
-        // Prefer saved teaching_points (with done state), fall back to fetched titles
-        const topics: TeachingPoint[] = prog?.teaching_points && prog.teaching_points.length > 0
-          ? prog.teaching_points
-          : (fetchedTopics[s.section_id] ?? []).map(t => ({ title: t, done: false }))
-        const doneCount = topics.filter(t => t.done).length
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {groups.map(({ parent, parentIdx, children }) => {
+        const parentDone = progress.find(p => p.section_id === parent.section_id)?.status === 'completed'
+        const isCurParent = currentIdx === parentIdx
+        const parentLocked = !isUnlocked(parentIdx)
+        const isExp = expanded.has(parent.section_id)
+        const hasChildren = children.length > 0
+        const groupIds = [parent.section_id, ...children.map(c => c.section.section_id)]
+        const groupDone = groupIds.filter(id => progress.find(p => p.section_id === id)?.status === 'completed').length
 
         return (
-          <div key={s.section_id}>
-            {/* Section row */}
-            <button onClick={() => !isLocked && onSelect(i)} style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 10px', borderRadius: 10, textAlign: 'left', transition: 'all 0.2s',
-              cursor: isLocked ? 'default' : 'pointer',
-              opacity: isLocked ? 0.4 : 1,
-              background: isCurrent
-                ? 'linear-gradient(135deg, rgba(0,255,255,0.12), rgba(166,0,255,0.12))'
-                : isDone ? 'rgba(0,255,180,0.06)' : 'transparent',
-              border: isCurrent
-                ? '1px solid rgba(0,255,255,0.3)'
-                : isDone ? '1px solid rgba(0,255,180,0.2)' : '1px solid transparent',
-            }}>
-              {/* Section ID badge */}
+          <div key={parent.section_id}>
+            {/* H2 topic row */}
+            <button
+              onClick={() => {
+                if (!parentLocked) {
+                  if (hasChildren) setExpanded(prev => { const n = new Set(prev); n.has(parent.section_id) ? n.delete(parent.section_id) : n.add(parent.section_id); return n })
+                  onSelect(parentIdx)
+                }
+              }}
+              className={isCurParent ? 'trail-active' : ''}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 10px', borderRadius: 9, textAlign: 'left',
+                cursor: parentLocked ? 'default' : 'pointer', opacity: parentLocked ? 0.3 : 1,
+                border: isCurParent ? '1px solid var(--border-medium)' : parentDone ? '1px solid rgba(82,217,139,0.15)' : '1px solid transparent',
+                background: isCurParent ? undefined : parentDone ? 'rgba(82,217,139,0.04)' : 'transparent',
+                boxShadow: isCurParent ? 'var(--shadow-sm)' : 'none',
+                transition: 'all 0.18s',
+              }}
+            >
               <span style={{
-                minWidth: 32, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 9, fontWeight: 700, flexShrink: 0, fontFamily: 'monospace', padding: '0 4px',
-                background: isCurrent ? '#00ffff22' : isDone ? '#00ffb322' : 'rgba(255,255,255,0.06)',
-                border: isCurrent ? '1px solid #00ffff' : isDone ? '1px solid #00ffb3' : '1px solid rgba(255,255,255,0.15)',
-                color: isCurrent ? '#00ffff' : isDone ? '#00ffb3' : 'rgba(255,255,255,0.4)',
+                minWidth: 32, height: 20, borderRadius: 6, padding: '0 4px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
+                background: isCurParent ? 'rgba(78,205,196,0.14)' : parentDone ? 'rgba(82,217,139,0.12)' : 'rgba(255,255,255,0.05)',
+                border: isCurParent ? '1px solid rgba(78,205,196,0.4)' : parentDone ? '1px solid rgba(82,217,139,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                color: isCurParent ? 'var(--ac-cyan)' : parentDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
               }}>
-                {isLocked ? <Lock size={8} /> : isDone ? <Check size={9} /> : s.section_id}
+                {parentLocked ? <Lock size={8} /> : parentDone ? <Check size={9} /> : parent.section_id}
               </span>
-              {/* Title */}
               <span style={{
-                flex: 1, fontSize: 11, lineHeight: 1.3,
-                color: isCurrent ? '#e0ffff' : isDone ? 'rgba(0,255,180,0.8)' : 'rgba(255,255,255,0.45)',
+                flex: 1, fontSize: 11, fontWeight: isCurParent ? 600 : 400, lineHeight: 1.35,
+                color: isCurParent ? 'var(--text-primary)' : parentDone ? 'var(--ac-mint)' : 'var(--text-secondary)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                {s.section_title}
+                {parent.section_title}
               </span>
-              {/* Expand toggle — only show for unlocked sections */}
-              {!isLocked && topics.length > 0 && (
-                <span onClick={e => toggleExpand(s.section_id, e)} style={{
-                  display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
-                  cursor: 'pointer', padding: '2px 4px', borderRadius: 4,
-                }}>
-                  <span style={{ fontSize: 9, fontFamily: 'monospace', color: isDone ? 'rgba(0,255,120,0.5)' : 'rgba(255,255,255,0.2)' }}>
-                    {doneCount}/{topics.length}
+              {!parentLocked && hasChildren && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                  <span style={{ fontSize: 8, fontFamily: 'monospace', color: 'var(--text-tertiary)', opacity: 0.5 }}>
+                    {groupDone}/{groupIds.length}
                   </span>
-                  {isExpanded
-                    ? <ChevronUp size={10} color="rgba(255,255,255,0.25)" />
-                    : <ChevronDown size={10} color="rgba(255,255,255,0.25)" />}
+                  {isExp ? <ChevronUp size={9} color="var(--text-tertiary)" /> : <ChevronDown size={9} color="var(--text-tertiary)" />}
                 </span>
               )}
             </button>
 
-            {/* Sub-topics list */}
-            {!isLocked && isExpanded && topics.length > 0 && (
-              <div style={{ marginLeft: 12, marginBottom: 4, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {topics.map((pt, ti) => {
-                  const isCurrentTopic = isCurrent && prog?.teaching_point_idx === ti && !pt.done
+            {/* H3 sub-sections */}
+            {isExp && hasChildren && (
+              <div style={{ marginLeft: 14, paddingLeft: 8, borderLeft: '1px solid rgba(78,205,196,0.1)', display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
+                {children.map(({ section: child, idx: childIdx }) => {
+                  const childDone = progress.find(p => p.section_id === child.section_id)?.status === 'completed'
+                  const isCurChild = currentIdx === childIdx
+                  const childLocked = !isUnlocked(childIdx)
                   return (
-                    <div key={ti} style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 7,
-                      padding: '4px 6px', borderRadius: 6,
-                      background: isCurrentTopic ? 'rgba(166,0,255,0.08)' : pt.done ? 'rgba(0,255,120,0.04)' : 'transparent',
-                      border: isCurrentTopic ? '1px solid rgba(166,0,255,0.2)' : '1px solid transparent',
-                      transition: 'all 0.15s',
-                    }}>
-                      {/* Check circle */}
-                      <div style={{
-                        width: 14, height: 14, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: pt.done ? 'rgba(0,255,120,0.18)' : isCurrentTopic ? 'rgba(166,0,255,0.2)' : 'rgba(255,255,255,0.05)',
-                        border: pt.done ? '1px solid rgba(0,255,120,0.55)' : isCurrentTopic ? '1px solid rgba(166,0,255,0.5)' : '1px solid rgba(255,255,255,0.12)',
-                      }}>
-                        {pt.done
-                          ? <Check size={8} color="#00ff88" />
-                          : <span style={{ fontSize: 6, color: isCurrentTopic ? '#d080ff' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{ti + 1}</span>
-                        }
-                      </div>
-                      {/* Topic title */}
+                    <button key={child.section_id}
+                      onClick={() => !childLocked && onSelect(childIdx)}
+                      className={isCurChild ? 'trail-active' : ''}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 7,
+                        padding: '5px 8px', borderRadius: 7, textAlign: 'left',
+                        cursor: childLocked ? 'default' : 'pointer', opacity: childLocked ? 0.3 : 1,
+                        border: isCurChild ? '1px solid rgba(155,111,208,0.3)' : childDone ? '1px solid rgba(82,217,139,0.1)' : '1px solid transparent',
+                        background: isCurChild ? 'rgba(155,111,208,0.07)' : childDone ? 'rgba(82,217,139,0.03)' : 'transparent',
+                        transition: 'all 0.15s',
+                      }}
+                    >
                       <span style={{
-                        fontSize: 10, lineHeight: 1.4,
-                        color: pt.done ? 'rgba(0,255,120,0.55)' : isCurrentTopic ? '#e0c0ff' : 'rgba(255,255,255,0.35)',
-                        textDecoration: pt.done ? 'line-through' : 'none',
+                        minWidth: 30, height: 17, borderRadius: 5, padding: '0 3px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 8, fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
+                        background: isCurChild ? 'rgba(155,111,208,0.18)' : childDone ? 'rgba(82,217,139,0.1)' : 'rgba(255,255,255,0.04)',
+                        border: isCurChild ? '1px solid rgba(155,111,208,0.4)' : childDone ? '1px solid rgba(82,217,139,0.25)' : '1px solid rgba(255,255,255,0.06)',
+                        color: isCurChild ? 'var(--ac-violet)' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
                       }}>
-                        {pt.title}
+                        {childLocked ? <Lock size={7} /> : childDone ? <Check size={8} /> : child.section_id}
                       </span>
-                    </div>
+                      <span style={{
+                        flex: 1, fontSize: 10, lineHeight: 1.35,
+                        color: isCurChild ? '#C4A8F0' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {child.section_title}
+                      </span>
+                    </button>
                   )
                 })}
               </div>
@@ -352,20 +239,46 @@ function SectionTrail({
           </div>
         )
       })}
+
+      {/* Module Quiz — unlocks after all sections done */}
+      <div style={{ marginTop: 4, paddingTop: 6, borderTop: '1px solid var(--border-subtle)' }}>
+        <button
+          onClick={() => quizUnlocked && onStartFinalQuiz()}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 10px', borderRadius: 9, textAlign: 'left',
+            cursor: quizUnlocked ? 'pointer' : 'default', opacity: quizUnlocked ? 1 : 0.3,
+            border: quizUnlocked ? '1px solid rgba(232,184,75,0.3)' : '1px solid rgba(255,255,255,0.06)',
+            background: quizUnlocked ? 'rgba(232,184,75,0.05)' : 'transparent',
+            transition: 'all 0.18s',
+          }}
+        >
+          <span style={{ width: 32, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: quizUnlocked ? 'rgba(232,184,75,0.15)' : 'rgba(255,255,255,0.04)', border: quizUnlocked ? '1px solid rgba(232,184,75,0.35)' : '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+            <Brain size={10} color={quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)'} />
+          </span>
+          <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Module Quiz · 10 Questions
+          </span>
+          {quizUnlocked ? <ChevronRight size={10} color="#E8B84B" style={{ flexShrink: 0 }} /> : <Lock size={9} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />}
+        </button>
+        {!quizUnlocked && (
+          <p style={{ fontSize: 9, color: 'var(--text-tertiary)', fontFamily: 'monospace', textAlign: 'center', marginTop: 3, opacity: 0.4 }}>
+            Complete all topics to unlock
+          </p>
+        )}
+      </div>
     </div>
   )
 }
 
-// ─── Notes panel (dark glassmorphic) ─────────────────────────────────────────
-function NotesPanel({
-  section, progress, moduleId, onSave,
-}: {
-  section: Section | null
-  progress: SectionProgress | null
-  moduleId: string
-  onSave: (notes: string, keyPoints: string[]) => void
+/* ══════════════════════════════════════════════════════════════════════════════
+   NOTES PANEL
+   ══════════════════════════════════════════════════════════════════════════════ */
+function NotesPanel({ section, progress, moduleId, onSave }: {
+  section: Section | null; progress: SectionProgress | null
+  moduleId: string; onSave: (notes: string, kp: string[]) => void
 }) {
-  const [notes, setNotes] = useState(progress?.notes ?? '')
+  const [notes,  setNotes]  = useState(progress?.notes ?? '')
   const [saving, setSaving] = useState(false)
   const [kpOpen, setKpOpen] = useState(true)
 
@@ -374,58 +287,59 @@ function NotesPanel({
   const save = async () => {
     if (!section) return
     setSaving(true)
-    await fetch('/api/notes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId, sectionId: section.section_id, sectionTitle: section.section_title, notes, keyPoints: progress?.key_points ?? [], status: progress?.status ?? 'in_progress' }),
-    })
+    await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moduleId, sectionId: section.section_id, sectionTitle: section.section_title,
+        notes, keyPoints: progress?.key_points ?? [], status: progress?.status ?? 'in_progress' }) })
     onSave(notes, progress?.key_points ?? [])
     setSaving(false)
   }
 
-  const downloadNotes = () => {
+  const download = () => {
     if (!section) return
-    const text = [`Section ${section.section_id}: ${section.section_title}`, '─'.repeat(50), '', 'KEY POINTS (from Alex):', ...(progress?.key_points ?? []).map(p => `• ${p}`), '', 'MY NOTES:', notes].join('\n')
-    const blob = new Blob([text], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `Section_${section.section_id}_notes.txt`; a.click(); URL.revokeObjectURL(url)
+    const text = [`Section ${section.section_id}: ${section.section_title}`, '─'.repeat(50), '',
+      'KEY POINTS:', ...(progress?.key_points ?? []).map(p => `• ${p}`), '', 'MY NOTES:', notes].join('\n')
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
+    const a   = document.createElement('a'); a.href = url
+    a.download = `Section_${section.section_id}_notes.txt`; a.click(); URL.revokeObjectURL(url)
   }
 
-  const glassPanel: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.07)',
-    backdropFilter: 'blur(20px)',
-    borderRadius: 12,
-    padding: '12px 14px',
+  const panel: React.CSSProperties = {
+    background: 'rgba(12,16,32,0.6)', border: '1px solid var(--border-subtle)',
+    borderRadius: 10, padding: '10px 12px',
+    boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04)',
   }
 
   if (!section) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 12, padding: 20, textAlign: 'center' }}>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: 'var(--text-tertiary)', fontSize: 12, padding: 20, textAlign: 'center' }}>
       Select a section to view notes
     </div>
   )
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px 10px', gap: 10 }}>
-      {/* Section header */}
-      <div style={glassPanel}>
-        <p style={{ fontSize: 9, fontWeight: 700, color: '#00ffff', letterSpacing: '0.15em', fontFamily: 'monospace', marginBottom: 4 }}>SECTION {section.section_id}</p>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>{section.section_title}</p>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 10px', overflow: 'hidden' }}>
+      {/* header */}
+      <div style={panel}>
+        <p className="label-mono aurora-text" style={{ marginBottom: 3 }}>Section {section.section_id}</p>
+        <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{section.section_title}</p>
       </div>
 
-      {/* Key points */}
+      {/* key insights */}
       {(progress?.key_points ?? []).length > 0 && (
-        <div style={glassPanel}>
+        <div style={panel}>
           <button onClick={() => setKpOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: 'none', border: 'none', cursor: 'pointer', marginBottom: kpOpen ? 8 : 0 }}>
-            <Brain size={12} color="#a600ff" />
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(0,255,255,0.8)', letterSpacing: '0.1em', flex: 1, textAlign: 'left' }}>KEY INSIGHTS</span>
-            {kpOpen ? <ChevronUp size={11} color="rgba(255,255,255,0.3)" /> : <ChevronDown size={11} color="rgba(255,255,255,0.3)" />}
+            <Brain size={12} color="var(--ac-violet)" />
+            <span className="label-mono" style={{ flex: 1, textAlign: 'left', color: 'var(--text-accent)' }}>Key Insights</span>
+            {kpOpen ? <ChevronUp size={10} color="var(--text-tertiary)" /> : <ChevronDown size={10} color="var(--text-tertiary)" />}
           </button>
           {kpOpen && (
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {(progress?.key_points ?? []).map((pt, i) => (
-                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
-                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(166,0,255,0.3)', border: '1px solid rgba(166,0,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#a600ff', flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(139,126,200,0.18)', border: '1px solid rgba(139,126,200,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: 'var(--ac-violet)', flexShrink: 0, marginTop: 1 }}>
+                    {i + 1}
+                  </span>
                   {pt}
                 </li>
               ))}
@@ -434,1167 +348,2116 @@ function NotesPanel({
         </div>
       )}
 
-      {/* Notes textarea */}
-      <div style={{ ...glassPanel, flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, color: 'rgba(0,255,255,0.7)', letterSpacing: '0.1em' }}>
-          <PenLine size={11} color="rgba(0,255,255,0.5)" /> MY NOTES
+      {/* textarea */}
+      <div style={{ ...panel, flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, fontWeight: 700, color: 'var(--text-accent)', letterSpacing: '0.12em', fontFamily: 'monospace' }}>
+          <PenLine size={10} color="var(--ac-cyan)" /> MY NOTES
         </label>
         <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
+          value={notes} onChange={e => setNotes(e.target.value)}
           placeholder={`Write your notes for section ${section.section_id}…`}
-          style={{
-            flex: 1, resize: 'none', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8, padding: '10px 12px', fontSize: 12, color: 'rgba(255,255,255,0.8)',
-            outline: 'none', lineHeight: 1.6, minHeight: 100,
-          }}
-          onFocus={e => { e.currentTarget.style.borderColor = 'rgba(0,255,255,0.35)' }}
-          onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+          className="aurora-input"
+          style={{ flex: 1, resize: 'none', background: 'rgba(7,9,20,0.6)',
+            border: '1px solid var(--border-subtle)', borderRadius: 8,
+            padding: '9px 11px', fontSize: 12, color: 'var(--text-primary)',
+            outline: 'none', lineHeight: 1.6, minHeight: 90, fontFamily: 'inherit',
+            transition: 'border-color 0.2s', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.35)' }}
         />
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+      {/* actions */}
+      <div style={{ display: 'flex', gap: 7, flexShrink: 0 }}>
         <button onClick={save} disabled={saving} style={{
-          flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid rgba(0,255,255,0.3)',
-          background: 'rgba(0,255,255,0.1)', color: '#00ffff', fontSize: 11, fontWeight: 700,
-          letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          flex: 1, padding: '9px 0', borderRadius: 9, cursor: 'pointer',
+          background: 'linear-gradient(135deg, rgba(126,207,206,0.18), rgba(139,126,200,0.14))',
+          border: '1px solid rgba(126,207,206,0.28)', color: 'var(--ac-cyan)',
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          boxShadow: 'var(--shadow-sm)', transition: 'all 0.18s',
         }}>
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} SAVE
         </button>
-        <button onClick={downloadNotes} title="Download notes" style={{
-          padding: '9px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
-          background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer',
+        <button onClick={download} title="Download" style={{
+          padding: '9px 13px', borderRadius: 9, cursor: 'pointer',
+          background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)',
+          color: 'var(--text-tertiary)', boxShadow: 'var(--shadow-sm)',
         }}>
-          <Download size={14} />
+          <Download size={13} />
         </button>
       </div>
     </div>
   )
 }
 
-// ─── Section note-points panel (structured bullets for student note-taking) ───
+/* ══════════════════════════════════════════════════════════════════════════════
+   SECTION NOTE-POINTS
+   ══════════════════════════════════════════════════════════════════════════════ */
 function SectionNotePoints({ content }: { content: string }) {
   const [copied, setCopied] = useState<string | null>(null)
   const groups = extractNotePoints(content)
-
   const copyAll = () => {
     const lines: string[] = []
     for (const g of groups) {
       if (g.subHeading) lines.push(`\n▸ ${g.subHeading}`)
       for (const b of g.bullets) lines.push(`  • ${b}`)
     }
-    void navigator.clipboard.writeText(lines.join('\n').trim()).then(() => {
-      setCopied('all')
-      setTimeout(() => setCopied(null), 1800)
-    })
+    void navigator.clipboard.writeText(lines.join('\n').trim()).then(() => { setCopied('all'); setTimeout(() => setCopied(null), 1800) })
   }
-
   const copyBullet = (text: string) => {
-    void navigator.clipboard.writeText(`• ${text}`).then(() => {
-      setCopied(text)
-      setTimeout(() => setCopied(null), 1500)
-    })
+    void navigator.clipboard.writeText(`• ${text}`).then(() => { setCopied(text); setTimeout(() => setCopied(null), 1500) })
   }
-
-  if (groups.length === 0) {
-    return (
-      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '20px 0' }}>
-        No key points extracted yet.
-      </div>
-    )
-  }
-
+  if (!groups.length) return <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', padding: '20px 0' }}>No key points extracted yet.</div>
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <PenLine size={11} color="rgba(0,255,255,0.6)" />
-          <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(0,255,255,0.6)', letterSpacing: '0.15em', fontWeight: 700 }}>KEY POINTS TO NOTE</span>
-        </div>
-        <button onClick={copyAll} title="Copy all points" style={{
-          background: copied === 'all' ? 'rgba(0,255,120,0.15)' : 'rgba(255,255,255,0.04)',
-          border: `1px solid ${copied === 'all' ? 'rgba(0,255,120,0.4)' : 'rgba(255,255,255,0.1)'}`,
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span className="label-mono aurora-text">Key Points</span>
+        <button onClick={copyAll} style={{
+          background: copied === 'all' ? 'rgba(110,201,160,0.12)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${copied === 'all' ? 'rgba(110,201,160,0.35)' : 'var(--border-subtle)'}`,
           borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-          fontSize: 9, fontFamily: 'monospace', color: copied === 'all' ? '#00ff88' : 'rgba(255,255,255,0.4)',
-          letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 4,
-          transition: 'all 0.2s',
+          fontSize: 9, fontFamily: 'monospace', color: copied === 'all' ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+          display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.18s',
         }}>
           {copied === 'all' ? <Check size={9} /> : <Download size={9} />}
           {copied === 'all' ? 'COPIED' : 'COPY ALL'}
         </button>
       </div>
-
-      {/* Bullet groups */}
-      {groups.map((group, gi) => (
+      {groups.map((g, gi) => (
         <div key={gi} style={{
-          background: 'rgba(255,255,255,0.025)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 10,
-          overflow: 'hidden',
+          background: 'rgba(12,16,32,0.55)', border: '1px solid var(--border-subtle)',
+          borderRadius: 9, overflow: 'hidden',
+          boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.03)',
         }}>
-          {/* Sub-heading */}
-          {group.subHeading && (
-            <div style={{
-              padding: '7px 12px',
-              background: 'rgba(166,0,255,0.08)',
-              borderBottom: '1px solid rgba(166,0,255,0.15)',
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#c080ff', lineHeight: 1.3, fontFamily: 'monospace' }}>
-                ▸ {group.subHeading}
-              </span>
+          {g.subHeading && (
+            <div style={{ padding: '6px 11px', background: 'rgba(139,126,200,0.07)', borderBottom: '1px solid rgba(139,126,200,0.12)' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac-violet)', fontFamily: 'monospace' }}>▸ {g.subHeading}</span>
             </div>
           )}
-
-          {/* Bullet list */}
-          <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {group.bullets.map((bullet, bi) => (
-              <div key={bi}
-                onClick={() => copyBullet(bullet)}
-                title="Click to copy"
+          <div style={{ padding: '5px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {g.bullets.map((b, bi) => (
+              <div key={bi} onClick={() => copyBullet(b)} title="Click to copy"
                 style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 8,
-                  padding: '5px 8px', borderRadius: 7, cursor: 'pointer',
-                  background: copied === bullet ? 'rgba(0,255,120,0.08)' : 'transparent',
-                  border: `1px solid ${copied === bullet ? 'rgba(0,255,120,0.3)' : 'transparent'}`,
+                  display: 'flex', alignItems: 'flex-start', gap: 7, padding: '4px 7px',
+                  borderRadius: 6, cursor: 'pointer',
+                  background: copied === b ? 'rgba(110,201,160,0.07)' : 'transparent',
+                  border: `1px solid ${copied === b ? 'rgba(110,201,160,0.28)' : 'transparent'}`,
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (copied !== bullet) (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,255,255,0.05)' }}
-                onMouseLeave={e => { if (copied !== bullet) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                onMouseEnter={e => { if (copied !== b) (e.currentTarget as HTMLElement).style.background = 'rgba(126,207,206,0.05)' }}
+                onMouseLeave={e => { if (copied !== b) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
-                <span style={{
-                  width: 5, height: 5, borderRadius: '50%', flexShrink: 0, marginTop: 5,
-                  background: copied === bullet ? '#00ff88' : '#00ffff',
-                  boxShadow: copied === bullet ? '0 0 6px #00ff88' : '0 0 4px rgba(0,255,255,0.5)',
-                  transition: 'all 0.2s',
-                }} />
-                <span style={{
-                  fontSize: 11, lineHeight: 1.55,
-                  color: copied === bullet ? 'rgba(0,255,120,0.9)' : 'rgba(255,255,255,0.7)',
-                  flex: 1,
-                }}>
-                  {bullet}
+                <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, marginTop: 5,
+                  background: copied === b ? 'var(--ac-mint)' : 'var(--ac-cyan)',
+                  boxShadow: `0 0 4px ${copied === b ? 'var(--ac-mint)' : 'var(--ac-cyan)'}`, opacity: 0.7 }} />
+                <span style={{ fontSize: 11, lineHeight: 1.55, flex: 1,
+                  color: copied === b ? 'var(--ac-mint)' : 'var(--text-secondary)' }}>
+                  {b}
                 </span>
-                {copied === bullet
-                  ? <Check size={9} color="#00ff88" style={{ flexShrink: 0, marginTop: 4 }} />
-                  : <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.15)', flexShrink: 0, marginTop: 5, fontFamily: 'monospace' }}>COPY</span>
-                }
+                {copied === b ? <Check size={9} color="var(--ac-mint)" style={{ flexShrink: 0, marginTop: 4 }} />
+                  : <span style={{ fontSize: 8, color: 'var(--text-tertiary)', flexShrink: 0, marginTop: 5, fontFamily: 'monospace', opacity: 0.5 }}>COPY</span>}
               </div>
             ))}
           </div>
         </div>
       ))}
-
-      <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', textAlign: 'center', fontFamily: 'monospace', letterSpacing: '0.08em', marginTop: 2 }}>
-        CLICK ANY POINT TO COPY · ADD TO NOTES TAB
-      </p>
     </div>
   )
 }
 
-// ─── Extract concise note-worthy bullet points from raw section content ───────
 function extractNotePoints(content: string): { subHeading: string | null; bullets: string[] }[] {
   if (!content) return []
-
-  // Split content by sub-section markers like [1.2.1 Title text]
   const subRe = /\[(\d+\.\d+\.\d+(?:\.\d+)?\s+[^\]]{2,80})\]/g
   const parts: { heading: string | null; text: string }[] = []
-  let lastIndex = 0
-  let match: RegExpExecArray | null
-
+  let lastIndex = 0, match: RegExpExecArray | null
   while ((match = subRe.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ heading: null, text: content.slice(lastIndex, match.index) })
-    }
-    const headingStart = match.index + match[0].length
-    lastIndex = headingStart
-    // peek ahead to next marker for text
-    const nextMatch = subRe.exec(content)
-    if (nextMatch) {
-      parts.push({ heading: match[1].trim(), text: content.slice(headingStart, nextMatch.index) })
-      lastIndex = nextMatch.index
-      subRe.lastIndex = nextMatch.index
-    } else {
-      parts.push({ heading: match[1].trim(), text: content.slice(headingStart) })
-      lastIndex = content.length
-    }
+    if (match.index > lastIndex) parts.push({ heading: null, text: content.slice(lastIndex, match.index) })
+    const hs = match.index + match[0].length; lastIndex = hs
+    const nm = subRe.exec(content)
+    if (nm) { parts.push({ heading: match[1].trim(), text: content.slice(hs, nm.index) }); lastIndex = nm.index; subRe.lastIndex = nm.index }
+    else { parts.push({ heading: match[1].trim(), text: content.slice(hs) }); lastIndex = content.length }
   }
   if (lastIndex < content.length) parts.push({ heading: null, text: content.slice(lastIndex) })
-
-  // If no sub-markers found treat whole content as one block
-  if (parts.length === 0) parts.push({ heading: null, text: content })
-
+  if (!parts.length) parts.push({ heading: null, text: content })
   return parts.map(part => {
     const raw = part.text.replace(/\s+/g, ' ').trim()
-    // Extract sentences that are short enough to be useful bullet points (15–160 chars)
-    const sentences = raw.match(/[^.!?]+[.!?]/g) ?? []
-    const bullets = sentences
-      .map(s => s.trim())
+    const bullets = (raw.match(/[^.!?]+[.!?]/g) ?? []).map(s => s.trim())
       .filter(s => s.length >= 15 && s.length <= 180)
       .filter(s => !/^(the|a|an|this|that|these|those|it|in|at|on|for|and|or)\b/i.test(s))
       .slice(0, 5)
     return { subHeading: part.heading, bullets }
-  }).filter(p => p.bullets.length > 0 || p.subHeading !== null)
+  }).filter(p => p.bullets.length || p.subHeading)
 }
 
-// ─── Typing indicator ─────────────────────────────────────────────────────────
-function TypingIndicator() {
+/* ══════════════════════════════════════════════════════════════════════════════
+   CONTENT PARSER — splits assistant text into plain text + structured blocks
+   ══════════════════════════════════════════════════════════════════════════════ */
+type MCQData = { question: string; options: Array<{ letter: string; text: string }>; correct: string }
+type LabeledItem = { label: string; desc: string }
+
+type ContentSegment =
+  | { kind: 'text';    text: string }
+  | { kind: 'pillars'; title: string; items: LabeledItem[] }
+  | { kind: 'steps';   title: string; items: LabeledItem[] }
+  | { kind: 'terms';   title: string; items: LabeledItem[] }
+  | { kind: 'mcq';     data: MCQData }
+
+// Split "Label — Description" or "Label :: Description" or plain text
+function splitLabelDesc(line: string): LabeledItem {
+  const stripped = line.replace(/^[-*\d.]+\s*/, '').trim()
+  // Try em-dash variants: —  –  -
+  const m = stripped.match(/^(.+?)\s+(?:—|–|::)\s+(.+)$/)
+  if (m) return { label: m[1].trim(), desc: m[2].trim() }
+  return { label: stripped, desc: '' }
+}
+
+function parseContent(raw: string): ContentSegment[] {
+  // Strip :::VISUAL signal lines — they're just a trigger for the diagram, not displayed text
+  const cleaned = raw.replace(/:::VISUAL\n?/g, '')
+  const segments: ContentSegment[] = []
+  const blockRe = /\n?:::(PILLARS|STEPS|TERMS|MCQ)\n([\s\S]*?):::/g
+  raw = cleaned
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = blockRe.exec(raw)) !== null) {
+    if (m.index > last) {
+      const txt = raw.slice(last, m.index).trim()
+      if (txt) segments.push({ kind: 'text', text: txt })
+    }
+    const type = m[1] as 'PILLARS' | 'STEPS' | 'TERMS' | 'MCQ'
+    const body = m[2].trim()
+    const lines = body.split('\n').map(l => l.trim()).filter(Boolean)
+
+    if (type === 'MCQ') {
+      const question = lines[0] ?? ''
+      const options: Array<{ letter: string; text: string }> = []
+      let correct = ''
+      for (const l of lines.slice(1)) {
+        const optM = l.match(/^([A-D])\.\s+(.+)/)
+        if (optM) { options.push({ letter: optM[1], text: optM[2] }); continue }
+        const corM = l.match(/^CORRECT:\s*([A-D])/)
+        if (corM) correct = corM[1]
+      }
+      segments.push({ kind: 'mcq', data: { question, options, correct } })
+    } else {
+      const title = lines[0] ?? ''
+      const items = lines.slice(1).map(splitLabelDesc)
+      const kind = type === 'PILLARS' ? 'pillars' : type === 'STEPS' ? 'steps' : 'terms'
+      segments.push({ kind, title, items } as ContentSegment)
+    }
+    last = m.index + m[0].length
+  }
+  const tail = raw.slice(last).trim()
+  if (tail) segments.push({ kind: 'text', text: tail })
+  return segments
+}
+
+/* ── Inline visual blocks rendered inside the chat bubble ── */
+const BLOCK_COLORS = ['#4ECDC4', '#9B6FD0', '#52D98B', '#E8B84B', '#E87B6F']
+
+// Shared card renderer — each item gets its own highlighted card with a coloured accent bar
+function KeyCardsBlock({ title, items, accentColor, numbered, connector }: {
+  title: string
+  items: LabeledItem[]
+  accentColor: string
+  numbered: boolean
+  connector?: boolean  // draw a line between items (for steps)
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,255,255,0.15)', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#00ffff', flexShrink: 0 }}>A</div>
-      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px 16px 16px 4px', padding: '10px 14px', backdropFilter: 'blur(20px)' }}>
-        <div style={{ display: 'flex', gap: 5 }}>
-          {[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#00ffff', display: 'inline-block', animation: `typingPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
-        </div>
+    <div className="visual-card-enter" style={{
+      marginTop: 12, borderRadius: 14, overflow: 'hidden',
+      border: `1px solid ${accentColor}22`,
+      background: 'rgba(4,6,14,0.82)',
+      boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${accentColor}08`,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '9px 14px 8px',
+        borderBottom: `1px solid ${accentColor}18`,
+        background: `linear-gradient(90deg, ${accentColor}0d 0%, transparent 100%)`,
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <div style={{ width: 3, height: 14, borderRadius: 2, background: accentColor, boxShadow: `0 0 8px ${accentColor}` }} />
+        <p style={{ fontSize: 10, fontWeight: 700, color: accentColor, fontFamily: 'monospace', letterSpacing: '0.13em', textTransform: 'uppercase', margin: 0 }}>{title}</p>
       </div>
-      <style>{`@keyframes typingPulse { 0%,80%,100%{opacity:0.2;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }`}</style>
+
+      {/* Cards */}
+      <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: connector ? 0 : 7 }}>
+        {items.map((item, i) => {
+          const color = BLOCK_COLORS[i % BLOCK_COLORS.length]
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative' }}>
+              {/* Connector line for steps */}
+              {connector && i < items.length - 1 && (
+                <div style={{ position: 'absolute', left: 15, top: 30, bottom: -10, width: 1, background: `${color}25`, zIndex: 0 }} />
+              )}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
+                padding: connector ? '0 0 14px' : 0, position: 'relative', zIndex: 1 }}>
+                {/* Number badge */}
+                <div style={{
+                  width: 28, height: 28, borderRadius: numbered ? 9 : '50%',
+                  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, fontFamily: 'monospace',
+                  background: `${color}14`, border: `1px solid ${color}38`, color,
+                  boxShadow: `0 0 10px ${color}18`,
+                }}>
+                  {numbered ? (i + 1) : '▸'}
+                </div>
+                {/* Card body */}
+                <div style={{
+                  flex: 1, minWidth: 0,
+                  background: `${color}07`,
+                  border: `1px solid ${color}18`,
+                  borderLeft: `3px solid ${color}70`,
+                  borderRadius: '0 10px 10px 0',
+                  padding: '8px 12px',
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.03)`,
+                }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color, margin: '0 0 3px', lineHeight: 1.3 }}>
+                    {item.label}
+                  </p>
+                  {item.desc && (
+                    <p style={{ fontSize: 12, color: '#8EA8CC', margin: 0, lineHeight: 1.6 }}>
+                      {item.desc}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-// ─── Quiz modal (dark glassmorphic) ──────────────────────────────────────────
+function PillarsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
+  return <KeyCardsBlock title={title} items={items} accentColor="#4ECDC4" numbered={true} />
+}
+
+function StepsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
+  return <KeyCardsBlock title={title} items={items} accentColor="#9B6FD0" numbered={true} connector={true} />
+}
+
+function TermsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
+  return <KeyCardsBlock title={title} items={items} accentColor="#E8B84B" numbered={false} />
+}
+
+/* ── MCQ interactive block ── */
+function MCQBlock({ data, onAnswer, answered }: { data: MCQData; onAnswer: (letter: string, text: string) => void; answered: string | null }) {
+  const COLORS: Record<string, string> = { A: '#4ECDC4', B: '#9B6FD0', C: '#52D98B', D: '#E8B84B' }
+  return (
+    <div className="visual-card-enter" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(78,205,196,0.18)', background: 'rgba(5,8,16,0.75)' }}>
+      <div style={{ padding: '10px 14px 9px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 18, height: 18, borderRadius: 5, background: 'rgba(78,205,196,0.12)', border: '1px solid rgba(78,205,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: 9, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }}>?</span>
+        </div>
+        <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.5, margin: 0, fontWeight: 500 }}>{data.question}</p>
+      </div>
+      <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {data.options.map(opt => {
+          const isSelected = answered === opt.letter
+          const isCorrect  = answered !== null && opt.letter === data.correct
+          const isWrong    = answered === opt.letter && opt.letter !== data.correct
+          const color = COLORS[opt.letter] ?? '#4ECDC4'
+
+          let bg = 'rgba(255,255,255,0.02)'
+          let border = 'rgba(255,255,255,0.08)'
+          let textColor = '#8EA8CC'
+          if (isCorrect && answered !== null) { bg = 'rgba(82,217,139,0.1)'; border = 'rgba(82,217,139,0.35)'; textColor = '#52D98B' }
+          else if (isWrong)                   { bg = 'rgba(232,123,111,0.1)'; border = 'rgba(232,123,111,0.35)'; textColor = '#E87B6F' }
+          else if (isSelected)                { bg = `${color}12`; border = `${color}40`; textColor = color }
+
+          return (
+            <button
+              key={opt.letter}
+              disabled={answered !== null}
+              onClick={() => onAnswer(opt.letter, `${opt.letter}. ${opt.text}`)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 9,
+                background: bg, border: `1px solid ${border}`,
+                cursor: answered !== null ? 'default' : 'pointer',
+                textAlign: 'left', width: '100%',
+                transition: 'all 0.18s',
+              }}
+              onMouseEnter={e => { if (answered === null) (e.currentTarget as HTMLElement).style.background = `${color}10` }}
+              onMouseLeave={e => { if (answered === null) (e.currentTarget as HTMLElement).style.background = bg }}
+            >
+              <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, fontFamily: 'monospace', background: `${color}18`, border: `1px solid ${color}35`, color }}>
+                {opt.letter}
+              </div>
+              <span style={{ fontSize: 12, lineHeight: 1.5, color: textColor, flex: 1 }}>{opt.text}</span>
+              {isCorrect && answered !== null && <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>}
+              {isWrong                          && <span style={{ fontSize: 14, flexShrink: 0 }}>✗</span>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ── Smart plain-text renderer — converts prose into readable formatted elements ── */
+function FormattedText({ text }: { text: string }) {
+  if (!text.trim()) return null
+
+  // Split into logical paragraphs first (double newlines or sentence groups)
+  const rawParas = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {rawParas.map((para, pi) => {
+        // Detect inline numbered list: "Number one: ... Number two: ..." or "1. ... 2. ..."
+        const numberedInline = para.match(/\bNumber\s+(?:one|two|three|four|five|six)\s*:/i) ||
+          para.match(/\b(?:one|two|three|four|five|six)\s*:\s+[A-Z]/i)
+
+        // Detect dash-separated items: "Term — definition. Term — definition."
+        const dashItems = para.match(/[A-Z][^.!?]*\s+—\s+[^.!?]+[.!?]/g)
+
+        // Detect "First, ... Second, ... Third, ..."
+        const ordinalInline = para.match(/\b(?:First|Second|Third|Fourth|Fifth)[,.:]/i)
+
+        // Detect "• item" or "- item" bullets already in text
+        const bulletLines = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim()))
+
+        if (bulletLines.length >= 2) {
+          // Already has bullets — render as list
+          const intro = para.split('\n').find(l => !/^[•\-]\s/.test(l.trim()))?.trim()
+          const items = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim())).map(l => l.replace(/^[•\-]\s*/, '').trim())
+          return (
+            <div key={pi}>
+              {intro && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 6px' }}>{renderInline(intro)}</p>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
+                {items.map((item, ii) => <BulletItem key={ii} text={item} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} />)}
+              </div>
+            </div>
+          )
+        }
+
+        if (numberedInline || ordinalInline) {
+          // Split on "Number X:" or ordinal words
+          const parts = para
+            .split(/(?=\bNumber\s+(?:one|two|three|four|five|six)\s*:|\b(?:First|Second|Third|Fourth|Fifth)[,.:]\s)/i)
+            .map(p => p.trim()).filter(Boolean)
+
+          // First part might be intro text (no number prefix)
+          const isIntro = (p: string) => !/^\bNumber\s+|^\b(?:First|Second|Third|Fourth|Fifth)/i.test(p)
+          const intro = parts.find(isIntro)
+          const numbered = parts.filter(p => !isIntro(p))
+
+          if (numbered.length >= 2) {
+            return (
+              <div key={pi}>
+                {intro && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 8px' }}>{renderInline(intro)}</p>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
+                  {numbered.map((item, ii) => {
+                    const clean = item.replace(/^Number\s+\w+\s*:\s*/i, '').replace(/^\w+[,.:]\s*/i, '').trim()
+                    return <BulletItem key={ii} text={clean} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} index={ii + 1} />
+                  })}
+                </div>
+              </div>
+            )
+          }
+        }
+
+        if (dashItems && dashItems.length >= 2) {
+          // Dash-separated definitions — render as mini term cards
+          const preText = para.slice(0, para.indexOf(dashItems[0])).trim()
+          return (
+            <div key={pi}>
+              {preText && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 8px' }}>{renderInline(preText)}</p>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {dashItems.map((item, ii) => {
+                  const dashIdx = item.indexOf(' — ')
+                  const label = dashIdx >= 0 ? item.slice(0, dashIdx).trim() : item
+                  const def   = dashIdx >= 0 ? item.slice(dashIdx + 3).replace(/[.!?]$/, '').trim() : ''
+                  const color = BLOCK_COLORS[ii % BLOCK_COLORS.length]
+                  return (
+                    <div key={ii} style={{ display: 'flex', alignItems: 'flex-start', gap: 0, borderRadius: 8, overflow: 'hidden', border: `1px solid ${color}18` }}>
+                      <div style={{ background: `${color}15`, borderRight: `2px solid ${color}50`, padding: '6px 10px', minWidth: 110, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color, lineHeight: 1.4 }}>{label}</span>
+                      </div>
+                      {def && <div style={{ padding: '6px 10px', background: `${color}05` }}>
+                        <span style={{ fontSize: 12, color: '#8EA8CC', lineHeight: 1.5 }}>{def}</span>
+                      </div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        }
+
+        // Plain paragraph — split on newlines if any, render each line
+        const lines = para.split('\n').map(l => l.trim()).filter(Boolean)
+        if (lines.length === 1) {
+          return <p key={pi} style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.75, margin: 0 }}>{renderInline(para)}</p>
+        }
+        return (
+          <div key={pi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {lines.map((line, li) => (
+              <p key={li} style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.75, margin: 0 }}>{renderInline(line)}</p>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BulletItem({ text, color, index }: { text: string; color: string; index?: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <div style={{ width: 20, height: 20, borderRadius: index !== undefined ? 6 : '50%', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${color}15`, border: `1px solid ${color}30` }}>
+        {index !== undefined
+          ? <span style={{ fontSize: 9, fontWeight: 800, color, fontFamily: 'monospace' }}>{index}</span>
+          : <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'block', boxShadow: `0 0 4px ${color}` }} />
+        }
+      </div>
+      <span style={{ fontSize: 12, color: '#8EA8CC', lineHeight: 1.6, paddingTop: 2, flex: 1 }}>{renderInline(text)}</span>
+    </div>
+  )
+}
+
+// Inline formatting: bold **text**, "quoted terms", and term — definition splits
+function renderInline(text: string): React.ReactNode {
+  if (!text) return null
+  // Split on **bold** markers
+  const parts = text.split(/(\*\*[^*]+\*\*)/)
+  if (parts.length === 1) return text
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**')
+          ? <strong key={i} style={{ color: '#E8F0FC', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
+}
+
+/* ── Renders a full assistant message: plain text + inline structured blocks ── */
+function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null; isStreaming?: boolean }) {
+  // While streaming, hide any incomplete :::MCQ block so raw text never shows
+  const displayContent = isStreaming
+    ? content.replace(/\n?:::MCQ[\s\S]*$/, '')
+    : content
+  const segments = parseContent(displayContent)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {segments.map((seg, i) => {
+        if (seg.kind === 'text')    return <FormattedText key={i} text={seg.text} />
+        if (seg.kind === 'pillars') return <PillarsBlock  key={i} title={seg.title} items={seg.items} />
+        if (seg.kind === 'steps')   return <StepsBlock    key={i} title={seg.title} items={seg.items} />
+        if (seg.kind === 'terms')   return <TermsBlock    key={i} title={seg.title} items={seg.items} />
+        if (seg.kind === 'mcq')     return <MCQBlock      key={i} data={seg.data} onAnswer={onAnswer ?? (()=>{})} answered={answeredMcq ?? null} />
+        return null
+      })}
+      {svg && <VisualCard svg={svg} />}
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   VISUAL CARD — renders AI-generated SVG diagram beneath assistant bubbles
+   ══════════════════════════════════════════════════════════════════════════════ */
+function VisualCard({ svg }: { svg: string }) {
+  return (
+    <div className="visual-card-enter" style={{
+      marginTop: 8,
+      borderRadius: 14,
+      overflow: 'hidden',
+      border: '1px solid rgba(78,205,196,0.18)',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(78,205,196,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
+      width: '100%',
+    }}>
+      <div
+        style={{ lineHeight: 0, display: 'block' }}
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TYPING INDICATOR
+   ══════════════════════════════════════════════════════════════════════════════ */
+function TypingIndicator() {
+  return (
+    <div className="message-enter" style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+      <div style={{
+        width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+        background: 'linear-gradient(135deg, rgba(78,205,196,0.18), rgba(155,111,208,0.18))',
+        border: '1.5px solid rgba(78,205,196,0.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 700, color: 'var(--ac-cyan)',
+        boxShadow: '0 0 12px rgba(78,205,196,0.2)',
+      }}>A</div>
+      <div style={{
+        background: 'rgba(10,14,28,0.82)',
+        border: '1px solid rgba(78,205,196,0.14)',
+        borderRadius: '16px 16px 16px 4px',
+        padding: '11px 16px',
+        boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04)',
+        display: 'flex', alignItems: 'center', gap: 5,
+      }}>
+        {[0,1,2].map(i => <span key={i} className="typing-dot" style={{ display: 'inline-block' }} />)}
+        <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace', marginLeft: 4, letterSpacing: '0.06em' }}>thinking…</span>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NOTES PROMPT BANNER
+   ══════════════════════════════════════════════════════════════════════════════ */
+function NotesPromptBanner({ phase, topicTitle, topicIdx, total }: {
+  phase: 'PRE_NOTES'|'EXPLAIN'|'CONFIRM'|'POST_NOTES'|'CHECK'|'WRAP'
+  topicTitle: string|null; topicIdx: number; total: number
+}) {
+  if (!topicTitle) return null
+  const cfg: Record<string, { icon: string; label: string; hint: string; accent: string }> = {
+    PRE_NOTES:  { icon: '✏️', label: 'WRITE HEADING', hint: `Write "${topicTitle}" as a heading in your notes.`, accent: 'var(--ac-gold)' },
+    EXPLAIN:    { icon: '📖', label: 'LISTENING',      hint: `Alex is explaining "${topicTitle}".`, accent: 'var(--ac-cyan)' },
+    CONFIRM:    { icon: '📝', label: 'UPDATE NOTES',   hint: `Update your notes for "${topicTitle}", then reply when ready.`, accent: 'var(--ac-mint)' },
+    POST_NOTES: { icon: '💬', label: 'QUICK CHECK',    hint: `Answer the question about "${topicTitle}".`, accent: 'var(--ac-violet)' },
+    CHECK:      { icon: '💬', label: 'ANSWER',          hint: `Answer Alex's question about "${topicTitle}".`, accent: 'var(--ac-violet)' },
+    WRAP:       { icon: '🏁', label: 'WRAP-UP',         hint: 'Final check — answer the question to complete this section.', accent: 'var(--ac-cyan)' },
+  }
+  const c = cfg[phase]; if (!c) return null
+  return (
+    <div style={{
+      margin: '0 20px 8px', padding: '9px 14px', borderRadius: 9, flexShrink: 0,
+      background: 'rgba(12,16,32,0.65)', border: `1px solid ${c.accent}28`,
+      boxShadow: `var(--shadow-sm), 0 0 12px ${c.accent}14`,
+      display: 'flex', alignItems: 'center', gap: 10,
+    }}>
+      <span style={{ fontSize: 14 }}>{c.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <span style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.14em', color: c.accent }}>{c.label}</span>
+          {total > 0 && <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-tertiary)' }}>· {topicIdx+1}/{total}</span>}
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, margin: 0 }}>{c.hint}</p>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   QUIZ MODAL
+   ══════════════════════════════════════════════════════════════════════════════ */
 function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onComplete }: {
   moduleId: string; moduleTitle: string; partNumber: number; partTitle: string
   onClose: () => void; onComplete: (passed: boolean, score: number) => void
 }) {
-  const [questions, setQuestions] = useState<QuizQuestion[]>([])
-  const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [result, setResult] = useState<{
-    score: number; total: number; percentage: number; passed: boolean
-    weakAreas: string[]
-    explanations: Record<string, { correct: string; explanation: string; userAnswer: string }>
-  } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [questions,  setQuestions]  = useState<QuizQuestion[]>([])
+  const [answers,    setAnswers]    = useState<Record<string,string>>({})
+  const [result,     setResult]     = useState<{
+    score:number; total:number; percentage:number; passed:boolean; weakAreas:string[]
+    explanations:Record<string,{correct:string;explanation:string;userAnswer:string}>
+  }|null>(null)
+  const [loading,    setLoading]    = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    fetch('/api/quiz', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId, moduleTitle, partNumber, partTitle, count: 5 }) })
-      .then(r => r.json() as Promise<{ questions: QuizQuestion[] }>)
-      .then(d => { setQuestions(d.questions ?? []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [moduleId, moduleTitle, partNumber, partTitle])
+    fetch('/api/quiz',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({moduleId,moduleTitle,partNumber,partTitle,count:5})})
+      .then(r=>r.json() as Promise<{questions:QuizQuestion[]}>)
+      .then(d=>{setQuestions(d.questions??[]);setLoading(false)})
+      .catch(()=>setLoading(false))
+  },[moduleId,moduleTitle,partNumber,partTitle])
 
-  async function handleSubmit() {
+  const handleSubmit = async () => {
     setSubmitting(true)
-    const res = await fetch('/api/quiz/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId, answers, questions }) })
+    const res  = await fetch('/api/quiz/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({moduleId,answers,questions})})
     const data = await res.json() as typeof result
     setResult(data); setSubmitting(false)
     if (data) onComplete(data.passed, data.percentage)
   }
 
-  const glass: React.CSSProperties = {
-    background: 'rgba(10,8,25,0.92)',
-    border: '1px solid rgba(0,255,255,0.15)',
-    backdropFilter: 'blur(40px)',
-    borderRadius: 20,
-  }
-
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
-      <div style={{ ...glass, width: '100%', maxWidth: 640, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 0 60px rgba(166,0,255,0.2)' }}>
-        {/* Header */}
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Brain size={18} color="#00ffff" />
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#e0ffff' }}>Knowledge Check</p>
-              <p style={{ fontSize: 10, color: 'rgba(0,255,255,0.5)', fontFamily: 'monospace', letterSpacing: '0.1em' }}>{moduleTitle}</p>
+    <div style={{ position:'fixed', inset:0, background:'rgba(3,5,14,0.85)', zIndex:100,
+      display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(10px)' }}>
+      {/* bordered wrapper */}
+      <div className="aurora-border" style={{ width:'100%', maxWidth:620, maxHeight:'88vh', borderRadius:16 }}>
+        <div style={{
+          display:'flex', flexDirection:'column', background:'var(--bg-elevated)',
+          borderRadius:15, maxHeight:'88vh',
+          boxShadow:'var(--shadow-xl)',
+        }}>
+          {/* header */}
+          <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--border-subtle)',
+            display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:34, height:34, borderRadius:9,
+                background:'linear-gradient(135deg,rgba(126,207,206,0.18),rgba(139,126,200,0.16))',
+                border:'1px solid var(--border-medium)', display:'flex', alignItems:'center', justifyContent:'center',
+                boxShadow:'var(--shadow-sm)' }}>
+                <Brain size={17} color="var(--ac-cyan)" />
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)' }}>Knowledge Check</p>
+                <p className="label-mono" style={{ color:'var(--text-tertiary)' }}>{moduleTitle}</p>
+              </div>
             </div>
+            <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-tertiary)', fontSize:18, lineHeight:1, padding:4 }}>✕</button>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 18, lineHeight: 1 }}>✕</button>
-        </div>
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {loading && <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}><Loader2 size={28} color="#00ffff" className="animate-spin" /></div>}
-          {!loading && result && (
-            <div style={{ borderRadius: 14, padding: '18px 20px', background: result.passed ? 'rgba(0,255,120,0.08)' : 'rgba(255,60,60,0.08)', border: `1px solid ${result.passed ? 'rgba(0,255,120,0.3)' : 'rgba(255,60,60,0.3)'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                {result.passed ? <CheckCircle2 size={20} color="#00ff88" /> : <XCircle size={20} color="#ff4444" />}
-                <p style={{ fontWeight: 700, color: result.passed ? '#00ff88' : '#ff6666', fontSize: 15 }}>{result.passed ? `Passed — ${result.percentage}%` : `Not yet — ${result.percentage}%`}</p>
-              </div>
-              {result.weakAreas.length > 0 && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Revisit: {result.weakAreas.join(', ')}</p>}
-            </div>
-          )}
-          {!loading && !result && questions.map((q, qi) => (
-            <div key={q.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 500, lineHeight: 1.5 }}>{qi + 1}. {q.question}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {q.options.map(opt => (
-                  <label key={opt} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s', background: answers[q.id] === opt ? 'rgba(0,255,255,0.1)' : 'rgba(255,255,255,0.03)', border: answers[q.id] === opt ? '1px solid rgba(0,255,255,0.4)' : '1px solid rgba(255,255,255,0.08)' }}>
-                    <input type="radio" name={q.id} value={opt} checked={answers[q.id] === opt} onChange={() => setAnswers(p => ({ ...p, [q.id]: opt }))} style={{ marginTop: 2, accentColor: '#00ffff' }} />
-                    <span style={{ fontSize: 12, color: answers[q.id] === opt ? '#e0ffff' : 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>{opt}</span>
-                  </label>
-                ))}
-              </div>
-              {result?.explanations[q.id] && (
-                <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: 11, lineHeight: 1.5, background: answers[q.id] === result.explanations[q.id].correct ? 'rgba(0,255,120,0.08)' : 'rgba(255,60,60,0.08)', color: answers[q.id] === result.explanations[q.id].correct ? '#00ff88' : '#ff8888', border: `1px solid ${answers[q.id] === result.explanations[q.id].correct ? 'rgba(0,255,120,0.2)' : 'rgba(255,60,60,0.2)'}` }}>
-                  <strong>Correct: {result.explanations[q.id].correct}</strong> — {result.explanations[q.id].explanation}
+          {/* body */}
+          <div style={{ flex:1, overflowY:'auto', padding:'18px 22px', display:'flex', flexDirection:'column', gap:18 }}>
+            {loading && <div style={{ display:'flex',justifyContent:'center',padding:'40px 0' }}><Loader2 size={26} color="var(--ac-cyan)" className="animate-spin" /></div>}
+
+            {!loading && result && (
+              <div style={{ borderRadius:11, padding:'14px 18px',
+                background: result.passed ? 'rgba(110,201,160,0.07)' : 'rgba(196,123,138,0.07)',
+                border: `1px solid ${result.passed ? 'rgba(110,201,160,0.28)' : 'rgba(196,123,138,0.25)'}`,
+                boxShadow: `var(--shadow-sm), 0 0 20px ${result.passed?'rgba(110,201,160,0.1)':'rgba(196,123,138,0.08)'}`,
+              }}>
+                <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+                  {result.passed
+                    ? <CheckCircle2 size={19} color="var(--ac-mint)" />
+                    : <XCircle size={19} color="var(--ac-rose)" />}
+                  <p style={{ fontWeight:700, color:result.passed?'var(--ac-mint)':'var(--ac-rose)', fontSize:14 }}>
+                    {result.passed ? `Passed — ${result.percentage}%` : `Not yet — ${result.percentage}%`}
+                  </p>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {result.weakAreas.length > 0 && <p style={{ fontSize:12, color:'var(--text-tertiary)', marginTop:5 }}>Revisit: {result.weakAreas.join(', ')}</p>}
+              </div>
+            )}
 
-        {/* Footer */}
-        <div style={{ padding: '14px 24px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          {!result ? (
-            <>
-              <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleSubmit} disabled={submitting || Object.keys(answers).length < questions.length} style={{ padding: '9px 22px', borderRadius: 10, background: 'rgba(0,255,255,0.15)', border: '1px solid rgba(0,255,255,0.4)', color: '#00ffff', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: (submitting || Object.keys(answers).length < questions.length) ? 0.4 : 1 }}>
-                {submitting && <Loader2 size={14} className="animate-spin" />} Submit
+            {!loading && questions.map((q, qi) => (
+              <div key={q.id} style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <p style={{ fontSize:13, color:'var(--text-primary)', fontWeight:500, lineHeight:1.55 }}>{qi+1}. {q.question}</p>
+                <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                  {q.options.map(opt => (
+                    <label key={opt} style={{
+                      display:'flex', alignItems:'flex-start', gap:10, padding:'9px 13px',
+                      borderRadius:9, cursor:result?'default':'pointer', transition:'all 0.18s',
+                      background: answers[q.id]===opt ? 'rgba(126,207,206,0.08)' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${answers[q.id]===opt ? 'rgba(126,207,206,0.32)' : 'var(--border-subtle)'}`,
+                      boxShadow: answers[q.id]===opt ? '0 0 10px rgba(126,207,206,0.08)' : 'none',
+                    }}>
+                      <input type="radio" name={q.id} value={opt} checked={answers[q.id]===opt}
+                        onChange={()=>!result&&setAnswers(p=>({...p,[q.id]:opt}))}
+                        style={{ marginTop:2, accentColor:'var(--ac-cyan)' }} />
+                      <span style={{ fontSize:12, color:answers[q.id]===opt?'var(--text-primary)':'var(--text-secondary)', lineHeight:1.5 }}>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                {result?.explanations[q.id] && (
+                  <div style={{ padding:'9px 13px', borderRadius:9, fontSize:11, lineHeight:1.5,
+                    background: answers[q.id]===result.explanations[q.id].correct ? 'rgba(110,201,160,0.07)' : 'rgba(196,123,138,0.07)',
+                    color: answers[q.id]===result.explanations[q.id].correct ? 'var(--ac-mint)' : 'var(--ac-rose)',
+                    border: `1px solid ${answers[q.id]===result.explanations[q.id].correct ? 'rgba(110,201,160,0.22)' : 'rgba(196,123,138,0.2)'}`,
+                  }}>
+                    <strong>Correct: {result.explanations[q.id].correct}</strong> — {result.explanations[q.id].explanation}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* footer */}
+          <div style={{ padding:'13px 22px', borderTop:'1px solid var(--border-subtle)', display:'flex', justifyContent:'flex-end', gap:9 }}>
+            {!result ? (
+              <>
+                <button onClick={onClose} style={{ padding:'8px 16px', borderRadius:9, background:'none',
+                  border:'1px solid var(--border-subtle)', color:'var(--text-secondary)', fontSize:12, cursor:'pointer' }}>Cancel</button>
+                <StarBorder
+                  as="button"
+                  onClick={handleSubmit}
+                  disabled={submitting||Object.keys(answers).length<questions.length}
+                  color="rgba(78,205,196,0.9)"
+                  speed="3.5s"
+                  thickness={1}
+                  style={{
+                    opacity:(submitting||Object.keys(answers).length<questions.length)?0.38:1,
+                    cursor:(submitting||Object.keys(answers).length<questions.length)?'not-allowed':'pointer',
+                    borderRadius: 9,
+                  }}
+                >
+                  <span className="btn btn-primary" style={{ padding:'8px 20px', display:'flex', alignItems:'center', gap:6, border:'none', background:'none', boxShadow:'none' }}>
+                    {submitting && <Loader2 size={13} className="animate-spin" />} Submit
+                  </span>
+                </StarBorder>
+              </>
+            ) : (
+              <button onClick={onClose} style={{
+                padding:'8px 20px', borderRadius:9, fontSize:12, fontWeight:700, cursor:'pointer',
+                background: result.passed ? 'rgba(110,201,160,0.12)' : 'rgba(196,123,138,0.08)',
+                border: `1px solid ${result.passed ? 'rgba(110,201,160,0.35)' : 'rgba(196,123,138,0.25)'}`,
+                color: result.passed ? 'var(--ac-mint)' : 'var(--ac-rose)',
+              }}>
+                {result.passed ? 'Continue learning →' : 'Try again later'}
               </button>
-            </>
-          ) : (
-            <button onClick={onClose} style={{ padding: '9px 22px', borderRadius: 10, background: result.passed ? 'rgba(0,255,120,0.15)' : 'rgba(255,60,60,0.1)', border: `1px solid ${result.passed ? 'rgba(0,255,120,0.4)' : 'rgba(255,60,60,0.3)'}`, color: result.passed ? '#00ff88' : '#ff8888', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-              {result.passed ? 'Continue learning →' : 'Try again later'}
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════════════
+   PAGE SKELETON
+   ══════════════════════════════════════════════════════════════════════════════ */
+function PageSkeleton() {
+  return (
+    <div style={{
+      width: '100%', height: '100vh',
+      background: 'var(--bg-base)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+      {/* HUD bar */}
+      <header style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 18px', height: 52, flexShrink: 0,
+        background: 'var(--glass-lg)',
+        borderBottom: '1px solid var(--border-subtle)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="skeleton" style={{ width: 60, height: 22 }} />
+          <div className="skeleton" style={{ width: 160, height: 28 }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="skeleton" style={{ width: 160, height: 16, borderRadius: 99 }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div className="skeleton" style={{ width: 72, height: 28 }} />
+          <div className="skeleton" style={{ width: 72, height: 28 }} />
+          <div className="skeleton" style={{ width: 32, height: 28 }} />
+        </div>
+      </header>
+
+      {/* 3-col body */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* left col */}
+        <div style={{
+          width: 220, flexShrink: 0,
+          background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
+          borderRight: '1px solid var(--border-subtle)',
+          padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <div className="skeleton" style={{ width: '55%', height: 14 }} />
+          {[90, 140, 110, 125, 105, 145].map((w, i) => (
+            <div key={i} className="skeleton" style={{ width: w, height: 34, borderRadius: 9 }} />
+          ))}
+        </div>
+
+        {/* centre col */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* orb zone */}
+          <div style={{
+            flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            paddingTop: 22, paddingBottom: 18, gap: 12,
+            borderBottom: '1px solid rgba(78,205,196,0.12)',
+          }}>
+            <div className="skeleton" style={{ width: 220, height: 220, borderRadius: '50%' }} />
+            <div className="skeleton" style={{ width: 240, height: 52, borderRadius: 6 }} />
+          </div>
+
+          {/* messages area */}
+          <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9 }}>
+              <div className="skeleton" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
+              <div className="skeleton" style={{ width: '65%', height: 68, borderRadius: '14px 14px 14px 3px' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div className="skeleton" style={{ width: '45%', height: 44, borderRadius: '14px 14px 3px 14px' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9 }}>
+              <div className="skeleton" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
+              <div className="skeleton" style={{ width: '72%', height: 88, borderRadius: '14px 14px 14px 3px' }} />
+            </div>
+          </div>
+
+          {/* input bar */}
+          <div style={{
+            padding: '10px 16px', flexShrink: 0,
+            background: 'var(--glass-lg)',
+            borderTop: '1px solid var(--border-subtle)',
+            display: 'flex', gap: 8, alignItems: 'center',
+          }}>
+            <div className="skeleton" style={{ flex: 1, height: 42, borderRadius: 12 }} />
+            <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 11 }} />
+            <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 11 }} />
+          </div>
+        </div>
+
+        {/* right col */}
+        <div style={{
+          width: 276, flexShrink: 0,
+          background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
+          borderLeft: '1px solid var(--border-subtle)',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', padding: '12px 0' }}>
+            <div className="skeleton" style={{ flex: 1, height: 14, margin: '0 16px', borderRadius: 4 }} />
+            <div className="skeleton" style={{ flex: 1, height: 14, margin: '0 16px', borderRadius: 4 }} />
+          </div>
+          <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="skeleton" style={{ width: '60%', height: 14 }} />
+            <div className="skeleton" style={{ width: '100%', height: 20 }} />
+            <div className="skeleton" style={{ width: '100%', height: 36, borderRadius: 8 }} />
+            {[0,1,2,3,4].map(i => (
+              <div key={i} className="skeleton" style={{ width: '100%', height: 56, borderRadius: 9 }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MAIN PAGE
+   ══════════════════════════════════════════════════════════════════════════════ */
 export default function CourseModulePage() {
-  const params = useParams()
-  const router = useRouter()
+  const params   = useParams()
+  const router   = useRouter()
   const moduleId = params.moduleId as string
   const supabase = createClientComponentClient()
 
-  // Module meta
   const [moduleTitle, setModuleTitle] = useState(moduleId.toUpperCase())
-  const [partNumber, setPartNumber] = useState(1)
-  const [partTitle, setPartTitle] = useState('')
-  const [moduleLoaded, setModuleLoaded] = useState(false)
-  const [nextModule, setNextModule] = useState<string | null>(null)
+  const [partNumber,  setPartNumber]  = useState(1)
+  const [partTitle,   setPartTitle]   = useState('')
+  const [nextModule,  setNextModule]  = useState<string|null>(null)
 
-  // Sections
-  const [sections, setSections] = useState<Section[]>([])
-  const [sectionsLoaded, setSectionsLoaded] = useState(false)
+  const [sections,          setSections]          = useState<Section[]>([])
+  const [sectionsLoaded,    setSectionsLoaded]    = useState(false)
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0)
   const currentSection = sections[currentSectionIdx] ?? null
 
-  // Section progress & notes
   const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([])
   const currentProgress = sectionProgress.find(p => p.section_id === currentSection?.section_id) ?? null
 
-  // Section content (from course_chunks)
-  const [sectionContent, setSectionContent] = useState<string>('')
-  const [rightTab, setRightTab] = useState<'notes' | 'content'>('content')
+  const [sectionContent, setSectionContent] = useState('')
+  const [rightTab,       setRightTab]       = useState<'notes'|'content'>('content')
 
-  // Chat
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [streaming, setStreaming] = useState(false)
-  const [sessionId, setSessionId] = useState<string | undefined>()
+  const CHAT_KEY = `chat_history_${moduleId}`
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem(`chat_history_${moduleId}`)
+      return saved ? (JSON.parse(saved) as Message[]) : []
+    } catch { return [] }
+  })
+  const [input,         setInput]         = useState('')
+  const [streaming,     setStreaming]      = useState(false)
+  const [sessionId,     setSessionId]     = useState<string|undefined>()
   const [exchangeCount, setExchangeCount] = useState(0)
-  const [showQuiz, setShowQuiz] = useState(false)
-  const [quizPassed, setQuizPassed] = useState(false)
-  // True if this module was already completed before this session (allows forward nav without re-quiz)
+  const [showQuiz,      setShowQuiz]      = useState(false)
+  const [quizPassed,    setQuizPassed]    = useState(false)
   const [moduleAlreadyCompleted, setModuleAlreadyCompleted] = useState(false)
 
-  // Audio
-  const [audioEnabled, setAudioEnabled] = useState(true)
-  const [micActive, setMicActive] = useState(false)
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [userActivated, setUserActivated] = useState(false)
-
-  // Key points being built from current session
-  const [sessionKeyPoints, setSessionKeyPoints] = useState<string[]>([])
-
-  // Teaching points for current section (title + done flag)
-  const [teachingPoints, setTeachingPoints] = useState<TeachingPoint[]>([])
-  const [currentPointIdx, setCurrentPointIdx] = useState(0)
-  const teachingPointsRef = useRef<TeachingPoint[]>([])
-  const currentPointIdxRef = useRef(0)
-  useEffect(() => { teachingPointsRef.current = teachingPoints }, [teachingPoints])
-  useEffect(() => { currentPointIdxRef.current = currentPointIdx }, [currentPointIdx])
-
-  // Refs
-  const chatEndRef = useRef<HTMLDivElement>(null)
-  const messagesRef = useRef<Message[]>([])
-  const streamingRef = useRef(false)
-  const sessionIdRef = useRef<string | undefined>()
-  const moduleTitleRef = useRef(moduleId.toUpperCase())
-  const partNumberRef = useRef(1)
-  const partTitleRef = useRef('')
-  const audioEnabledRef = useRef(true)
-  const speechBufferRef = useRef('')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
-  const hasAutoStarted = useRef(false)
-  const micActiveRef = useRef(false)
-  const autoMicTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const startMicRef = useRef<() => void>(() => {})
-  const speakTextRef = useRef<(text: string) => void>(() => {})
-  const isAudioPlayingRef = useRef(false)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const currentSectionRef = useRef<Section | null>(null)
-  const completedSectionsRef = useRef<string[]>([])
-
-  useEffect(() => { messagesRef.current = messages }, [messages])
-  useEffect(() => { streamingRef.current = streaming }, [streaming])
-  useEffect(() => { sessionIdRef.current = sessionId }, [sessionId])
-  useEffect(() => { moduleTitleRef.current = moduleTitle }, [moduleTitle])
-  useEffect(() => { partNumberRef.current = partNumber }, [partNumber])
-  useEffect(() => { partTitleRef.current = partTitle }, [partTitle])
-  useEffect(() => { audioEnabledRef.current = audioEnabled }, [audioEnabled])
-  useEffect(() => { micActiveRef.current = micActive }, [micActive])
-  useEffect(() => { currentSectionRef.current = currentSection }, [currentSection])
+  // Persist chat history to localStorage on every change (skip empty streaming placeholder)
   useEffect(() => {
-    completedSectionsRef.current = sectionProgress.filter(p => p.status === 'completed').map(p => p.section_id)
-  }, [sectionProgress])
+    if (messages.length === 0) return
+    try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)) } catch { /* quota exceeded */ }
+  }, [messages, CHAT_KEY])
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streaming])
+  const [audioEnabled,    setAudioEnabled]    = useState(true)
+  const [micActive,       setMicActive]       = useState(false)
+  const [isSpeaking,      setIsSpeaking]      = useState(false)
+  const [userActivated,   setUserActivated]   = useState(false)
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
 
-  // ─── Audio (Web Speech API) ───────────────────────────────────────────────
-  const initAudioCtx = useCallback(() => { /* no-op: using Web Speech API */ }, [])
+  const [sessionKP,      setSessionKP]      = useState<string[]>([])
+  const [teachingPoints, setTeachingPoints] = useState<TeachingPoint[]>([])
+  const [currentPtIdx,   setCurrentPtIdx]   = useState(0)
+  const tpRef    = useRef<TeachingPoint[]>([])
+  const tpIdxRef = useRef(0)
+  useEffect(() => { tpRef.current    = teachingPoints }, [teachingPoints])
+  useEffect(() => { tpIdxRef.current = currentPtIdx   }, [currentPtIdx])
 
-  const speakText = useCallback((text: string) => {
-    if (!audioEnabledRef.current) return
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-    // Stop mic while bot is speaking to prevent feedback loop
-    if (micActiveRef.current) { recognitionRef.current?.stop(); setMicActive(false) }
-    isAudioPlayingRef.current = true
-    setIsSpeaking(true)
-    window.speechSynthesis.cancel()
-    const utt = new SpeechSynthesisUtterance(text)
-    utt.lang = 'en-GB'
-    utt.rate = 1.05
-    const voices = window.speechSynthesis.getVoices()
-    const gb = voices.find(v => v.lang === 'en-GB') ?? voices.find(v => v.lang.startsWith('en'))
-    if (gb) utt.voice = gb
-    utt.onend = () => { isAudioPlayingRef.current = false; setIsSpeaking(false) }
-    utt.onerror = () => { isAudioPlayingRef.current = false; setIsSpeaking(false) }
-    window.speechSynthesis.speak(utt)
-  }, [])
+  type TPhase = 'PRE_NOTES'|'EXPLAIN'|'CONFIRM'|'POST_NOTES'|'CHECK'|'WRAP'
+  const [tPhase,  setTPhase]  = useState<TPhase>('PRE_NOTES')
+  const tPhaseRef = useRef<TPhase>('PRE_NOTES')
+  useEffect(() => { tPhaseRef.current = tPhase }, [tPhase])
 
-  const cancelSpeech = useCallback(() => {
-    isAudioPlayingRef.current = false
-    setIsSpeaking(false)
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-    speechBufferRef.current = ''
-  }, [])
 
-  const feedToken = useCallback((token: string) => {
-    if (!audioEnabledRef.current) return
-    speechBufferRef.current += token
-    const sm = speechBufferRef.current.match(/^([\s\S]*[.!?])\s+(.*)/)
-    if (sm) { speakText(sm[1]); speechBufferRef.current = sm[2]; return }
-    const cm = speechBufferRef.current.match(/^((?:\S+\s+){5,}[\s\S]*?[,;:])\s+(.*)/)
-    if (cm) { speakText(cm[1]); speechBufferRef.current = cm[2] }
-  }, [speakText])
+  const chatEndRef     = useRef<HTMLDivElement>(null)
+  const msgsRef        = useRef<Message[]>([])
+  const streamRef      = useRef(false)
+  const abortRef       = useRef<AbortController|null>(null)
+  const sidRef         = useRef<string|undefined>()
+  const mTitleRef      = useRef(moduleId.toUpperCase())
+  const pNumRef        = useRef(1)
+  const pTitleRef      = useRef('')
+  const audioRef       = useRef(true)
+  const bufRef         = useRef('')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef         = useRef<any>(null)
+  const hasStarted     = useRef(false)
+  const micRef         = useRef(false)
+  const autoMicTimer   = useRef<ReturnType<typeof setTimeout>|null>(null)
+  const startMicRef    = useRef<()=>void>(()=>{})
+  const micStoppedRef  = useRef(false)
+  const micManualRef   = useRef(false)
+  const speakRef       = useRef<(t:string)=>void>(()=>{})
+  const activatedRef   = useRef(false)
+  const playingRef     = useRef(false)
+  const analyserRef    = useRef<AnalyserNode|null>(null)
+  const secRef         = useRef<Section|null>(null)
+  const doneSecsRef    = useRef<string[]>([])
+  const voiceRef       = useRef<SpeechSynthesisVoice|null>(null)
 
-  const flushSpeech = useCallback(() => {
-    const r = speechBufferRef.current.trim()
-    if (audioEnabledRef.current && r) speakText(r)
-    speechBufferRef.current = ''
-  }, [speakText])
+  useEffect(()=>{ msgsRef.current    = messages   },[messages])
+  useEffect(()=>{ streamRef.current  = streaming  },[streaming])
+  useEffect(()=>{ sidRef.current     = sessionId  },[sessionId])
+  useEffect(()=>{ mTitleRef.current  = moduleTitle},[moduleTitle])
+  useEffect(()=>{ pNumRef.current    = partNumber },[partNumber])
+  useEffect(()=>{ pTitleRef.current  = partTitle  },[partTitle])
+  useEffect(()=>{ audioRef.current   = audioEnabled},[audioEnabled])
+  useEffect(()=>{ micRef.current     = micActive  },[micActive])
+  useEffect(()=>{ activatedRef.current = userActivated},[userActivated])
+  useEffect(()=>{ secRef.current     = currentSection},[currentSection])
+  useEffect(()=>{ doneSecsRef.current = sectionProgress.filter(p=>p.status==='completed').map(p=>p.section_id) },[sectionProgress])
+  useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[messages,streaming])
 
-  useEffect(() => { speakTextRef.current = speakText }, [speakText])
-  useEffect(() => () => { if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel() }, [])
-
-  // ─── Core send ────────────────────────────────────────────────────────────
-  const doSend = useCallback(async (text: string, silent: boolean) => {
-    if (streamingRef.current) return
-    if (autoMicTimerRef.current) { clearTimeout(autoMicTimerRef.current); autoMicTimerRef.current = null }
-    if (micActiveRef.current) { recognitionRef.current?.stop(); setMicActive(false) }
-    cancelSpeech(); setStreaming(true)
-
-    if (!silent) {
-      setExchangeCount(n => n + 1)
-      setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date().toISOString() }])
+  /* ── Audio ── */
+  useEffect(()=>{
+    if (typeof window==='undefined'||!('speechSynthesis' in window)) return
+    const pick=()=>{
+      const vs=[...window.speechSynthesis.getVoices().filter(v=>v.lang==='en-GB'),
+                ...window.speechSynthesis.getVoices().filter(v=>v.lang!=='en-GB'&&v.lang.startsWith('en'))]
+      setAvailableVoices(vs)
+      if (!voiceRef.current) voiceRef.current=vs[0]??null
     }
-    setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date().toISOString() }])
+    pick(); window.speechSynthesis.addEventListener('voiceschanged',pick)
+    return ()=>window.speechSynthesis.removeEventListener('voiceschanged',pick)
+  },[])
 
+  const initAudioCtx = useCallback(()=>{},[])
+
+  const speakText = useCallback((text: string, onFinished?: ()=>void)=>{
+    if (!audioRef.current) return
+    if (typeof window==='undefined'||!('speechSynthesis' in window)) return
+    if (micRef.current){recRef.current?.stop();setMicActive(false)}
+    playingRef.current=true; setIsSpeaking(true)
+    const u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=1.05
+    if (voiceRef.current) u.voice=voiceRef.current
+    u.onend=()=>{ if (!window.speechSynthesis.speaking){playingRef.current=false;setIsSpeaking(false)}; onFinished?.() }
+    u.onerror=()=>{ if (!window.speechSynthesis.speaking){playingRef.current=false;setIsSpeaking(false)}; onFinished?.() }
+    window.speechSynthesis.speak(u)
+  },[])
+
+  const cancelSpeech = useCallback(()=>{
+    playingRef.current=false; setIsSpeaking(false)
+    if (typeof window!=='undefined'&&'speechSynthesis' in window) window.speechSynthesis.cancel()
+    bufRef.current=''
+  },[])
+
+  const speakFinal = useCallback((text:string,onFinished?:()=>void)=>{
+    if (!audioRef.current){onFinished?.();return}
+    if (typeof window==='undefined'||!('speechSynthesis' in window)){onFinished?.();return}
+    if (!text){onFinished?.();return}
+    const u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=1.05
+    if (voiceRef.current) u.voice=voiceRef.current
+    u.onend=()=>{playingRef.current=false;setIsSpeaking(false);onFinished?.()}
+    u.onerror=()=>{playingRef.current=false;setIsSpeaking(false);onFinished?.()}
+    window.speechSynthesis.speak(u)
+  },[])
+
+  const feedToken = useCallback((tok:string)=>{
+    if (!audioRef.current) return
+    bufRef.current+=tok
+    // Once any ::: block or :::VISUAL signal starts, stop feeding to speech
+    const blockStart = bufRef.current.search(/\n?:::(?:VISUAL|PILLARS|STEPS|TERMS|MCQ)/)
+    const speech = blockStart >= 0 ? bufRef.current.slice(0, blockStart) : bufRef.current
+    if (blockStart >= 0) { bufRef.current = speech; return }
+    const sm=speech.match(/^([\s\S]*[.!?])\s+(.*)/)
+    if (sm){speakText(sm[1]);bufRef.current=sm[2];return}
+    const cm=speech.match(/^((?:\S+\s+){5,}[\s\S]*?[,;:])\s+(.*)/)
+    if (cm){speakText(cm[1]);bufRef.current=cm[2]}
+  },[speakText])
+
+  const flushSpeech = useCallback(()=>{
+    // Strip :::VISUAL signal and all :::BLOCK::: content — only speak plain text
+    const stripped = bufRef.current.replace(/:::VISUAL\n?/g, '').replace(/\n?:::[A-Z]+\n[\s\S]*?:::/g, '').trim()
+    const r=stripped; bufRef.current=''
+    const maybeRestartMic=()=>{ if (!micStoppedRef.current&&micManualRef.current) startMicRef.current() }
+    if (audioRef.current&&r){
+      speakFinal(r,()=>{ maybeRestartMic() })
+    } else {
+      const wait=()=>{
+        if (window.speechSynthesis.speaking) setTimeout(wait,200)
+        else { playingRef.current=false; setIsSpeaking(false); maybeRestartMic() }
+      }
+      if (typeof window!=='undefined'&&window.speechSynthesis.speaking) wait()
+      else { maybeRestartMic() }
+    }
+  },[speakFinal])
+
+  useEffect(()=>{ speakRef.current=speakText },[speakText])
+
+  /* ── Full cleanup on page leave ── */
+  useEffect(()=>()=>{
+    // Cancel TTS
+    if (typeof window!=='undefined'&&'speechSynthesis' in window) window.speechSynthesis.cancel()
+    // Abort any in-flight fetch stream
+    abortRef.current?.abort()
+    abortRef.current = null
+    // Stop mic
+    recRef.current?.stop()
+    // Clear auto-mic restart timer
+    if (autoMicTimer.current) clearTimeout(autoMicTimer.current)
+  },[])
+
+  /* ── stopAll — cancel streaming + speech + mic ── */
+  const stopAll = useCallback(()=>{
+    abortRef.current?.abort()
+    abortRef.current = null
+    cancelSpeech()
+    setStreaming(false)
+    bufRef.current = ''
+    micStoppedRef.current = true
+    micManualRef.current = false
+    if (autoMicTimer.current){clearTimeout(autoMicTimer.current);autoMicTimer.current=null}
+    recRef.current?.stop()
+    setMicActive(false)
+  },[cancelSpeech])
+
+  /* ── doSend ── */
+  const doSend = useCallback(async(text:string, silent:boolean)=>{
+    if (streamRef.current) return
+    if (autoMicTimer.current){clearTimeout(autoMicTimer.current);autoMicTimer.current=null}
+    if (micRef.current){recRef.current?.stop();setMicActive(false)}
+    cancelSpeech(); setStreaming(true)
+    const abort = new AbortController()
+    abortRef.current = abort
+    if (!silent){
+      setExchangeCount(n=>n+1)
+      setMessages(prev=>[...prev,{role:'user',content:text,timestamp:new Date().toISOString()}])
+    }
+    setMessages(prev=>[...prev,{role:'assistant',content:'',timestamp:new Date().toISOString()}])
     try {
-      const pts = teachingPointsRef.current
-      const ptIdx = currentPointIdxRef.current
-      const currentPoint = pts[ptIdx] ?? null
-
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          moduleId,
-          sessionId: sessionIdRef.current,
-          moduleTitle: moduleTitleRef.current,
-          partNumber: partNumberRef.current,
-          partTitle: partTitleRef.current,
-          currentSection: currentSectionRef.current,
-          completedSections: completedSectionsRef.current,
-          teachingPointIdx: ptIdx,
-          teachingPointTitle: currentPoint?.title ?? null,
-          totalTeachingPoints: pts.length,
-        }),
-      })
-      if (!res.body) throw new Error('No response body')
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let lineBuffer = ''
-      let fullResponse = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        lineBuffer += decoder.decode(value, { stream: true })
-        const lines = lineBuffer.split('\n'); lineBuffer = lines.pop() ?? ''
-        for (const line of lines) {
+      const pts=tpRef.current; const ptIdx=tpIdxRef.current; const cp=pts[ptIdx]??null
+      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+        signal: abort.signal,
+        body:JSON.stringify({message:text,moduleId,sessionId:sidRef.current,
+          moduleTitle:mTitleRef.current,partNumber:pNumRef.current,partTitle:pTitleRef.current,
+          currentSection:secRef.current,completedSections:doneSecsRef.current,
+          teachingPointIdx:ptIdx,teachingPointTitle:cp?.title??null,
+          teachingPointContent:cp?.content??null,
+          totalTeachingPoints:pts.length,allTeachingPoints:pts.map(p=>p.title),phase:tPhaseRef.current})})
+      if (!res.body) throw new Error('no body')
+      const reader=res.body.getReader(); const dec=new TextDecoder()
+      let lb='',full=''
+      while (true){
+        const {done,value}=await reader.read(); if (done) break
+        lb+=dec.decode(value,{stream:true})
+        const lines=lb.split('\n'); lb=lines.pop()??''
+        for (const line of lines){
           if (!line.startsWith('data: ')) continue
           try {
-            const p = JSON.parse(line.slice(6)) as { token?: string; done?: boolean; sessionId?: string }
-            if (p.token) {
-              fullResponse += p.token
-              setMessages(prev => {
-                const u = [...prev]
-                u[u.length - 1] = { ...u[u.length - 1], content: u[u.length - 1].content + p.token }
-                return u
-              })
-              feedToken(p.token)
-            }
+            const p=JSON.parse(line.slice(6)) as {token?:string;done?:boolean;sessionId?:string}
+            if (p.token){const tok=p.token;full+=tok;setMessages(prev=>{const u=[...prev];u[u.length-1]={...u[u.length-1],content:full};return u});feedToken(tok)}
             if (p.sessionId) setSessionId(p.sessionId)
             if (p.done) flushSpeech()
-          } catch { /* ignore */ }
+          } catch{/* ignore */}
         }
       }
       flushSpeech()
 
-      // Extract key points from response (sentences as bullet points)
-      if (!silent && fullResponse.trim()) {
-        const sentences = fullResponse.match(/[^.!?]+[.!?]/g) ?? []
-        const points = sentences.map(s => s.trim()).filter(s => s.length > 20 && s.length < 200).slice(0, 3)
-        if (points.length > 0) {
-          setSessionKeyPoints(prev => {
-            const combined = [...new Set([...prev, ...points])].slice(0, 10)
-            // Auto-save key points
-            if (currentSectionRef.current) {
-              void fetch('/api/notes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  moduleId,
-                  sectionId: currentSectionRef.current.section_id,
-                  sectionTitle: currentSectionRef.current.section_title,
-                  keyPoints: combined,
-                  status: 'in_progress',
-                }),
-              })
-            }
-            return combined
-          })
-          setSectionProgress(prev => {
-            const existing = prev.find(p => p.section_id === currentSectionRef.current?.section_id)
-            if (!existing || !currentSectionRef.current) return prev
-            return prev.map(p => p.section_id === currentSectionRef.current!.section_id
-              ? { ...p, key_points: [...new Set([...p.key_points, ...points])].slice(0, 10) }
-              : p)
-          })
-        }
-      }
+      if (full.trim()) {
+        const msgIdx = msgsRef.current.length - 1
 
-      // Detect if Alex just finished teaching a point (signals "next" or "let's move on")
-      if (!silent && fullResponse.trim()) {
-        const lower = fullResponse.toLowerCase()
-        const pointDoneSignals = ['let\'s move on', 'moving on', 'next topic', 'next point', 'now let\'s look at', 'now we\'ll cover', 'shall we move', 'ready to move']
-        const signalledDone = pointDoneSignals.some(s => lower.includes(s))
-        if (signalledDone) {
-          const pts = teachingPointsRef.current
-          const idx = currentPointIdxRef.current
-          if (idx < pts.length) {
-            const updated = pts.map((p, i) => i === idx ? { ...p, done: true } : p)
-            setTeachingPoints(updated)
-            const nextIdx = Math.min(idx + 1, pts.length - 1)
-            setCurrentPointIdx(nextIdx)
-            // Persist teaching progress
-            if (currentSectionRef.current) {
-              void fetch('/api/notes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  moduleId,
-                  sectionId: currentSectionRef.current.section_id,
-                  sectionTitle: currentSectionRef.current.section_title,
-                  status: 'in_progress',
-                  teachingPointIdx: nextIdx,
-                  teachingPoints: updated,
-                }),
-              })
-            }
+        // Extract MCQ correct answer
+        const mcqCorM = full.match(/:::MCQ[\s\S]*?CORRECT:\s*([A-D])[\s\S]*?:::/)
+        const mcqCorrectLetter = mcqCorM ? mcqCorM[1] : undefined
+
+        // Detect if visual is warranted — AI marks it with :::VISUAL or content has structured data
+        const wantsVisual = /:::VISUAL/.test(full) ||
+          /:::(?:PILLARS|STEPS|TERMS)/.test(full) ||
+          /(?:three|four|five|2|3|4|5)\s+(?:pillars?|steps?|stages?|types?|principles?|rules?|rates?)/i.test(full) ||
+          /£[\d,]+|[\d.]+%/.test(full)
+
+        // PRE-GENERATE visual BEFORE showing message — await so image is ready when message appears
+        let svg: string | null = null
+        if (wantsVisual) {
+          try {
+            const vr = await fetch('/api/visual', { method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({ content: full.replace(/:::VISUAL/g,'').slice(0, 800) }) })
+            const vd = await vr.json() as { svg: string | null }
+            svg = vd.svg ?? null
+          } catch { svg = null }
+        }
+
+        // Now reveal the message with visual already attached (no patch needed)
+        setMessages(prev => {
+          const u = [...prev]
+          if (u[msgIdx]) u[msgIdx] = {
+            ...u[msgIdx],
+            ...(svg ? { visual: svg } : {}),
+            ...(mcqCorrectLetter ? { mcqCorrect: mcqCorrectLetter } : {}),
           }
+          return u
+        })
+      }
+
+      if (!silent&&full.trim()){
+        const plainFull=full.replace(/:::VISUAL\n?/g,'').replace(/\n?:::[A-Z]+\n[\s\S]*?:::/g,'').trim()
+        const pts2=plainFull.match(/[^.!?]+[.!?]/g)??[]
+        const kps=pts2.map(s=>s.trim()).filter(s=>s.length>20&&s.length<200).slice(0,3)
+        if (kps.length){
+          setSessionKP(prev=>{const c=[...new Set([...prev,...kps])].slice(0,10)
+            if (secRef.current) void fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({moduleId,sectionId:secRef.current.section_id,sectionTitle:secRef.current.section_title,keyPoints:c,status:'in_progress'})})
+            return c})
+          setSectionProgress(prev=>{ const ex=prev.find(p=>p.section_id===secRef.current?.section_id)
+            if (!ex||!secRef.current) return prev
+            return prev.map(p=>p.section_id===secRef.current!.section_id
+              ?{...p,key_points:[...new Set([...p.key_points,...kps])].slice(0,10)}:p)})
         }
       }
 
-      // Auto-mic scheduling
-      const scheduleAutoMic = () => {
-        if (micActiveRef.current || streamingRef.current) return
-        if (isAudioPlayingRef.current) { autoMicTimerRef.current = setTimeout(scheduleAutoMic, 200); return }
-        startMicRef.current()
+      if (full.trim()){
+        const ph=tPhaseRef.current
+        // Phase flow: PRE_NOTES → EXPLAIN → CONFIRM → POST_NOTES(MCQ) → CHECK → advance → PRE_NOTES
+        if (ph==='PRE_NOTES'||text==='__AUTO_START__') setTPhase('EXPLAIN')
+        else if (ph==='EXPLAIN') setTPhase('CONFIRM')      // teach done → wait for student to confirm ready
+        else if (ph==='CONFIRM') setTPhase('POST_NOTES')   // student confirmed → show MCQ
+        else if (ph==='POST_NOTES') setTPhase('CHECK')     // MCQ shown → wait for answer
+        else if (ph==='CHECK') {
+          // Wrong-answer branch: Alex explained the mistake → advance topic
+          const pts3=tpRef.current; const idx=tpIdxRef.current; const isLast=idx>=pts3.length-1
+          const updated=pts3.map((p,ii)=>ii===idx?{...p,done:true}:p)
+          setTeachingPoints(updated)
+          const nextIdx=isLast?idx:idx+1
+          setCurrentPtIdx(nextIdx)
+          setTPhase(isLast?'WRAP':'PRE_NOTES')
+          if (secRef.current) void fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({moduleId,sectionId:secRef.current.section_id,sectionTitle:secRef.current.section_title,
+              status:'in_progress',teachingPointIdx:nextIdx,teachingPoints:updated})})
+        }
       }
-      autoMicTimerRef.current = setTimeout(scheduleAutoMic, 400)
-    } catch {
-      setMessages(prev => { const u = [...prev]; u[u.length-1] = { ...u[u.length-1], content: 'Sorry, something went wrong. Please try again.' }; return u })
-    } finally {
-      setStreaming(false)
+    } catch(err) {
+      if ((err as {name?:string})?.name !== 'AbortError') {
+        setMessages(prev=>{const u=[...prev];u[u.length-1]={...u[u.length-1],content:'Sorry, something went wrong.'};return u})
+      }
+    } finally { setStreaming(false); abortRef.current=null }
+  },[moduleId,cancelSpeech,feedToken,flushSpeech])
+
+  /* ── advanceTopic — move to next teaching point, called after correct MCQ answer ── */
+  const advanceTopic = useCallback((speakFeedback: string) => {
+    const pts = tpRef.current
+    const idx = tpIdxRef.current
+    const isLast = idx >= pts.length - 1
+
+    // Mark current topic done
+    const updated = pts.map((p, i) => i === idx ? { ...p, done: true } : p)
+    setTeachingPoints(updated)
+
+    const nextIdx = isLast ? idx : idx + 1
+    setCurrentPtIdx(nextIdx)
+    setTPhase(isLast ? 'WRAP' : 'PRE_NOTES')
+
+    if (secRef.current) {
+      void fetch('/api/notes', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ moduleId, sectionId: secRef.current.section_id,
+          sectionTitle: secRef.current.section_title, status:'in_progress',
+          teachingPointIdx: nextIdx, teachingPoints: updated }) })
     }
-  }, [moduleId, cancelSpeech, feedToken, flushSpeech])
 
-  // ─── Load module + sections ───────────────────────────────────────────────
-  useEffect(() => {
-    const num = parseInt(moduleId.replace('m', ''), 10)
-    if (num < 87) setNextModule(`m${String(num + 1).padStart(2, '0')}`)
+    // Speak the brief correct-answer feedback then auto-continue
+    if (speakFeedback) {
+      const u = new SpeechSynthesisUtterance(speakFeedback)
+      u.lang = 'en-GB'; u.rate = 1.05
+      if (voiceRef.current) u.voice = voiceRef.current
+      u.onend = () => { void doSend('__AUTO_START__', true) }
+      u.onerror = () => { void doSend('__AUTO_START__', true) }
+      window.speechSynthesis.speak(u)
+    } else {
+      void doSend('__AUTO_START__', true)
+    }
+  }, [moduleId, doSend])
 
+  /* ── data loading ── */
+  useEffect(()=>{
+    const n=parseInt(moduleId.replace('m',''),10); if (n<87) setNextModule(`m${String(n+1).padStart(2,'0')}`)
     Promise.all([
-      fetch(`/api/module-meta?moduleId=${moduleId}`).then(r => r.json() as Promise<{ module_title: string; part_number: number; part_title: string } | null>),
-      fetch('/api/progress').then(r => r.json() as Promise<{ completedModules: string[] }>),
-    ]).then(([meta, prog]) => {
-      if (meta) {
-        setModuleTitle(meta.module_title ?? moduleId.toUpperCase())
-        setPartNumber(meta.part_number ?? 1)
-        setPartTitle(meta.part_title ?? '')
-      }
-      if (prog?.completedModules?.includes(moduleId)) {
-        setModuleAlreadyCompleted(true)
-      }
-      setModuleLoaded(true)
-    }).catch(() => { setModuleLoaded(true) })
-  }, [moduleId])
+      fetch(`/api/module-meta?moduleId=${moduleId}`).then(r=>r.json() as Promise<{module_title:string;part_number:number;part_title:string}|null>),
+      fetch('/api/progress').then(r=>r.json() as Promise<{completedModules:string[]}>),
+    ]).then(([m,pg])=>{
+      if (m){setModuleTitle(m.module_title??moduleId.toUpperCase());setPartNumber(m.part_number??1);setPartTitle(m.part_title??'')}
+      if (pg?.completedModules?.includes(moduleId)) setModuleAlreadyCompleted(true)
+    }).catch(()=>{})
+  },[moduleId])
 
-  // Load sections for this module
-  useEffect(() => {
+  useEffect(()=>{
     fetch(`/api/sections?moduleId=${moduleId}`)
-      .then(r => r.json() as Promise<{ sections: Section[] }>)
-      .then(d => {
-        if (d.sections && d.sections.length > 0) setSections(d.sections)
-        setSectionsLoaded(true)
-      })
-      .catch(() => { setSectionsLoaded(true) })
-  }, [moduleId])
+      .then(r=>r.json() as Promise<{sections:Section[]}>)
+      .then(d=>{if (d.sections?.length) setSections(d.sections);setSectionsLoaded(true)})
+      .catch(()=>setSectionsLoaded(true))
+  },[moduleId])
 
-  // Load saved section progress
-  useEffect(() => {
+  useEffect(()=>{
     fetch(`/api/notes?moduleId=${moduleId}`)
-      .then(r => r.json() as Promise<{ progress: SectionProgress[] }>)
-      .then(d => {
-        if (d.progress) setSectionProgress(d.progress)
-      })
-      .catch(() => {})
-  }, [moduleId])
+      .then(r=>r.json() as Promise<{progress:SectionProgress[]}>)
+      .then(d=>{if (d.progress) setSectionProgress(d.progress)})
+      .catch(()=>{})
+  },[moduleId])
 
-  // Load teaching points for current section from Supabase chunks
-  useEffect(() => {
+  useEffect(()=>{
     if (!currentSection) return
-    // Restore saved progress first
-    const saved = sectionProgress.find(p => p.section_id === currentSection.section_id)
-    if (saved?.teaching_points && saved.teaching_points.length > 0) {
-      setTeachingPoints(saved.teaching_points)
-      setCurrentPointIdx(saved.teaching_point_idx ?? 0)
+    // 1. Restore from DB (sectionProgress loaded on mount)
+    const sv=sectionProgress.find(p=>p.section_id===currentSection.section_id)
+    if (sv?.teaching_points?.length){
+      // DB stores {title,done} — re-merge with full content from API
+      void fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${currentSection.section_id}`)
+        .then(r=>r.json() as Promise<{points:string[];pointContents:string[]}>)
+        .then(d=>{
+          const merged = (sv.teaching_points ?? []).map((p,i)=>({
+            title: p.title,
+            content: d.pointContents?.[i] ?? '',
+            done: p.done,
+          }))
+          setTeachingPoints(merged)
+          setCurrentPtIdx(sv.teaching_point_idx ?? 0)
+          setTPhase((sv.t_phase as TPhase) ?? 'PRE_NOTES')
+        })
+        .catch(()=>{})
       return
     }
-    // Fetch chunk content to extract teaching point titles
+    // 2. Fresh start — fetch from API
     void fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${currentSection.section_id}`)
-      .then(r => r.json() as Promise<{ points: string[] }>)
-      .then(d => {
-        if (d.points && d.points.length > 0) {
-          setTeachingPoints(d.points.map(t => ({ title: t, done: false })))
-          setCurrentPointIdx(0)
+      .then(r=>r.json() as Promise<{points:string[];pointContents:string[]}>)
+      .then(d=>{
+        if (d.points?.length){
+          setTeachingPoints(d.points.map((t,i)=>({title:t,content:d.pointContents?.[i]??'',done:false})))
+          setCurrentPtIdx(0)
+          setTPhase('PRE_NOTES')
         }
       })
-      .catch(() => {})
+      .catch(()=>{})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSection?.section_id, moduleId])
+  },[currentSection?.section_id,moduleId,sectionProgress])
 
-  // Sync session key points to current section progress
-  useEffect(() => {
-    if (sessionKeyPoints.length > 0 && currentSection) {
-      setSectionProgress(prev => {
-        const exists = prev.find(p => p.section_id === currentSection.section_id)
-        if (exists) return prev.map(p => p.section_id === currentSection.section_id
-          ? { ...p, key_points: sessionKeyPoints } : p)
-        return [...prev, {
-          section_id: currentSection.section_id,
-          section_title: currentSection.section_title,
-          status: 'in_progress',
-          notes: '',
-          key_points: sessionKeyPoints,
-        }]
+  useEffect(()=>{
+    if (sessionKP.length&&currentSection){
+      setSectionProgress(prev=>{
+        const ex=prev.find(p=>p.section_id===currentSection.section_id)
+        if (ex) return prev.map(p=>p.section_id===currentSection.section_id?{...p,key_points:sessionKP}:p)
+        return [...prev,{section_id:currentSection.section_id,section_title:currentSection.section_title,status:'in_progress',notes:'',key_points:sessionKP}]
       })
     }
-  }, [sessionKeyPoints, currentSection])
+  },[sessionKP,currentSection])
 
-  // No auto-start — student initiates the conversation
-
-  // When section changes mid-session, reset chat and start new section
-  // Load content for the current section
-  useEffect(() => {
+  useEffect(()=>{
     if (!currentSection) return
     setSectionContent('')
     fetch(`/api/section-content?moduleId=${moduleId}&sectionId=${encodeURIComponent(currentSection.section_id)}`)
-      .then(r => r.json() as Promise<{ content: string }>)
-      .then(d => { if (d.content) setSectionContent(d.content) })
-      .catch(() => {})
-  }, [currentSection, moduleId])
+      .then(r=>r.json() as Promise<{content:string}>)
+      .then(d=>{if (d.content) setSectionContent(d.content)})
+      .catch(()=>{})
+  },[currentSection,moduleId])
 
-  const switchSection = useCallback((idx: number) => {
-    if (idx === currentSectionIdx) return
-    setCurrentSectionIdx(idx)
-    setMessages([])
-    setSessionKeyPoints([])
-    setTeachingPoints([])
-    setCurrentPointIdx(0)
-    hasAutoStarted.current = false
-    cancelSpeech()
-  }, [currentSectionIdx, cancelSpeech])
+  // Auto-start removed — student taps "Start Lesson" to begin
 
-  // Mark current section as complete and advance
-  const completeSection = useCallback(() => {
+  const switchSection = useCallback((idx:number)=>{
+    if (idx===currentSectionIdx) return
+    // Clear chat history for the old section
+    const oldSectionId = sections[currentSectionIdx]?.section_id ?? ''
+    if (oldSectionId) try { localStorage.removeItem(`tp_progress_${moduleId}_${oldSectionId}`) } catch { /* ignore */ }
+    setCurrentSectionIdx(idx); setMessages([]); setSessionKP([])
+    setTeachingPoints([]); setCurrentPtIdx(0); setTPhase('PRE_NOTES')
+    hasStarted.current=false; cancelSpeech()
+  },[currentSectionIdx, sections, moduleId, cancelSpeech])
+
+  const completeSection = useCallback(()=>{
     if (!currentSection) return
-    setSectionProgress(prev => {
-      const exists = prev.find(p => p.section_id === currentSection.section_id)
-      const updated: SectionProgress = exists
-        ? { ...exists, status: 'completed' }
-        : { section_id: currentSection.section_id, section_title: currentSection.section_title, status: 'completed', notes: '', key_points: sessionKeyPoints }
-      void fetch('/api/notes', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId, sectionId: currentSection.section_id, sectionTitle: currentSection.section_title, status: 'completed', keyPoints: sessionKeyPoints }),
-      })
-      return exists ? prev.map(p => p.section_id === currentSection.section_id ? updated : p) : [...prev, updated]
+    setSectionProgress(prev=>{
+      const ex=prev.find(p=>p.section_id===currentSection.section_id)
+      const upd:SectionProgress=ex?{...ex,status:'completed'}:{section_id:currentSection.section_id,section_title:currentSection.section_title,status:'completed',notes:'',key_points:sessionKP}
+      void fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({moduleId,sectionId:currentSection.section_id,sectionTitle:currentSection.section_title,status:'completed',keyPoints:sessionKP})})
+      return ex?prev.map(p=>p.section_id===currentSection.section_id?upd:p):[...prev,upd]
     })
-    if (currentSectionIdx < sections.length - 1) switchSection(currentSectionIdx + 1)
-  }, [currentSection, currentSectionIdx, sections.length, switchSection, sessionKeyPoints, moduleId])
+    setSectionCompleted(true)
+    if (currentSectionIdx<sections.length-1) {
+      setShowAdvancePrompt(true)
+      setTimeout(()=>{ setShowAdvancePrompt(false); setSectionCompleted(false); switchSection(currentSectionIdx+1) }, 2800)
+    }
+  },[currentSection,currentSectionIdx,sections.length,switchSection,sessionKP,moduleId])
 
-  // ─── Mic ─────────────────────────────────────────────────────────────────
-  const startMicImpl = useCallback(() => {
-    if (micActiveRef.current || streamingRef.current) return
-    if (typeof window === 'undefined') return
+  /* ── mic ── */
+  const startMicImpl = useCallback(()=>{
+    if (!activatedRef.current||micRef.current||streamRef.current) return
+    if (typeof window==='undefined') return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+    const SR=(window as any).SpeechRecognition??(window as any).webkitSpeechRecognition
     if (!SR) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec = new SR() as any
-    rec.lang = 'en-GB'; rec.continuous = false; rec.interimResults = true
-    let gotFinal = false
+    const rec=new SR() as any; rec.lang='en-GB'; rec.continuous=false; rec.interimResults=true
+    let got=false
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult = (e: any) => {
-      const t = Array.from(e.results as ArrayLike<{ 0: { transcript: string }; isFinal: boolean }>).map(r => r[0].transcript).join('')
+    rec.onresult=(ev:any)=>{
+      const t=Array.from(ev.results as ArrayLike<{0:{transcript:string};isFinal:boolean}>).map(r=>r[0].transcript).join('')
       setInput(t)
-      if ((e.results as ArrayLike<{ isFinal: boolean }>)[e.results.length-1].isFinal) {
-        gotFinal = true; setMicActive(false); setInput('')
-        if (t.trim()) void doSend(t.trim(), false)
-      }
+      if ((ev.results as ArrayLike<{isFinal:boolean}>)[ev.results.length-1].isFinal){got=true;setMicActive(false);setInput('');if (t.trim()) void doSend(t.trim(),false)}
     }
-    const restart = (ms: number) => {
-      if (streamingRef.current || isAudioPlayingRef.current) return
-      autoMicTimerRef.current = setTimeout(() => {
-        // Double-check audio is still silent before restarting
-        if (!streamingRef.current && !isAudioPlayingRef.current) startMicRef.current()
-      }, ms)
+    const restart=(ms:number)=>{
+      if (streamRef.current||playingRef.current||micStoppedRef.current||!micManualRef.current) return
+      autoMicTimer.current=setTimeout(()=>{if (!streamRef.current&&!playingRef.current&&!micStoppedRef.current&&micManualRef.current) startMicRef.current()},ms)
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onerror = (e: any) => { setMicActive(false); if (e.error === 'no-speech' || e.error === 'audio-capture') restart(500) }
-    rec.onend = () => { setMicActive(false); if (!gotFinal) restart(300) }
-    rec.start(); recognitionRef.current = rec; setMicActive(true)
-  }, [doSend])
+    rec.onerror=(ev:any)=>{setMicActive(false);if (ev.error==='no-speech'||ev.error==='audio-capture') restart(500)}
+    rec.onend=()=>{setMicActive(false);if (!got) restart(300)}
+    rec.start(); recRef.current=rec; setMicActive(true)
+  },[doSend])
+  useEffect(()=>{ startMicRef.current=startMicImpl },[startMicImpl])
 
-  useEffect(() => { startMicRef.current = startMicImpl }, [startMicImpl])
-
-  const toggleMic = useCallback(() => {
-    if (micActive) { recognitionRef.current?.stop(); setMicActive(false); return }
+  const toggleMic = useCallback(()=>{
+    if (micActive){micStoppedRef.current=true;micManualRef.current=false;recRef.current?.stop();setMicActive(false);return}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!(window as any).SpeechRecognition && !(window as any).webkitSpeechRecognition) {
-      alert('Speech recognition not supported. Try Chrome or Edge.')
-      return
+    if (!(window as any).SpeechRecognition&&!(window as any).webkitSpeechRecognition){alert('Speech recognition not supported. Try Chrome or Edge.');return}
+    micStoppedRef.current=false;micManualRef.current=true; startMicImpl()
+  },[micActive,startMicImpl])
+
+  const completedCount = sectionProgress.filter(p=>p.status==='completed').length
+  const totalSections  = sections.length
+  const progressPct    = totalSections>0 ? Math.round(completedCount/totalSections*100) : 0
+  const canGoNext      = quizPassed||moduleAlreadyCompleted
+  const [showSections,       setShowSections]       = useState(true)
+  const [showNotes,          setShowNotes]          = useState(true)
+  const [showKeyboardHelp,   setShowKeyboardHelp]   = useState(false)
+  const [sectionCompleted,   setSectionCompleted]   = useState(false)
+  const [showAdvancePrompt,  setShowAdvancePrompt]  = useState(false)
+
+  /* ── keyboard shortcuts ── */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Escape: stop everything
+      if (e.key === 'Escape') { stopAll(); return }
+      // Alt+N: next section
+      if (e.altKey && e.key === 'n') { e.preventDefault(); if (currentSectionIdx < sections.length - 1) completeSection(); return }
+      // Alt+Q: open quiz
+      if (e.altKey && e.key === 'q') { e.preventDefault(); setShowQuiz(true); return }
+      // Alt+M: toggle mic
+      if (e.altKey && e.key === 'm') { e.preventDefault(); toggleMic(); return }
+      // Alt+A: toggle audio
+      if (e.altKey && e.key === 'a') { e.preventDefault(); setAudioEnabled(v => !v); return }
+      // Alt+K: toggle keyboard help
+      if (e.altKey && e.key === 'k') { e.preventDefault(); setShowKeyboardHelp(v => !v); return }
     }
-    startMicImpl()
-  }, [micActive, startMicImpl])
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [stopAll, completeSection, currentSectionIdx, sections.length, toggleMic])
 
-  const completedCount = sectionProgress.filter(p => p.status === 'completed').length
-  const totalSections = sections.length
-  const progressPct = totalSections > 0 ? Math.round(completedCount / totalSections * 100) : 0
-  // Can navigate forward only if quiz was passed this session OR module was already completed
-  const canGoNext = quizPassed || moduleAlreadyCompleted
+  /* ── shared button styles ── */
+  const hudBtn = (active: boolean, accent = 'var(--ac-cyan)', accentRgb = '126,207,206'): React.CSSProperties => ({
+    padding: '5px 11px', borderRadius: 8, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600,
+    background: active ? `rgba(${accentRgb},0.12)` : 'rgba(255,255,255,0.03)',
+    border: `1px solid ${active ? `rgba(${accentRgb},0.30)` : 'var(--border-subtle)'}`,
+    color: active ? accent : 'var(--text-secondary)',
+    boxShadow: active ? `var(--shadow-sm), 0 0 12px rgba(${accentRgb},0.1)` : 'var(--shadow-sm)',
+    transition: 'all 0.18s ease',
+    letterSpacing: '0.04em',
+  })
 
-  // panel visibility toggles
-  const [showSections, setShowSections] = useState(true)
-  const [showNotes, setShowNotes] = useState(true)
+  /* ══ RENDER ══ */
+  if (!sectionsLoaded) return <PageSkeleton />
 
-  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div style={{
-      width: '100%', height: '100%',
-      background: '#020206',
-      backgroundImage: 'radial-gradient(ellipse at 50% 35%, #0f0528 0%, #020206 65%)',
+      width: '100%', height: '100vh',
+      background: 'var(--bg-base)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontFamily: "'Inter', system-ui, sans-serif",
+      position: 'relative',
     }}>
+      {/* ── Section advance toast ── */}
+      <AnimatePresence>
+        {showAdvancePrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            style={{
+              position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 200, pointerEvents: 'none',
+              background: 'linear-gradient(135deg, rgba(82,217,139,0.15), rgba(78,205,196,0.1))',
+              border: '1px solid rgba(82,217,139,0.4)',
+              borderRadius: 14, padding: '12px 20px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              backdropFilter: 'blur(20px)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 20px rgba(82,217,139,0.15)',
+            }}>
+            <CheckCircle2 size={18} color="#52D98B" />
+            <div>
+              <p style={{ fontSize: 11, color: '#52D98B', fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 2 }}>SECTION COMPLETE</p>
+              <p style={{ fontSize: 13, color: '#E8F0FC', fontWeight: 600 }}>
+                Moving to next section…
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ── Ambient glow backdrop ── */}
-      <div style={{ position: 'absolute', width: 600, height: 600, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(166,0,255,0.12) 0%, rgba(0,255,255,0.04) 55%, transparent 75%)', filter: 'blur(80px)', pointerEvents: 'none', zIndex: 0 }} />
+      {/* ── Keyboard shortcuts help panel ── */}
+      <AnimatePresence>
+        {showKeyboardHelp && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+            onClick={() => setShowKeyboardHelp(false)}
+            style={{
+              position: 'fixed', top: 62, right: 16, zIndex: 150,
+              background: 'rgba(9,13,26,0.96)', border: '1px solid rgba(78,205,196,0.2)',
+              borderRadius: 14, padding: '16px 18px', minWidth: 240,
+              backdropFilter: 'blur(20px)', boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+              cursor: 'pointer',
+            }}>
+            <p style={{ fontSize: 11, color: 'rgba(78,205,196,0.7)', fontFamily: 'monospace', letterSpacing: '0.14em', marginBottom: 12 }}>KEYBOARD SHORTCUTS</p>
+            {[
+              { key: 'Alt+N', label: 'Next section' },
+              { key: 'Alt+Q', label: 'Open quiz' },
+              { key: 'Alt+M', label: 'Toggle mic' },
+              { key: 'Alt+A', label: 'Toggle audio' },
+              { key: 'Alt+K', label: 'This help panel' },
+              { key: 'Escape', label: 'Stop speaking' },
+              { key: 'Enter', label: 'Send message' },
+              { key: 'Shift+Enter', label: 'New line' },
+            ].map(({ key, label }) => (
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+                <span style={{ fontSize: 12, color: '#8EA8CC' }}>{label}</span>
+                <kbd style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', borderRadius: 5, padding: '2px 7px' }}>{key}</kbd>
+              </div>
+            ))}
+            <p style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace', marginTop: 8, textAlign: 'center' }}>click to close</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* ── Top HUD bar ── */}
-      <div style={{
+      {/* ── HUD BAR ── */}
+      <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 20px', flexShrink: 0, zIndex: 10,
-        background: 'rgba(255,255,255,0.02)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(20px)',
+        padding: '0 18px', height: 52, flexShrink: 0, zIndex: 10,
+        background: 'var(--glass-lg)',
+        borderBottom: '1px solid var(--border-subtle)',
+        backdropFilter: 'blur(24px) saturate(150%)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.04), var(--shadow-sm)',
       }}>
-        {/* Left: back + module */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <ChevronLeft size={16} /><span style={{ fontSize: 11, letterSpacing: '0.08em' }}>BACK</span>
+        {/* left */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 6px', borderRadius: 7, transition: 'color 0.18s' }}
+            onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color='var(--text-primary)'}
+            onMouseLeave={e=>(e.currentTarget as HTMLElement).style.color='var(--text-tertiary)'}>
+            <ChevronLeft size={15} />
+            <span style={{ fontSize: 11, letterSpacing: '0.08em', fontFamily: 'monospace' }}>BACK</span>
           </button>
-          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)' }} />
+          <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
           <div>
-            <p style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.18em', color: 'rgba(0,255,255,0.6)' }}>PART {partNumber} · {moduleId.toUpperCase()}</p>
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginTop: 1, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moduleTitle}</p>
+            <p style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.16em', color: 'var(--ac-cyan)', opacity: 0.75 }}>PART {partNumber} · {moduleId.toUpperCase()}</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <DecryptedText text={moduleTitle} animateOn="view" sequential={true} revealDirection="start" speed={28} className="aurora-text" encryptedClassName="aurora-text" />
+            </p>
           </div>
         </div>
 
-        {/* Center: progress */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(0,255,255,0.5)', letterSpacing: '0.15em', marginBottom: 4 }}>PROGRESS // {completedCount}/{totalSections}</p>
-            <div style={{ width: 180, height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${progressPct}%`, background: 'linear-gradient(90deg, #00ffff, #a600ff)', borderRadius: 99, transition: 'width 0.5s ease', boxShadow: '0 0 8px #00ffff' }} />
+        {/* centre — progress */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div>
+            <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.12em', marginBottom: 3, textAlign: 'right' }}>
+              {completedCount}/{totalSections} sections
+            </p>
+            <div style={{ width: 160, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 99,
+              overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.4)' }}>
+              <div className="aurora-progress-fill" style={{ height: '100%', width: `${progressPct}%`, transition: 'width 0.55s ease' }} />
             </div>
           </div>
           {currentSection && (
-            <div style={{ background: 'rgba(0,255,255,0.08)', border: '1px solid rgba(0,255,255,0.2)', borderRadius: 8, padding: '4px 10px' }}>
-              <p style={{ fontSize: 10, color: '#00ffff', fontFamily: 'monospace', letterSpacing: '0.1em' }}>§ {currentSection.section_id}</p>
+            <div className="depth-pill" style={{ padding: '3px 10px' }}>
+              <p style={{ fontSize: 10, color: 'var(--ac-cyan)', fontFamily: 'monospace', letterSpacing: '0.08em' }}>§ {currentSection.section_id}</p>
             </div>
           )}
         </div>
 
-        {/* Right: controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => { setAudioEnabled(v => !v); if (audioEnabled) cancelSpeech() }} style={{ padding: '6px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: `1px solid ${audioEnabled ? 'rgba(0,255,255,0.3)' : 'rgba(255,255,255,0.1)'}`, color: audioEnabled ? '#00ffff' : 'rgba(255,255,255,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+        {/* right controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => { setAudioEnabled(v=>!v); if (audioEnabled) cancelSpeech() }} style={hudBtn(audioEnabled)}>
             {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            <span style={{ fontFamily: 'monospace', letterSpacing: '0.08em' }}>{audioEnabled ? 'AUDIO ON' : 'MUTED'}</span>
+            <span style={{ fontFamily: 'monospace' }}>{audioEnabled ? 'AUDIO' : 'MUTED'}</span>
           </button>
-          {currentSection && currentSectionIdx < sections.length - 1 && (
-            <button onClick={completeSection} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(0,255,120,0.12)', border: '1px solid rgba(0,255,120,0.35)', color: '#00ff88', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Check size={12} /> SECTION COMPLETE
+
+          {availableVoices.length > 1 && (
+            <select onChange={e => { const v=availableVoices.find(v=>v.name===e.target.value); if (v) voiceRef.current=v }}
+              defaultValue={voiceRef.current?.name ?? ''}
+              style={{ padding: '4px 7px', borderRadius: 7, fontSize: 11, fontFamily: 'monospace',
+                background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)', cursor: 'pointer', maxWidth: 145, outline: 'none' }}>
+              {availableVoices.map(v=>(
+                <option key={v.name} value={v.name} style={{ background: '#0C1020', color: '#D8E4F0' }}>
+                  {v.name.replace(/Microsoft |Google /,'').slice(0,18)} ({v.lang})
+                </option>
+              ))}
+            </select>
+          )}
+
+          {currentSection && currentSectionIdx < sections.length-1 && (
+            <button onClick={completeSection} style={hudBtn(false,'var(--ac-mint)','110,201,160')}>
+              <Check size={12} /> Done
             </button>
           )}
+
           {exchangeCount >= 4 && (
-            <button onClick={() => setShowQuiz(true)} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(166,0,255,0.15)', border: '1px solid rgba(166,0,255,0.4)', color: '#d080ff', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Brain size={12} /> QUIZ
-            </button>
+            <StarBorder
+              as="button"
+              onClick={()=>setShowQuiz(true)}
+              color="rgba(155,111,208,0.85)"
+              speed="4s"
+              thickness={1}
+              style={{
+                ...hudBtn(false,'var(--ac-violet)','139,126,200'),
+                padding: '0',
+                borderRadius: 8,
+              }}
+            >
+              <span style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px' }}>
+                <Brain size={12} /> Quiz
+              </span>
+            </StarBorder>
           )}
+
           {canGoNext && nextModule && (
-            <button onClick={() => router.push(`/course/${nextModule}`)} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(0,255,120,0.15)', border: '1px solid rgba(0,255,120,0.4)', color: '#00ff88', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-              NEXT MODULE <ChevronRight size={12} />
+            <button onClick={()=>router.push(`/course/${nextModule}`)} style={hudBtn(true,'var(--ac-mint)','110,201,160')}>
+              Next <ChevronRight size={12} />
             </button>
           )}
           {!canGoNext && nextModule && exchangeCount > 0 && (
-            <div title="Pass the quiz to unlock next module" style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.25)', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Lock size={10} /> NEXT MODULE
+            <div title="Pass the quiz to unlock" style={{ ...hudBtn(false), opacity: 0.4, cursor: 'default' }}>
+              <Lock size={10} /> Next
             </div>
           )}
-          {/* Panel toggles */}
-          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)' }} />
-          <button onClick={() => setShowSections(v => !v)} title="Toggle sections" style={{ padding: '6px 8px', borderRadius: 8, background: showSections ? 'rgba(0,255,255,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${showSections ? 'rgba(0,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`, color: showSections ? '#00ffff' : 'rgba(255,255,255,0.3)', cursor: 'pointer' }}>
-            <ChevronLeft size={14} />
+
+          <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
+          <button onClick={()=>setShowKeyboardHelp(v=>!v)} style={hudBtn(showKeyboardHelp)} title="Keyboard shortcuts (Alt+K)">
+            <Keyboard size={13} />
           </button>
-          <button onClick={() => setShowNotes(v => !v)} title="Toggle notes" style={{ padding: '6px 8px', borderRadius: 8, background: showNotes ? 'rgba(0,255,255,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${showNotes ? 'rgba(0,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`, color: showNotes ? '#00ffff' : 'rgba(255,255,255,0.3)', cursor: 'pointer' }}>
-            <ChevronRight size={14} />
+          <button onClick={()=>setShowSections(v=>!v)} style={hudBtn(showSections)} title="Toggle sections">
+            <ChevronLeft size={13} />
+          </button>
+          <button onClick={()=>setShowNotes(v=>!v)} style={hudBtn(showNotes)} title="Toggle notes">
+            <ChevronRight size={13} />
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* ── Main 3-col layout ── */}
+      {/* ── MAIN 3-COL ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', zIndex: 5 }}>
 
-        {/* ── COL 1: Sections ── */}
+        {/* COL 1 — Sections */}
         {showSections && (
           <div style={{
             width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: 'rgba(255,255,255,0.015)',
-            borderRight: '1px solid rgba(255,255,255,0.06)',
-            backdropFilter: 'blur(20px)',
+            background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
+            borderRight: '1px solid var(--border-subtle)',
+            boxShadow: '2px 0 18px rgba(0,0,0,0.4), inset -1px 0 0 rgba(255,255,255,0.025)',
           }}>
-            {/* Section trail header */}
-            <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>
-              <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(0,255,255,0.45)', letterSpacing: '0.18em' }}>COURSE SECTIONS</p>
+            <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+              <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.16em', marginBottom: 3, opacity: 0.7 }}>
+                M{moduleId.replace('m','').padStart(2,'0')} · TOPICS
+              </p>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {moduleTitle}
+              </p>
             </div>
 
-            {/* Section list */}
             {sections.length > 0 ? (
-              <SectionTrail sections={sections} currentIdx={currentSectionIdx} progress={sectionProgress} moduleId={moduleId} onSelect={switchSection} />
+              <SectionTrail
+                sections={sections}
+                currentIdx={currentSectionIdx}
+                progress={sectionProgress}
+                quizUnlocked={sections.length > 0 && sections.every(s => sectionProgress.find(p => p.section_id === s.section_id)?.status === 'completed')}
+                onSelect={switchSection}
+                onStartFinalQuiz={() => setShowQuiz(true)}
+              />
             ) : !sectionsLoaded ? (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-                <Loader2 size={18} color="rgba(0,255,255,0.4)" className="animate-spin" />
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>Loading…</p>
+              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:8 }}>
+                <Loader2 size={17} color="var(--ac-cyan)" className="animate-spin" style={{ opacity:0.5 }} />
+                <p style={{ fontSize:11, color:'var(--text-tertiary)' }}>Loading…</p>
               </div>
             ) : (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', textAlign: 'center', padding: '0 12px' }}>No sections found for this module</p>
+              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <p style={{ fontSize:11, color:'var(--text-tertiary)', padding:'0 12px', textAlign:'center' }}>No sections found</p>
               </div>
             )}
 
-            {/* Teaching points for current section */}
-            {teachingPoints.length > 0 && (
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-                <div style={{ padding: '8px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(166,0,255,0.7)', letterSpacing: '0.18em' }}>TOPICS</p>
-                  <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace' }}>
-                    {teachingPoints.filter(p => p.done).length}/{teachingPoints.length}
-                  </p>
-                </div>
-                <div style={{ padding: '2px 8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {teachingPoints.map((pt, i) => {
-                    const isCurrent = i === currentPointIdx && !pt.done
-                    return (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 7, padding: '5px 8px', borderRadius: 8,
-                        background: isCurrent ? 'rgba(166,0,255,0.1)' : 'transparent',
-                        border: isCurrent ? '1px solid rgba(166,0,255,0.25)' : '1px solid transparent',
-                        transition: 'all 0.2s',
-                      }}>
-                        <div style={{
-                          width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: pt.done ? 'rgba(0,255,120,0.15)' : isCurrent ? 'rgba(166,0,255,0.2)' : 'rgba(255,255,255,0.05)',
-                          border: pt.done ? '1px solid rgba(0,255,120,0.5)' : isCurrent ? '1px solid rgba(166,0,255,0.5)' : '1px solid rgba(255,255,255,0.12)',
-                        }}>
-                          {pt.done
-                            ? <Check size={9} color="#00ff88" />
-                            : <span style={{ fontSize: 7, color: isCurrent ? '#d080ff' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{i + 1}</span>
-                          }
-                        </div>
-                        <span style={{
-                          fontSize: 10, lineHeight: 1.4,
-                          color: pt.done ? 'rgba(0,255,120,0.6)' : isCurrent ? '#e0c0ff' : 'rgba(255,255,255,0.35)',
-                          textDecoration: pt.done ? 'line-through' : 'none',
-                        }}>
-                          {pt.title}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
 
-            {/* Module nav */}
-            <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
-              <button onClick={() => { const n = parseInt(moduleId.replace('m',''),10); if(n>1) router.push(`/course/m${String(n-1).padStart(2,'0')}`) }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-                <ChevronLeft size={13} /> PREV
+            {/* module-end items — always shown at the very bottom */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', flexShrink: 0, padding: '7px 8px 4px' }}>
+              {[
+                { label: `Module ${parseInt(moduleId.replace('m',''),10)} — Summary`,               done: moduleAlreadyCompleted },
+                { label: `Module ${parseInt(moduleId.replace('m',''),10)} — End-of-Section MCQ (10 questions)`, done: quizPassed || moduleAlreadyCompleted },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 8px', borderRadius: 8, marginBottom: 3,
+                  background: item.done ? 'rgba(110,201,160,0.05)' : 'rgba(255,255,255,0.02)',
+                  border: item.done ? '1px solid rgba(110,201,160,0.18)' : '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div style={{
+                    width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: item.done ? 'rgba(110,201,160,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: item.done ? '1px solid rgba(110,201,160,0.45)' : '1px solid rgba(255,255,255,0.1)',
+                  }}>
+                    {item.done
+                      ? <Check size={9} color="var(--ac-mint)" />
+                      : <span style={{ fontSize: 6, color: 'var(--text-tertiary)', fontWeight: 700 }}>{i === 0 ? '★' : '?'}</span>
+                    }
+                  </div>
+                  <span style={{
+                    fontSize: 10, lineHeight: 1.4, flex: 1,
+                    color: item.done ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+                    textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.65 : 1,
+                  }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* module nav */}
+            <div style={{ padding:'9px 12px',borderTop:'1px solid var(--border-subtle)',display:'flex',justifyContent:'space-between',flexShrink:0 }}>
+              <button onClick={()=>{const n=parseInt(moduleId.replace('m',''),10);if(n>1)router.push(`/course/m${String(n-1).padStart(2,'0')}`)}}
+                style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',fontSize:10,display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }}>
+                <ChevronLeft size={12} /> PREV
               </button>
-              {nextModule && (
-                canGoNext ? (
-                  <button onClick={() => router.push(`/course/${nextModule}`)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-                    NEXT <ChevronRight size={13} />
+              {nextModule&&(canGoNext
+                ?<button onClick={()=>router.push(`/course/${nextModule}`)} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',fontSize:10,display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }}>
+                    NEXT <ChevronRight size={12} />
                   </button>
-                ) : (
-                  <span title="Pass the quiz to unlock" style={{ color: 'rgba(255,255,255,0.15)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-                    <Lock size={10} /> NEXT
+                :<span style={{ color:'var(--text-tertiary)',fontSize:10,display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em',opacity:0.45 }}>
+                    <Lock size={9} /> NEXT
                   </span>
-                )
               )}
             </div>
           </div>
         )}
 
-        {/* ── COL 2: Orb (top centre) + Chat (below) ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
+        {/* COL 2 — Avatar + Chat */}
+        <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, position:'relative' }}>
 
-          {/* ── ORB ZONE — centred at top ── */}
+          {/* ── AVATAR ZONE ── */}
           <div style={{
             flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            paddingTop: 18, paddingBottom: 10,
-            background: 'radial-gradient(ellipse 60% 80% at 50% 0%, rgba(0,255,255,0.04) 0%, transparent 70%)',
-            borderBottom: '1px solid rgba(255,255,255,0.05)',
-            position: 'relative',
+            paddingTop: 18, paddingBottom: 14,
+            borderBottom: '1px solid rgba(78,205,196,0.12)',
+            boxShadow: 'inset 0 -1px 0 rgba(78,205,196,0.06), 0 4px 40px rgba(0,0,0,0.3)',
+            position: 'relative', zIndex: 1,
+            overflow: 'hidden',
+            minHeight: 200,
           }}>
-            {/* Section label above orb */}
-            {currentSection && (
-              <div style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: isSpeaking ? '#00ffff' : 'rgba(0,255,255,0.3)', boxShadow: isSpeaking ? '0 0 8px #00ffff' : 'none', transition: 'all 0.3s' }} />
-                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace' }}>
-                  <span style={{ color: '#00ffff', marginRight: 6 }}>§{currentSection.section_id}</span>
-                  {currentSection.section_title}
-                </p>
-              </div>
-            )}
 
-            {/* Orb — large, clickable to activate */}
-            {!userActivated ? (
-              <button onClick={() => { initAudioCtx(); setUserActivated(true); const last = [...messagesRef.current].reverse().find(m => m.role === 'assistant' && m.content.trim()); if (last) setTimeout(() => speakTextRef.current(last.content), 100) }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <AudioOrb speaking={false} analyser={null} />
-                <p style={{ fontSize: 10, color: '#a600ff', fontFamily: 'monospace', letterSpacing: '0.15em', marginTop: 4, animation: 'tapPulse 1.5s ease-in-out infinite' }}>▶ TAP TO START</p>
-              </button>
-            ) : (
-              <AudioOrb speaking={isSpeaking} analyser={analyserRef.current} />
-            )}
+            {/* SoftAurora — audio-visualizer avatar */}
+            <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+              <SoftAurora
+                speed={0.45}
+                scale={1.3}
+                brightness={1.1}
+                color1="#4ecdc4"
+                color2="#9b6fd0"
+                noiseFrequency={2.0}
+                noiseAmplitude={0.7}
+                bandHeight={0.5}
+                bandSpread={0.9}
+                octaveDecay={0.12}
+                layerOffset={0.9}
+                colorSpeed={0.7}
+                enableMouseInteraction={true}
+                mouseInfluence={0.18}
+              />
+            </div>
+
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 8 }}>
+
+              {/* section label */}
+              {currentSection && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{
+                    width: 5, height: 5, borderRadius: '50%',
+                    background: isSpeaking ? 'var(--ac-cyan)' : 'var(--border-medium)',
+                    boxShadow: isSpeaking ? 'var(--glow-cyan)' : 'none',
+                    transition: 'all 0.4s', animation: isSpeaking ? 'onlinePulse 2s infinite' : 'none',
+                  }} />
+                  <p style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+                    <span style={{ color: 'var(--ac-cyan)', marginRight: 5 }}>§{currentSection.section_id}</span>
+                    {currentSection.section_title.length > 38 ? currentSection.section_title.slice(0,36)+'…' : currentSection.section_title}
+                  </p>
+                </div>
+              )}
+
+              <AuroraStatus speaking={isSpeaking} />
+
+            </div>
           </div>
 
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {messages.length === 0 && !streaming && userActivated && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,255,255,0.1)', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#00ffff' }}>A</div>
-                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, maxWidth: 260 }}>
-                    Hi, I&apos;m Alex — your AI tutor.<br />
-                    Ask me anything about <span style={{ color: '#00ffff' }}>{currentSection?.section_title ?? moduleTitle}</span>, or say &ldquo;let&apos;s start&rdquo; to begin.
+          {/* notes prompt banner */}
+          {teachingPoints.length > 0 && (
+            <NotesPromptBanner phase={tPhase} topicTitle={teachingPoints[currentPtIdx]?.title??null} topicIdx={currentPtIdx} total={teachingPoints.length} />
+          )}
+
+          {/* ── MESSAGES ── */}
+          <div className="chat-messages" style={{ flex:1, overflowY:'auto', padding:'16px 18px 8px', display:'flex', flexDirection:'column', gap:4, position:'relative', zIndex:1 } as React.CSSProperties}>
+
+            {/* top fade mask */}
+            <div style={{ position:'sticky', top:0, left:0, right:0, height:28, marginBottom:-28, pointerEvents:'none', zIndex:2,
+              background:'linear-gradient(to bottom, var(--bg-base) 0%, transparent 100%)', flexShrink:0 }} />
+
+            {messages.length === 0 && !streaming && (
+              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <div style={{
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:20,
+                  background:'rgba(10,14,28,0.7)', border:'1px solid rgba(78,205,196,0.14)',
+                  borderRadius:20, padding:'32px 36px', maxWidth:320, textAlign:'center',
+                  boxShadow:'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)',
+                  backdropFilter:'blur(16px)',
+                }}>
+                  {/* Alex avatar */}
+                  <div style={{ position:'relative' }}>
+                    <div style={{
+                      width:64, height:64, borderRadius:'50%',
+                      background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.22))',
+                      border:'2px solid rgba(78,205,196,0.4)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:24, fontWeight:800, color:'var(--ac-cyan)',
+                      boxShadow:'0 0 32px rgba(78,205,196,0.2)',
+                    }}>A</div>
+                    <div style={{ position:'absolute', bottom:2, right:2, width:14, height:14, borderRadius:'50%', background:'#22c55e', border:'2px solid rgba(10,14,28,0.9)', boxShadow:'0 0 8px #22c55e' }} />
+                  </div>
+
+                  {/* Intro text */}
+                  <div>
+                    <p style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', margin:'0 0 6px' }}>
+                      Hi, I&apos;m Alex
+                    </p>
+                    <p style={{ fontSize:12, color:'var(--text-secondary)', lineHeight:1.7, margin:0 }}>
+                      Your AI tutor for<br/>
+                      <span style={{ color:'var(--ac-cyan)', fontWeight:600 }}>
+                        {currentSection?.section_title ?? moduleTitle}
+                      </span>
+                    </p>
+                    {currentSection && (
+                      <p style={{ fontSize:11, color:'var(--text-tertiary)', marginTop:8, lineHeight:1.6 }}>
+                        Select a topic from the left panel,<br/>then tap <strong style={{ color:'var(--ac-cyan)' }}>Start Lesson</strong> to begin.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Start Lesson button */}
+                  <button
+                    onClick={() => {
+                      setUserActivated(true)
+                      hasStarted.current = true
+                      setTPhase('PRE_NOTES')
+                      void doSend('__AUTO_START__', true)
+                    }}
+                    style={{
+                      display:'flex', alignItems:'center', gap:8,
+                      padding:'12px 28px', borderRadius:13,
+                      background:'linear-gradient(135deg, #4ECDC4 0%, #52D98B 100%)',
+                      border:'none', cursor:'pointer',
+                      fontSize:14, fontWeight:700, color:'#050810',
+                      boxShadow:'0 4px 20px rgba(78,205,196,0.3)',
+                      transition:'box-shadow 0.18s, transform 0.18s',
+                    }}
+                    onMouseEnter={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 6px 28px rgba(78,205,196,0.45)'; (e.currentTarget as HTMLElement).style.transform='translateY(-1px)' }}
+                    onMouseLeave={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 4px 20px rgba(78,205,196,0.3)'; (e.currentTarget as HTMLElement).style.transform='none' }}
+                  >
+                    <Brain size={16} />
+                    Start Lesson
+                  </button>
+
+                  {/* Or ask a question */}
+                  <p style={{ fontSize:11, color:'var(--text-tertiary)', margin:0 }}>
+                    or type a question below
                   </p>
                 </div>
               </div>
             )}
 
-            {messages.map((msg, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
-                {msg.role === 'assistant' && (
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,255,255,0.12)', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#00ffff', flexShrink: 0 }}>A</div>
-                )}
-                <div style={{
-                  maxWidth: '72%', padding: '11px 16px', fontSize: 13, lineHeight: 1.65, whiteSpace: 'pre-wrap',
-                  borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: msg.role === 'user'
-                    ? 'linear-gradient(135deg, rgba(166,0,255,0.25), rgba(0,85,255,0.2))'
-                    : 'rgba(255,255,255,0.04)',
-                  border: msg.role === 'user'
-                    ? '1px solid rgba(166,0,255,0.3)'
-                    : '1px solid rgba(255,255,255,0.08)',
-                  color: msg.role === 'user' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.82)',
-                  backdropFilter: 'blur(20px)',
-                  boxShadow: msg.role === 'assistant' && isSpeaking && i === messages.length - 1
-                    ? '0 0 20px rgba(0,255,255,0.08)' : 'none',
-                }}>
-                  {msg.content || (msg.role === 'assistant' && <span style={{ color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>…</span>)}
-                </div>
+            {/* date/session divider shown once above first message */}
+            {messages.length > 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:10, margin:'8px 0 12px', flexShrink:0 }}>
+                <div style={{ flex:1, height:1, background:'var(--border-subtle)' }} />
+                <span style={{ fontSize:9, fontFamily:'monospace', letterSpacing:'0.12em', color:'var(--text-tertiary)', whiteSpace:'nowrap' }}>
+                  SESSION · {new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+                </span>
+                <div style={{ flex:1, height:1, background:'var(--border-subtle)' }} />
               </div>
-            ))}
-            {streaming && messages[messages.length-1]?.role !== 'assistant' && <TypingIndicator />}
-            <div ref={chatEndRef} />
+            )}
+
+            {messages.map((msg, i) => {
+              const isLastAss = msg.role==='assistant' && i===messages.length-1
+              const isUser    = msg.role==='user'
+              // Group: show avatar only on first message of a consecutive run
+              const prevSameRole = i > 0 && messages[i-1].role === msg.role
+              const nextSameRole = i < messages.length-1 && messages[i+1].role === msg.role
+
+              // Bubble radius logic: squish corners between grouped messages
+              let radius: string
+              if (isUser) {
+                radius = prevSameRole
+                  ? nextSameRole ? '14px 4px 4px 14px' : '14px 4px 14px 14px'
+                  : nextSameRole ? '14px 14px 4px 14px' : '14px 14px 4px 14px'
+              } else {
+                radius = prevSameRole
+                  ? nextSameRole ? '4px 14px 14px 4px' : '4px 14px 14px 14px'
+                  : nextSameRole ? '14px 14px 14px 4px' : '16px 16px 16px 4px'
+              }
+
+              return (
+                <div key={i} className="message-enter"
+                  style={{
+                    display:'flex', alignItems:'flex-end', gap:8,
+                    flexDirection: isUser ? 'row-reverse' : 'row',
+                    marginBottom: nextSameRole ? 2 : 10,
+                  }}>
+
+                  {/* Avatar — only on last of a group */}
+                  {!isUser && (
+                    <div style={{
+                      width:30, height:30, borderRadius:'50%', flexShrink:0,
+                      visibility: nextSameRole ? 'hidden' : 'visible',
+                      background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))',
+                      border:'1.5px solid rgba(78,205,196,0.32)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:11, fontWeight:700, color:'var(--ac-cyan)',
+                      boxShadow: isSpeaking && isLastAss ? '0 0 14px rgba(78,205,196,0.4)' : '0 0 8px rgba(78,205,196,0.12)',
+                      transition:'box-shadow 0.4s ease',
+                    }}>A</div>
+                  )}
+
+                  <div style={{ display:'flex', flexDirection:'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap:2, maxWidth: isUser ? '74%' : '88%' }}>
+                    <div style={{
+                      padding: isUser ? '9px 14px' : '10px 15px',
+                      fontSize:13, lineHeight:1.75,
+                      borderRadius: radius,
+                      background: isUser
+                        ? 'linear-gradient(135deg, rgba(91,110,175,0.28), rgba(155,111,208,0.20))'
+                        : 'rgba(10,14,28,0.82)',
+                      border: isUser
+                        ? '1px solid rgba(155,111,208,0.30)'
+                        : '1px solid rgba(78,205,196,0.10)',
+                      borderLeft: !isUser ? '2px solid rgba(78,205,196,0.28)' : undefined,
+                      color: 'var(--text-primary)',
+                      backdropFilter:'blur(16px)',
+                      boxShadow: isUser
+                        ? '0 2px 12px rgba(155,111,208,0.15)'
+                        : isSpeaking && isLastAss
+                          ? '0 2px 12px rgba(78,205,196,0.12), inset 0 1px 0 rgba(255,255,255,0.04)'
+                          : '0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)',
+                      transition:'box-shadow 0.4s ease',
+                    }}>
+                      {isUser
+                        ? (msg.content || null)
+                        : msg.content
+                          ? <AssistantMessage
+                              content={msg.content}
+                              svg={msg.visual}
+                              answeredMcq={msg.mcqAnswer ?? null}
+                              isStreaming={isLastAss && streaming}
+                              onAnswer={(letter, fullText) => {
+                                if (msg.mcqAnswer) return // already answered
+                                // Lock the MCQ immediately
+                                setMessages(prev => prev.map((m, mi) => mi === i ? { ...m, mcqAnswer: letter } : m))
+                                const correct = msg.mcqCorrect
+                                if (correct && letter === correct) {
+                                  // Correct — advance to next topic directly, no AI call
+                                  advanceTopic('Correct! Well done.')
+                                } else {
+                                  // Wrong — ask Alex for explanation, then advance
+                                  void doSend(fullText, false)
+                                }
+                              }}
+                            />
+                          : <span style={{ color:'var(--text-tertiary)', fontStyle:'italic', fontSize:12 }}>…</span>
+                      }
+                    </div>
+
+                    {/* Timestamp — only on last of a group */}
+                    {!nextSameRole && (
+                      <span style={{
+                        fontSize:9, color:'var(--text-tertiary)', fontFamily:'monospace',
+                        letterSpacing:'0.06em', paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0,
+                        opacity:0.6,
+                      }}>
+                        {new Date(msg.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {streaming && messages[messages.length-1]?.role!=='assistant' && <TypingIndicator />}
+            <div ref={chatEndRef} style={{ height:8 }} />
           </div>
 
-          {/* Input bar */}
+          {/* ── INPUT BAR ── */}
           <div style={{
-            padding: '12px 20px', flexShrink: 0,
-            background: 'rgba(255,255,255,0.02)',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            backdropFilter: 'blur(20px)',
+            padding:'10px 14px 12px', flexShrink:0,
+            background:'var(--glass-lg)',
+            borderTop:'1px solid var(--border-subtle)',
+            backdropFilter:'blur(24px) saturate(150%)',
+            boxShadow:'0 -1px 0 rgba(255,255,255,0.03)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+            <div style={{
+              display:'flex', alignItems:'flex-end', gap:8,
+              background:'rgba(8,11,22,0.7)',
+              border:`1px solid ${micActive ? 'rgba(232,80,122,0.35)' : streaming ? 'rgba(78,205,196,0.18)' : 'rgba(78,205,196,0.12)'}`,
+              borderRadius:14, padding:'8px 8px 8px 14px',
+              boxShadow:'inset 0 2px 8px rgba(0,0,0,0.4)',
+              transition:'border-color 0.22s',
+            }}>
               <textarea
                 value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const t = input.trim(); if (!t || streamingRef.current) return; setInput(''); void doSend(t, false) } }}
+                onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>{ if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();const t=input.trim();if (!t||streamRef.current) return;setInput('');void doSend(t,false)} }}
                 disabled={streaming} rows={1}
-                placeholder={micActive ? '// LISTENING…' : `Ask about ${currentSection?.section_id ?? 'this module'}…`}
+                placeholder={micActive ? '🎤  Listening…' : streaming ? 'Alex is responding…' : `Message Alex…`}
+                className="aurora-input"
                 style={{
-                  flex: 1, resize: 'none', background: micActive ? 'rgba(255,60,60,0.06)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${micActive ? 'rgba(255,80,80,0.4)' : 'rgba(255,255,255,0.12)'}`,
-                  borderRadius: 12, padding: '11px 16px', fontSize: 13, color: 'rgba(255,255,255,0.85)',
-                  outline: 'none', maxHeight: 120, lineHeight: 1.5, fontFamily: 'inherit',
-                  transition: 'border-color 0.2s',
+                  flex:1, resize:'none',
+                  background:'transparent',
+                  border:'none',
+                  padding:'4px 0', fontSize:13,
+                  color: micActive ? 'var(--ac-rose)' : 'var(--text-primary)',
+                  outline:'none', maxHeight:110,
+                  lineHeight:1.6, fontFamily:'inherit', transition:'color 0.2s',
+                  boxShadow:'none',
                 }}
-                onFocus={e => { if (!micActive) e.currentTarget.style.borderColor = 'rgba(0,255,255,0.35)' }}
-                onBlur={e => { if (!micActive) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
               />
-              <button onClick={toggleMic} disabled={streaming} style={{
-                width: 42, height: 42, borderRadius: 12, border: `1px solid ${micActive ? 'rgba(255,60,60,0.5)' : 'rgba(255,255,255,0.12)'}`,
-                background: micActive ? 'rgba(255,60,60,0.15)' : 'rgba(255,255,255,0.04)',
-                color: micActive ? '#ff6060' : 'rgba(255,255,255,0.5)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+
+              {/* mic */}
+              <button onClick={toggleMic} disabled={streaming} title={micActive ? 'Stop mic' : 'Use mic'} style={{
+                width:34, height:34, borderRadius:9, cursor:'pointer', flexShrink:0,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                background: micActive ? 'rgba(232,80,122,0.14)' : 'transparent',
+                border: `1px solid ${micActive ? 'rgba(232,80,122,0.35)' : 'transparent'}`,
+                color: micActive ? 'var(--ac-rose)' : 'var(--text-tertiary)',
                 animation: micActive ? 'tapPulse 1s ease-in-out infinite' : 'none',
+                transition:'all 0.2s',
               }}>
-                {micActive ? <MicOff size={16} /> : <Mic size={16} />}
+                {micActive ? <MicOff size={15} /> : <Mic size={15} />}
               </button>
-              <button onClick={() => { const t = input.trim(); if (!t || streamingRef.current) return; setInput(''); void doSend(t, false) }}
-                disabled={streaming || !input.trim()} style={{
-                  width: 42, height: 42, borderRadius: 12, border: '1px solid rgba(0,255,255,0.3)',
-                  background: 'rgba(0,255,255,0.12)', color: '#00ffff', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  opacity: (streaming || !input.trim()) ? 0.35 : 1, transition: 'opacity 0.2s',
+
+              {/* stop (visible while streaming or speaking) */}
+              {(streaming || isSpeaking) ? (
+                <button onClick={stopAll} title="Stop" style={{
+                  width:34, height:34, borderRadius:9, flexShrink:0, cursor:'pointer',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  background:'rgba(232,80,122,0.14)',
+                  border:'1px solid rgba(232,80,122,0.35)',
+                  color:'var(--ac-rose)',
+                  boxShadow:'0 0 10px rgba(232,80,122,0.15)',
+                  transition:'all 0.18s',
                 }}>
-                {streaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              </button>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                    <rect x="1" y="1" width="10" height="10" rx="2"/>
+                  </svg>
+                </button>
+              ) : (
+                /* send */
+                <button
+                  onClick={()=>{const t=input.trim();if (!t||streamRef.current) return;setInput('');void doSend(t,false)}}
+                  disabled={!input.trim()}
+                  style={{
+                    width:34, height:34, borderRadius:9, flexShrink:0, cursor:'pointer',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    background: !input.trim()
+                      ? 'rgba(255,255,255,0.04)'
+                      : 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.20))',
+                    border:`1px solid ${!input.trim() ? 'transparent' : 'rgba(78,205,196,0.30)'}`,
+                    color: !input.trim() ? 'var(--text-tertiary)' : 'var(--ac-cyan)',
+                    boxShadow: !input.trim() ? 'none' : '0 0 10px rgba(78,205,196,0.15)',
+                    transition:'all 0.18s',
+                  }}
+                >
+                  <Send size={15} />
+                </button>
+              )}
             </div>
+
             {micActive && (
-              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff6060', display: 'inline-block', animation: 'tapPulse 0.8s ease-in-out infinite' }} />
-                <span style={{ fontSize: 11, color: 'rgba(255,96,96,0.8)', fontFamily: 'monospace', letterSpacing: '0.1em' }}>LISTENING…</span>
+              <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:6, paddingLeft:2 }}>
+                <span style={{ width:5, height:5, borderRadius:'50%', background:'var(--ac-rose)', animation:'tapPulse 0.9s ease-in-out infinite', boxShadow:'0 0 6px var(--ac-rose)' }} />
+                <span style={{ fontSize:10, color:'var(--ac-rose)', fontFamily:'monospace', letterSpacing:'0.1em', opacity:0.85 }}>LISTENING…</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── COL 3: Content + Notes ── */}
+        {/* COL 3 — Content + Notes */}
         {showNotes && (
           <div style={{
-            width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: 'rgba(255,255,255,0.015)',
-            borderLeft: '1px solid rgba(255,255,255,0.06)',
-            backdropFilter: 'blur(20px)',
+            width:276, flexShrink:0, display:'flex', flexDirection:'column',
+            background:'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
+            borderLeft:'1px solid var(--border-subtle)',
+            boxShadow:'-2px 0 18px rgba(0,0,0,0.4), inset 1px 0 0 rgba(255,255,255,0.025)',
           }}>
-            {/* Tab bar */}
-            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-              {(['content', 'notes'] as const).map(tab => (
-                <button key={tab} onClick={() => setRightTab(tab)} style={{
-                  flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.15em', fontWeight: 700,
-                  color: rightTab === tab ? '#00ffff' : 'rgba(255,255,255,0.3)',
-                  borderBottom: rightTab === tab ? '2px solid #00ffff' : '2px solid transparent',
-                  transition: 'all 0.2s',
+            {/* tabs */}
+            <div style={{ display:'flex', borderBottom:'1px solid var(--border-subtle)', flexShrink:0 }}>
+              {(['content','notes'] as const).map(tab=>(
+                <button key={tab} onClick={()=>setRightTab(tab)} style={{
+                  flex:1, padding:'10px 0', background:'none', border:'none', cursor:'pointer',
+                  fontSize:10, fontFamily:'monospace', letterSpacing:'0.14em', fontWeight:700,
+                  color: rightTab===tab ? 'var(--ac-cyan)' : 'var(--text-tertiary)',
+                  borderBottom: rightTab===tab ? '2px solid var(--ac-cyan)' : '2px solid transparent',
+                  transition:'all 0.2s',
+                  textShadow: rightTab===tab ? '0 0 8px rgba(126,207,206,0.5)' : 'none',
                 }}>
-                  {tab === 'content' ? 'CONTENT' : 'NOTES'}
+                  {tab==='content' ? 'CONTENT' : 'NOTES'}
                 </button>
               ))}
             </div>
 
-            {rightTab === 'content' ? (
-              <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
+            {rightTab==='content' ? (
+              <div style={{ flex:1, overflowY:'auto', padding:'12px 12px' }}>
                 {currentSection && (
-                  <div style={{ marginBottom: 12 }}>
-                    <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#00ffff', letterSpacing: '0.15em', marginBottom: 4 }}>§{currentSection.section_id}</p>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)', lineHeight: 1.4, marginBottom: 12 }}>{currentSection.section_title}</p>
-                    {/* Mark done button */}
-                    {currentProgress?.status !== 'completed' ? (
+                  <div style={{ marginBottom:10 }}>
+                    <p className="label-mono aurora-text" style={{ marginBottom:3 }}>§{currentSection.section_id}</p>
+                    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', lineHeight:1.4, marginBottom:10 }}>{currentSection.section_title}</p>
+                    {currentProgress?.status!=='completed' ? (
                       <button onClick={completeSection} style={{
-                        width: '100%', padding: '8px 0', borderRadius: 8, border: '1px solid rgba(0,255,120,0.35)',
-                        background: 'rgba(0,255,120,0.08)', color: '#00ff88', fontSize: 11, fontWeight: 700,
-                        fontFamily: 'monospace', letterSpacing: '0.1em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 12,
+                        width:'100%', padding:'7px 0', borderRadius:8, cursor:'pointer', marginBottom:10,
+                        background:'rgba(110,201,160,0.08)', border:'1px solid rgba(110,201,160,0.28)',
+                        color:'var(--ac-mint)', fontSize:11, fontWeight:700, fontFamily:'monospace',
+                        letterSpacing:'0.08em', display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+                        boxShadow:'var(--shadow-sm)',
                       }}>
-                        <Check size={12} /> MARK AS DONE
+                        <Check size={11} /> MARK AS DONE
                       </button>
                     ) : (
-                      <div style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: '1px solid rgba(0,255,120,0.25)', background: 'rgba(0,255,120,0.06)', color: 'rgba(0,255,120,0.7)', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 12 }}>
-                        <CheckCircle2 size={12} /> COMPLETED
+                      <div style={{ width:'100%', padding:'7px 0', borderRadius:8, marginBottom:10,
+                        background:'rgba(110,201,160,0.05)', border:'1px solid rgba(110,201,160,0.2)',
+                        color:'var(--ac-mint)', fontSize:11, fontWeight:700, fontFamily:'monospace',
+                        letterSpacing:'0.08em', display:'flex', alignItems:'center', justifyContent:'center', gap:5, opacity:0.7 }}>
+                        <CheckCircle2 size={11} /> COMPLETED
                       </div>
                     )}
                   </div>
                 )}
-                {sectionContent ? (
-                  <SectionNotePoints content={sectionContent} />
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, flexDirection: 'column', gap: 8 }}>
-                    <Loader2 size={16} color="rgba(0,255,255,0.3)" className="animate-spin" />
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>Loading content…</p>
-                  </div>
-                )}
+                {sectionContent
+                  ? <SectionNotePoints content={sectionContent} />
+                  : (
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:100, flexDirection:'column', gap:7 }}>
+                      <Loader2 size={15} color="var(--ac-cyan)" className="animate-spin" style={{ opacity:0.4 }} />
+                      <p style={{ fontSize:11, color:'var(--text-tertiary)' }}>Loading content…</p>
+                    </div>
+                  )
+                }
               </div>
             ) : (
-              <NotesPanel
-                section={currentSection}
-                progress={currentProgress}
-                moduleId={moduleId}
-                onSave={(notes, kp) => {
-                  setSectionProgress(prev => {
-                    const exists = prev.find(p => p.section_id === currentSection?.section_id)
-                    if (!exists || !currentSection) return prev
-                    return prev.map(p => p.section_id === currentSection.section_id ? { ...p, notes, key_points: kp } : p)
+              <NotesPanel section={currentSection} progress={currentProgress} moduleId={moduleId}
+                onSave={(notes,kp)=>{
+                  setSectionProgress(prev=>{
+                    const ex=prev.find(p=>p.section_id===currentSection?.section_id)
+                    if (!ex||!currentSection) return prev
+                    return prev.map(p=>p.section_id===currentSection.section_id?{...p,notes,key_points:kp}:p)
                   })
                 }}
               />
@@ -1603,15 +2466,21 @@ export default function CourseModulePage() {
         )}
       </div>
 
-      {/* Quiz modal */}
+      {/* quiz modal */}
       {showQuiz && (
         <QuizModal moduleId={moduleId} moduleTitle={moduleTitle} partNumber={partNumber} partTitle={partTitle}
-          onClose={() => setShowQuiz(false)}
-          onComplete={(passed) => { setQuizPassed(passed); setShowQuiz(false) }}
+          onClose={()=>setShowQuiz(false)}
+          onComplete={(passed)=>{setQuizPassed(passed);setShowQuiz(false)}}
         />
       )}
 
-      <style>{`@keyframes tapPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }`}</style>
+      <style>{`
+        @keyframes tapPulse { 0%,100%{opacity:0.45} 50%{opacity:1} }
+        @keyframes onlinePulse {
+          0%,100%{transform:scale(1); box-shadow:0 0 5px rgba(126,207,206,0.4)}
+          50%{transform:scale(1.4); box-shadow:0 0 12px rgba(126,207,206,0.7)}
+        }
+      `}</style>
     </div>
   )
 }

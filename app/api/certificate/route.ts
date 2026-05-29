@@ -3,6 +3,7 @@ import { createServerSupabaseClient, getStudent, supabaseAdmin } from '@/lib/sup
 import { isEligible, generateCertificate } from '@/lib/certificate'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {

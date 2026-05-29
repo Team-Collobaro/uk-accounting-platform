@@ -12,6 +12,7 @@ import { isEligible, generateCertificate } from '@/lib/certificate'
 import type { QuizQuestion } from '@/types'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
