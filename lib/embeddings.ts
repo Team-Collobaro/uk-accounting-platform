@@ -46,6 +46,9 @@ function mapChunk(c: Record<string, unknown>): CourseChunk {
     moduleId: c.module_id as string,
     moduleTitle: c.module_title as string,
     partNumber: c.part_number as number,
+    sectionId: (c.section_id as string) ?? '',
+    sectionTitle: (c.section_title as string) ?? '',
+    sectionOrder: (c.section_order as number) ?? 0,
     content: c.content as string,
     tokenCount: c.token_count as number,
   }

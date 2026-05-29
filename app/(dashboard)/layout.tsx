@@ -9,12 +9,14 @@ import {
   LayoutDashboard, BookOpen, TrendingUp, Award, LogOut,
   Menu, X, Brain, Sparkles, ChevronLeft, ChevronRight,
 } from 'lucide-react'
+import LiquidEther from '@/components/LiquidEther'
+import ShinyText from '@/components/reactbits/ShinyText'
 
 const navLinks = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard, color: '#00dcff', glow: '0,220,255' },
-  { href: '/dashboard', label: 'My Courses',  icon: BookOpen,         color: '#9632ff', glow: '150,50,255' },
-  { href: '/dashboard', label: 'Progress',    icon: TrendingUp,       color: '#00c8b4', glow: '0,200,180' },
-  { href: '/dashboard', label: 'Certificate', icon: Award,            color: '#ffc832', glow: '255,200,50' },
+  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard, color: '#4ECDC4', glow: '78,205,196'  },
+  { href: '/dashboard', label: 'My Courses',  icon: BookOpen,         color: '#9B6FD0', glow: '155,111,208' },
+  { href: '/dashboard', label: 'Progress',    icon: TrendingUp,       color: '#52D98B', glow: '82,217,139'  },
+  { href: '/dashboard', label: 'Certificate', icon: Award,            color: '#E8B84B', glow: '232,184,75'  },
 ]
 
 const EXPANDED_W = 248
@@ -58,9 +60,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       position: 'relative',
     }}>
 
-      {/* ── Aurora background ── */}
-      <div className="aurora-bg" aria-hidden="true">
-        <div className="aurora-layer-3" />
+      {/* ── LiquidEther fluid sim background ── */}
+      <div aria-hidden="true" style={{
+        position: 'fixed', inset: 0, zIndex: 0,
+        pointerEvents: 'none',
+      }}>
+        <LiquidEther
+          colors={['#4ECDC4', '#5B78D8', '#9B6FD0', '#FF6FD8']}
+          mouseForce={20}
+          cursorSize={120}
+          resolution={0.4}
+          autoDemo={true}
+          autoSpeed={0.35}
+          autoIntensity={1.8}
+          autoResumeDelay={2000}
+          autoRampDuration={0.8}
+          style={{ width: '100%', height: '100%', opacity: 0.55 }}
+        />
       </div>
 
       {/* Mobile overlay */}
@@ -120,7 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
                 >
                   <p style={{ fontSize: 14, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', color: '#dce8ff' }}>UK Accounting</p>
-                  <p className="aurora-text" style={{ fontSize: 9, margin: 0, fontFamily: 'monospace', letterSpacing: '0.14em', fontWeight: 700 }}>PRO · AI TUTOR</p>
+                  <ShinyText text="PRO · AI TUTOR" color="rgba(78,205,196,0.6)" shineColor="#4ECDC4" speed={3} className="label-mono" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -143,11 +159,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
                   </motion.div>
                   <Sparkles size={12} color="rgba(0,220,255,0.6)" />
-                  <span style={{ fontSize: 10, color: 'rgba(0,220,255,0.75)', fontFamily: 'monospace', letterSpacing: '0.1em' }}>ALEX ONLINE</span>
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                    <ShinyText text="ALEX ONLINE" color="rgba(0,220,255,0.75)" shineColor="#00ffff" speed={2.5} />
+                  </span>
                   <motion.span
                     animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2.5, repeat: Infinity, delay: 0.4 }}
-                    style={{ marginLeft: 'auto', fontSize: 8, color: 'rgba(150,50,255,0.7)', fontFamily: 'monospace', letterSpacing: '0.12em' }}
-                  >SYNAPSE LINK ●</motion.span>
+                    style={{ marginLeft: 'auto', fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.12em' }}
+                  >
+                    <ShinyText text="SYNAPSE LINK ●" color="rgba(150,50,255,0.7)" shineColor="#c084fc" speed={3} delay={0.4} />
+                  </motion.span>
                 </div>
               </motion.div>
             ) : (

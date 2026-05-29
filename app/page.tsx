@@ -3,29 +3,31 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
-import { Brain, BookOpen, Award, Shield, TrendingUp, Users, CheckCircle2, Zap, ArrowRight, Sparkles, ChevronRight } from 'lucide-react'
+import {
+  Brain, BookOpen, Award, TrendingUp, CheckCircle2,
+  ArrowRight, Sparkles, Zap, Shield, Clock, Users,
+  ChevronRight, Play,
+} from 'lucide-react'
 
-// ─── Particle canvas ─────────────────────────────────────────────────────────
+// ─── Particle canvas (site palette) ──────────────────────────────────────────
 function ParticleField() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const canvas = canvasRef.current; if (!canvas) return
+    const ctx = canvas.getContext('2d'); if (!ctx) return
     let W = canvas.width = window.innerWidth
     let H = canvas.height = window.innerHeight
     const onResize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight }
     window.addEventListener('resize', onResize)
-
-    const N = 90
-    type P = { x: number; y: number; vx: number; vy: number; r: number; a: number }
+    const N = 70
+    type P = { x: number; y: number; vx: number; vy: number; r: number; a: number; hue: number }
+    const hues = [178, 260, 210] // cyan, violet, indigo
     const pts: P[] = Array.from({ length: N }, () => ({
       x: Math.random() * W, y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.35, vy: (Math.random() - 0.5) * 0.35,
-      r: Math.random() * 1.5 + 0.4, a: Math.random(),
+      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.4 + 0.5, a: Math.random() * 0.6 + 0.2,
+      hue: hues[Math.floor(Math.random() * hues.length)],
     }))
-
     let raf: number
     const draw = () => {
       ctx.clearRect(0, 0, W, H)
@@ -33,24 +35,17 @@ function ParticleField() {
         p.x += p.vx; p.y += p.vy
         if (p.x < 0) p.x = W; if (p.x > W) p.x = 0
         if (p.y < 0) p.y = H; if (p.y > H) p.y = 0
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(0,255,255,${p.a * 0.55})`
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `hsla(${p.hue},70%,65%,${p.a * 0.5})`
         ctx.fill()
       }
-      // connections
-      for (let i = 0; i < N; i++) {
-        for (let j = i + 1; j < N; j++) {
-          const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 130) {
-            ctx.beginPath()
-            ctx.moveTo(pts[i].x, pts[i].y)
-            ctx.lineTo(pts[j].x, pts[j].y)
-            ctx.strokeStyle = `rgba(0,255,255,${(1 - dist / 130) * 0.1})`
-            ctx.lineWidth = 0.6
-            ctx.stroke()
-          }
+      for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+        const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y
+        const d = Math.sqrt(dx * dx + dy * dy)
+        if (d < 120) {
+          ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y)
+          ctx.strokeStyle = `rgba(78,205,196,${(1 - d / 120) * 0.08})`
+          ctx.lineWidth = 0.5; ctx.stroke()
         }
       }
       raf = requestAnimationFrame(draw)
@@ -58,73 +53,67 @@ function ParticleField() {
     draw()
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize) }
   }, [])
-  return <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.7 }} />
+  return <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.8 }} />
 }
 
-// ─── Neon AI orb ─────────────────────────────────────────────────────────────
+// ─── Aurora AI orb (matches site theme) ──────────────────────────────────────
 function AiOrb() {
   const orbRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     let frame: number
     const tick = () => {
       const t = performance.now() / 1000
-      if (orbRef.current) {
-        const scale = 1 + 0.06 * Math.sin(t * 0.7)
-        orbRef.current.style.transform = `scale(${scale})`
-      }
+      if (orbRef.current) orbRef.current.style.transform = `scale(${1 + 0.05 * Math.sin(t * 0.8)})`
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [])
   return (
-    <div style={{ position: 'relative', width: 260, height: 260, margin: '0 auto' }}>
-      {/* outer glow rings */}
-      {[1, 0.65, 0.42].map((opacity, i) => (
+    <div style={{ position: 'relative', width: 240, height: 240, margin: '0 auto' }}>
+      {[0, 1, 2].map(i => (
         <motion.div key={i}
-          animate={{ scale: [1, 1.08, 1], opacity: [opacity * 0.4, opacity * 0.15, opacity * 0.4] }}
-          transition={{ duration: 3 + i * 0.8, repeat: Infinity, ease: 'easeInOut', delay: i * 0.4 }}
+          animate={{ scale: [1, 1.1, 1], opacity: [0.18 - i * 0.04, 0.06, 0.18 - i * 0.04] }}
+          transition={{ duration: 3.5 + i, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
           style={{
-            position: 'absolute', inset: -(i * 28),
-            borderRadius: '50%',
-            border: `1px solid rgba(0,255,255,${opacity * 0.3})`,
-            background: `radial-gradient(circle, rgba(0,255,255,${opacity * 0.04}) 0%, transparent 70%)`,
+            position: 'absolute', inset: -(i * 26), borderRadius: '50%',
+            border: `1px solid rgba(78,205,196,${0.3 - i * 0.07})`,
+            background: `radial-gradient(circle, rgba(78,205,196,${0.05 - i * 0.01}) 0%, transparent 70%)`,
           }}
         />
       ))}
-      {/* core orb */}
       <div ref={orbRef} style={{
         position: 'absolute', inset: 0, borderRadius: '50%',
-        background: 'radial-gradient(circle at 38% 38%, rgba(0,255,255,0.25) 0%, rgba(120,0,255,0.18) 50%, rgba(0,0,0,0.6) 100%)',
-        boxShadow: '0 0 60px rgba(0,255,255,0.35), 0 0 120px rgba(120,0,255,0.2), inset 0 0 40px rgba(0,255,255,0.12)',
-        border: '1px solid rgba(0,255,255,0.4)',
+        background: 'radial-gradient(circle at 38% 35%, rgba(78,205,196,0.28) 0%, rgba(155,111,208,0.20) 50%, rgba(5,8,16,0.7) 100%)',
+        boxShadow: '0 0 50px rgba(78,205,196,0.3), 0 0 100px rgba(155,111,208,0.18), inset 0 0 40px rgba(78,205,196,0.1)',
+        border: '1px solid rgba(78,205,196,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <Brain size={72} color="rgba(0,255,255,0.9)" strokeWidth={1.2} />
+        <Brain size={64} color="rgba(78,205,196,0.92)" strokeWidth={1.1} />
       </div>
-      {/* orbiting dot */}
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
-        style={{ position: 'absolute', inset: -20, borderRadius: '50%' }}
-      >
+      <motion.div animate={{ rotate: 360 }} transition={{ duration: 7, repeat: Infinity, ease: 'linear' }}
+        style={{ position: 'absolute', inset: -16, borderRadius: '50%' }}>
         <div style={{
-          position: 'absolute', top: '50%', left: '-4px', marginTop: '-4px',
-          width: 8, height: 8, borderRadius: '50%',
-          background: '#00ffff', boxShadow: '0 0 12px #00ffff',
+          position: 'absolute', top: '50%', left: '-5px', marginTop: '-5px',
+          width: 10, height: 10, borderRadius: '50%',
+          background: '#4ECDC4', boxShadow: '0 0 14px #4ECDC4, 0 0 28px rgba(78,205,196,0.4)',
         }} />
       </motion.div>
-      {/* label tag */}
-      <motion.div
-        animate={{ y: [-4, 4, -4] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      <motion.div animate={{ rotate: -360 }} transition={{ duration: 11, repeat: Infinity, ease: 'linear' }}
+        style={{ position: 'absolute', inset: -32, borderRadius: '50%' }}>
+        <div style={{
+          position: 'absolute', top: '50%', right: '-4px', marginTop: '-4px',
+          width: 8, height: 8, borderRadius: '50%',
+          background: '#9B6FD0', boxShadow: '0 0 10px #9B6FD0',
+        }} />
+      </motion.div>
+      <motion.div animate={{ y: [-3, 3, -3] }} transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
         style={{
-          position: 'absolute', bottom: -18, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0,255,255,0.1)', border: '1px solid rgba(0,255,255,0.35)',
+          position: 'absolute', bottom: -22, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.3)',
           borderRadius: 20, padding: '4px 14px', whiteSpace: 'nowrap',
-          fontSize: 11, fontFamily: 'monospace', color: '#00ffff', letterSpacing: '0.15em',
-        }}
-      >
+          fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.18em',
+        }}>
         ALEX · AI TUTOR
       </motion.div>
     </div>
@@ -139,123 +128,70 @@ function Typewriter({ texts }: { texts: string[] }) {
   useEffect(() => {
     const target = texts[idx]
     if (!deleting && displayed.length < target.length) {
-      const t = setTimeout(() => setDisplayed(target.slice(0, displayed.length + 1)), 55)
+      const t = setTimeout(() => setDisplayed(target.slice(0, displayed.length + 1)), 52)
       return () => clearTimeout(t)
     }
     if (!deleting && displayed.length === target.length) {
-      const t = setTimeout(() => setDeleting(true), 2200)
+      const t = setTimeout(() => setDeleting(true), 2000)
       return () => clearTimeout(t)
     }
     if (deleting && displayed.length > 0) {
-      const t = setTimeout(() => setDisplayed(displayed.slice(0, -1)), 30)
+      const t = setTimeout(() => setDisplayed(displayed.slice(0, -1)), 28)
       return () => clearTimeout(t)
     }
-    if (deleting && displayed.length === 0) {
-      setDeleting(false); setIdx((idx + 1) % texts.length)
-    }
+    if (deleting && displayed.length === 0) { setDeleting(false); setIdx((idx + 1) % texts.length) }
   }, [displayed, deleting, idx, texts])
   return (
-    <span style={{ color: '#00ffff', fontWeight: 700 }}>
+    <span style={{ color: '#4ECDC4', fontWeight: 800 }}>
       {displayed}
-      <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.6, repeat: Infinity }}>|</motion.span>
+      <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.55, repeat: Infinity }}>|</motion.span>
     </span>
   )
 }
 
-// ─── Floating stat card ───────────────────────────────────────────────────────
-function FloatCard({ icon: Icon, value, label, delay, color }: {
-  icon: React.ElementType; value: string; label: string; delay: number; color: string
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.6 }}
-      whileHover={{ scale: 1.04, y: -4 }}
-      style={{
-        background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}33`,
-        borderRadius: 16, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 14,
-        backdropFilter: 'blur(12px)', cursor: 'default',
-        boxShadow: `0 0 20px ${color}14`,
-      }}
-    >
-      <div style={{ width: 42, height: 42, borderRadius: 12, background: `${color}18`, border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={20} color={color} />
-      </div>
-      <div>
-        <p style={{ fontSize: 22, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{value}</p>
-        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 3, fontFamily: 'monospace', letterSpacing: '0.06em' }}>{label}</p>
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Feature card ─────────────────────────────────────────────────────────────
-const features = [
-  { icon: Brain,      title: 'AI Tutor — Alex',         desc: 'Socratic teaching powered by Claude. Guides you with questions, not lectures. Adapts to your pace and weak areas.', color: '#00ffff' },
-  { icon: BookOpen,   title: '87 Structured Modules',   desc: 'Across 12 parts covering every aspect of UK bookkeeping, VAT, payroll, corporation tax, and personal tax.', color: '#a855f7' },
-  { icon: Award,      title: 'Verified Certificate',     desc: 'Earn a publicly verifiable certificate employers can check instantly via a unique URL — no central database needed.', color: '#f59e0b' },
-  { icon: Shield,     title: 'RAG-Powered Accuracy',    desc: 'Every AI answer is grounded in your actual course content. No hallucinated tax rates or invented legislation.', color: '#22c55e' },
-  { icon: TrendingUp, title: 'Adaptive Quizzes',         desc: 'Quizzes zero-in on your weakest areas. The AI tracks performance and suggests what to tackle next.', color: '#f43f5e' },
-  { icon: Users,      title: 'Employer Portal',          desc: "Manage your whole team's progress, download reports, and verify certificates in bulk — one dashboard.", color: '#3b82f6' },
+// ─── Live chat demo ───────────────────────────────────────────────────────────
+const demoMsgs = [
+  { role: 'ai',   text: "Before I explain FRS 102, tell me — what do you think 'true and fair view' means?" },
+  { role: 'user', text: "The accounts should accurately represent the business?" },
+  { role: 'ai',   text: "Exactly right. It means the financial statements give a realistic picture — not just technically correct, but economically meaningful. Now, why might that matter more than just following rules?" },
 ]
-
-const parts = [
-  { n: 1,  t: 'UK Compliance Landscape' }, { n: 2,  t: 'Double-Entry Bookkeeping' },
-  { n: 3,  t: 'VAT & Indirect Taxes' },    { n: 4,  t: 'Payroll & PAYE' },
-  { n: 5,  t: 'Management Accounting' },   { n: 6,  t: 'Financial Statements' },
-  { n: 7,  t: 'Company Law & Governance' },{ n: 8,  t: 'Corporation Tax' },
-  { n: 9,  t: 'Personal Tax' },            { n: 10, t: 'Capital Gains Tax' },
-  { n: 11, t: 'Audit & Assurance' },       { n: 12, t: 'Professional Ethics' },
-]
-
-// ─── Chat demo ────────────────────────────────────────────────────────────────
-const demoMessages = [
-  { role: 'user', text: "What's the difference between FRS 102 and FRS 105?" },
-  { role: 'ai',   text: "Great question. Before I explain, what do you think 'micro-entity' means in a regulatory context?" },
-  { role: 'user', text: "A very small company?" },
-  { role: 'ai',   text: "Exactly — one meeting 2 of 3 thresholds: turnover ≤£632k, balance sheet ≤£316k, ≤10 employees. FRS 105 is their simplified standard. What might be missing vs FRS 102?" },
-]
-
 function ChatDemo() {
   const [visible, setVisible] = useState(0)
   useEffect(() => {
-    if (visible >= demoMessages.length) return
-    const t = setTimeout(() => setVisible(v => v + 1), visible === 0 ? 600 : 1400)
+    if (visible >= demoMsgs.length) return
+    const t = setTimeout(() => setVisible(v => v + 1), visible === 0 ? 700 : 1600)
     return () => clearTimeout(t)
   }, [visible])
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <AnimatePresence>
-        {demoMessages.slice(0, visible).map((m, i) => (
-          <motion.div key={i}
-            initial={{ opacity: 0, y: 10, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.35 }}
-            style={{
-              display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-            }}
-          >
+        {demoMsgs.slice(0, visible).map((m, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.3 }} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 8, alignItems: 'flex-end' }}>
             {m.role === 'ai' && (
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,255,255,0.15)', border: '1px solid rgba(0,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 8, marginTop: 2 }}>
-                <Sparkles size={13} color="#00ffff" />
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(78,205,196,0.15)', border: '1px solid rgba(78,205,196,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Sparkles size={12} color="#4ECDC4" />
               </div>
             )}
             <div style={{
-              maxWidth: '75%', padding: '10px 14px', borderRadius: m.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-              background: m.role === 'user' ? 'linear-gradient(135deg,rgba(0,255,255,0.18),rgba(120,0,255,0.18))' : 'rgba(255,255,255,0.05)',
-              border: m.role === 'user' ? '1px solid rgba(0,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
-              fontSize: 12.5, color: 'rgba(255,255,255,0.85)', lineHeight: 1.55,
-            }}>
-              {m.text}
-            </div>
+              maxWidth: '78%', padding: '9px 13px', fontSize: 12, lineHeight: 1.6,
+              borderRadius: m.role === 'user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
+              background: m.role === 'user'
+                ? 'linear-gradient(135deg,rgba(78,205,196,0.15),rgba(155,111,208,0.15))'
+                : 'rgba(14,21,37,0.8)',
+              border: m.role === 'user' ? '1px solid rgba(78,205,196,0.25)' : '1px solid rgba(78,205,196,0.1)',
+              borderLeft: m.role === 'ai' ? '2px solid rgba(78,205,196,0.4)' : undefined,
+              color: 'rgba(232,240,252,0.9)',
+              backdropFilter: 'blur(12px)',
+            }}>{m.text}</div>
           </motion.div>
         ))}
       </AnimatePresence>
-      {visible < demoMessages.length && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', gap: 4, paddingLeft: 36, alignItems: 'center' }}>
+      {visible < demoMsgs.length && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', gap: 4, paddingLeft: 34 }}>
           {[0, 1, 2].map(i => (
-            <motion.div key={i} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-              style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(0,255,255,0.5)' }} />
+            <motion.div key={i} animate={{ y: [0, -5, 0] }} transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.15 }}
+              style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(78,205,196,0.5)' }} />
           ))}
         </motion.div>
       )}
@@ -263,45 +199,101 @@ function ChatDemo() {
   )
 }
 
+// ─── Feature card ─────────────────────────────────────────────────────────────
+function FeatureCard({ icon: Icon, title, desc, color, delay }: { icon: React.ElementType; title: string; desc: string; color: string; delay: number }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay }}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        padding: '24px', borderRadius: 18,
+        background: hov ? `rgba(${color},0.06)` : 'rgba(14,21,37,0.6)',
+        border: `1px solid rgba(${color},${hov ? 0.28 : 0.12})`,
+        backdropFilter: 'blur(12px)',
+        boxShadow: hov ? `0 8px 32px rgba(${color},0.12)` : '0 2px 8px rgba(0,0,0,0.3)',
+        transition: 'all 0.22s ease', cursor: 'default',
+      }}>
+      <div style={{ width: 46, height: 46, borderRadius: 13, background: `rgba(${color},0.14)`, border: `1px solid rgba(${color},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <Icon size={22} color={`rgb(${color})`} />
+      </div>
+      <p style={{ fontSize: 15, fontWeight: 700, color: '#E8F0FC', marginBottom: 8 }}>{title}</p>
+      <p style={{ fontSize: 13, color: '#8EA8CC', lineHeight: 1.65 }}>{desc}</p>
+    </motion.div>
+  )
+}
+
+// ─── Curriculum part row ──────────────────────────────────────────────────────
+const PARTS = [
+  { n: 1,  t: 'UK Compliance Landscape',   m: 7  },
+  { n: 2,  t: 'Double-Entry Bookkeeping',  m: 5  },
+  { n: 3,  t: 'VAT & Indirect Taxes',      m: 8  },
+  { n: 4,  t: 'Payroll & PAYE',            m: 6  },
+  { n: 5,  t: 'Year-End Accounts',         m: 8  },
+  { n: 6,  t: 'Corporation Tax',           m: 6  },
+  { n: 7,  t: 'Self Assessment',           m: 8  },
+  { n: 8,  t: 'Incorporation',             m: 9  },
+  { n: 9,  t: 'Cessation & Winding Up',    m: 9  },
+  { n: 10, t: 'Business Structure Changes',m: 8  },
+  { n: 11, t: 'Specialist Tax Topics',     m: 8  },
+  { n: 12, t: 'Professional Ethics',       m: 5  },
+]
+
+const FEATURES = [
+  { icon: Brain,       title: 'Socratic AI Tutor',       desc: 'Alex asks questions instead of lecturing. You think, you answer, you retain — proven to double knowledge retention.',         color: '78,205,196' },
+  { icon: BookOpen,    title: '87 Expert Modules',        desc: 'ACCA/ACA-grade depth from sole trader setup to group restructuring. Everything a UK practitioner needs.',                   color: '155,111,208' },
+  { icon: TrendingUp,  title: 'Adaptive Quizzes',         desc: 'Every quiz zeroes in on your weak spots. The system tracks topics and adjusts difficulty as you improve.',                  color: '82,217,139'  },
+  { icon: Shield,      title: 'RAG-Grounded Accuracy',    desc: 'Every AI answer is grounded in your actual course content — no hallucinations, no invented tax rates.',                      color: '91,120,216'  },
+  { icon: Award,       title: 'Verifiable Certificate',   desc: 'Publicly verifiable with a unique QR code. Employers can confirm authenticity instantly via the verification URL.',          color: '232,184,75'  },
+  { icon: Users,       title: 'Employer Dashboard',       desc: 'Track your whole team\'s progress, scores, and certificates in one clean dashboard. Built for practices.',                  color: '232,80,122'  },
+]
+
+const TESTIMONIALS = [
+  { name: 'Sarah M.', role: 'Bookkeeper → Practice Manager', quote: 'The AI tutor actually makes you think. I retained so much more than from any online course I\'ve tried.' },
+  { name: 'James K.', role: 'Sole Trader Accountant', quote: 'Finished all 87 modules in 6 weeks alongside full-time work. The structure is excellent and the content is genuinely ACCA-level.' },
+  { name: 'Priya T.', role: 'Payroll Specialist', quote: 'The certificate is publicly verifiable — my new employer actually scanned the QR code before my interview!' },
+]
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const { scrollY } = useScroll()
-  const heroY = useTransform(scrollY, [0, 400], [0, -60])
-  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0])
+  const heroY       = useTransform(scrollY, [0, 400], [0, -50])
+  const heroOpacity = useTransform(scrollY, [0, 280], [1, 0])
   const [navScrolled, setNavScrolled] = useState(false)
+
   useEffect(() => {
     const fn = () => setNavScrolled(window.scrollY > 30)
-    window.addEventListener('scroll', fn)
-    return () => window.removeEventListener('scroll', fn)
+    window.addEventListener('scroll', fn); return () => window.removeEventListener('scroll', fn)
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#060a12', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", overflowX: 'hidden' }}>
 
       {/* ── Nav ── */}
-      <motion.nav
-        style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-          borderBottom: navScrolled ? '1px solid rgba(0,255,255,0.12)' : '1px solid transparent',
-          background: navScrolled ? 'rgba(6,10,18,0.85)' : 'transparent',
-          backdropFilter: navScrolled ? 'blur(20px)' : 'none',
-          transition: 'all 0.3s',
-          padding: '0 24px',
-        }}
-      >
-        <div style={{ maxWidth: 1200, margin: '0 auto', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,rgba(0,255,255,0.3),rgba(120,0,255,0.3))', border: '1px solid rgba(0,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(0,255,255,0.2)' }}>
-              <Brain size={18} color="#00ffff" />
+      <motion.nav style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+        borderBottom: navScrolled ? '1px solid rgba(78,205,196,0.12)' : '1px solid transparent',
+        background: navScrolled ? 'rgba(5,8,16,0.88)' : 'transparent',
+        backdropFilter: navScrolled ? 'blur(24px) saturate(160%)' : 'none',
+        transition: 'all 0.3s', padding: '0 28px',
+      }}>
+        <div style={{ maxWidth: 1160, margin: '0 auto', height: 62, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.25))', border: '1px solid rgba(78,205,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(78,205,196,0.2)' }}>
+              <Brain size={17} color="#4ECDC4" />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em' }}>UK Accounting <span style={{ color: '#00ffff' }}>Pro</span></span>
+            <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', color: '#E8F0FC' }}>
+              UK Accounting <span style={{ color: '#4ECDC4' }}>Pro</span>
+            </span>
           </motion.div>
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <Link href="/login" style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', fontWeight: 500, textDecoration: 'none', padding: '6px 14px', borderRadius: 8, transition: 'color 0.2s' }}>
+          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Link href="/login" style={{ fontSize: 13, color: '#8EA8CC', fontWeight: 500, textDecoration: 'none', padding: '6px 13px', borderRadius: 8, transition: 'color 0.2s' }}>
               Sign in
             </Link>
-            <Link href="/register" style={{ fontSize: 14, fontWeight: 600, textDecoration: 'none', padding: '8px 20px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(0,255,255,0.2),rgba(120,0,255,0.2))', border: '1px solid rgba(0,255,255,0.4)', color: '#00ffff', boxShadow: '0 0 20px rgba(0,255,255,0.15)', transition: 'all 0.2s' }}>
-              Get started free →
+            <Link href="/register" style={{ textDecoration: 'none' }}>
+              <motion.span whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(78,205,196,0.2),rgba(155,111,208,0.2))', border: '1px solid rgba(78,205,196,0.38)', color: '#4ECDC4', boxShadow: '0 0 18px rgba(78,205,196,0.12)', cursor: 'pointer' }}>
+                Get started free <ArrowRight size={13} />
+              </motion.span>
             </Link>
           </motion.div>
         </div>
@@ -310,73 +302,80 @@ export default function HomePage() {
       {/* ── Hero ── */}
       <section style={{ minHeight: '100vh', position: 'relative', display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
         <ParticleField />
-        {/* grid overlay */}
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(0,255,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,255,0.025) 1px,transparent 1px)', backgroundSize: '60px 60px', pointerEvents: 'none' }} />
-        {/* radial glow */}
-        <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 600, background: 'radial-gradient(circle, rgba(0,255,255,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(78,205,196,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(78,205,196,0.02) 1px,transparent 1px)', backgroundSize: '56px 56px', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translate(-50%,-50%)', width: 700, height: 700, background: 'radial-gradient(circle, rgba(78,205,196,0.05) 0%, transparent 65%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: '10%', right: '5%', width: 400, height: 400, background: 'radial-gradient(circle, rgba(155,111,208,0.06) 0%, transparent 65%)', pointerEvents: 'none' }} />
 
-        <motion.div style={{ y: heroY, opacity: heroOpacity, position: 'relative', zIndex: 2, maxWidth: 1200, margin: '0 auto', padding: '100px 24px 60px', width: '100%' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
+        <motion.div style={{ y: heroY, opacity: heroOpacity, position: 'relative', zIndex: 2, maxWidth: 1160, margin: '0 auto', padding: '110px 28px 60px', width: '100%' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 72, alignItems: 'center' }}>
 
-            {/* left */}
+            {/* Left */}
             <div>
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(0,255,255,0.08)', border: '1px solid rgba(0,255,255,0.25)', borderRadius: 30, padding: '5px 14px', marginBottom: 28 }}>
-                  <Zap size={12} color="#00ffff" fill="#00ffff" />
-                  <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#00ffff', letterSpacing: '0.15em' }}>AI-POWERED · UK FOCUSED · 150 HOURS</span>
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(78,205,196,0.08)', border: '1px solid rgba(78,205,196,0.22)', borderRadius: 30, padding: '5px 14px', marginBottom: 26 }}>
+                  <Zap size={11} color="#4ECDC4" fill="#4ECDC4" />
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.16em' }}>AI-POWERED · UK FOCUSED · 150 HOURS</span>
                 </div>
               </motion.div>
 
-              <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}
-                style={{ fontSize: 'clamp(36px,4.5vw,58px)', fontWeight: 800, lineHeight: 1.12, marginBottom: 20, letterSpacing: '-0.02em' }}>
+              <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.65 }}
+                style={{ fontSize: 'clamp(34px,4.2vw,54px)', fontWeight: 800, lineHeight: 1.13, marginBottom: 18, letterSpacing: '-0.025em', color: '#E8F0FC' }}>
                 Master{' '}
-                <Typewriter texts={['UK Accounting', 'VAT & Tax', 'Payroll & PAYE', 'FRS 102 & 105']} />
+                <Typewriter texts={['UK Accounting', 'VAT & Tax', 'Payroll & PAYE', 'FRS 102 & 105', 'Corporation Tax']} />
                 <br />
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 500, fontSize: '0.7em' }}>with an AI that teaches like a pro</span>
+                <span style={{ color: '#8EA8CC', fontWeight: 400, fontSize: '0.65em', letterSpacing: '-0.01em' }}>with an AI that teaches, not just tells</span>
               </motion.h1>
 
-              <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.6 }}
-                style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)', lineHeight: 1.75, marginBottom: 36, maxWidth: 480 }}>
-                87 modules. 12 subject areas. An AI tutor that asks questions instead of giving answers
-                — the Socratic method, scaled to every student.
+              <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}
+                style={{ fontSize: 15, color: '#8EA8CC', lineHeight: 1.8, marginBottom: 34, maxWidth: 460 }}>
+                87 modules. 12 subject areas. An AI tutor that uses the Socratic method
+                — asking the right questions so you build real understanding, not just pass scores.
               </motion.p>
 
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38, duration: 0.6 }}
-                style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 48 }}>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.34 }}
+                style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 44 }}>
                 <Link href="/register" style={{ textDecoration: 'none' }}>
-                  <motion.button whileHover={{ scale: 1.03, boxShadow: '0 0 40px rgba(0,255,255,0.3)' }} whileTap={{ scale: 0.97 }}
-                    style={{ padding: '14px 32px', borderRadius: 12, background: 'linear-gradient(135deg,rgba(0,255,255,0.25),rgba(120,0,255,0.25))', border: '1px solid rgba(0,255,255,0.45)', color: '#00ffff', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '0.02em' }}>
-                    <Sparkles size={16} /> Create free account
+                  <motion.button whileHover={{ scale: 1.03, boxShadow: '0 0 36px rgba(78,205,196,0.28)' }} whileTap={{ scale: 0.97 }}
+                    style={{ padding: '13px 28px', borderRadius: 12, background: 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Sparkles size={15} /> Start learning free
                   </motion.button>
                 </Link>
-                <Link href="/login" style={{ textDecoration: 'none' }}>
+                <Link href="#demo" style={{ textDecoration: 'none' }}>
                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                    style={{ padding: '14px 28px', borderRadius: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: 15, cursor: 'pointer' }}>
-                    Sign in
+                    style={{ padding: '13px 22px', borderRadius: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#8EA8CC', fontWeight: 500, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Play size={13} fill="currentColor" /> See how it works
                   </motion.button>
                 </Link>
               </motion.div>
 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <FloatCard icon={BookOpen}   value="87"    label="MODULES" delay={0.6} color="#00ffff" />
-                <FloatCard icon={Award}      value="150h"  label="CURRICULUM" delay={0.7} color="#a855f7" />
-                <FloatCard icon={TrendingUp} value="12"    label="SUBJECT AREAS" delay={0.8} color="#22c55e" />
-                <FloatCard icon={Users}      value="AI"    label="TUTOR · ALEX" delay={0.9} color="#f59e0b" />
+              {/* Social proof strip */}
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                {[
+                  { v: '87', l: 'Modules' },
+                  { v: '150h', l: 'Curriculum' },
+                  { v: '12', l: 'Subject Areas' },
+                  { v: 'ACCA', l: 'Grade Depth' },
+                ].map(({ v, l }) => (
+                  <div key={l} style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 18, fontWeight: 800, color: '#E8F0FC', lineHeight: 1 }}>{v}</p>
+                    <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.1em', marginTop: 2 }}>{l.toUpperCase()}</p>
+                  </div>
+                ))}
               </motion.div>
             </div>
 
-            {/* right — orb + chat demo */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 48 }}>
-              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, duration: 0.8, type: 'spring', stiffness: 120 }}>
+            {/* Right — orb + chat demo */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 44 }}>
+              <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.28, duration: 0.9, type: 'spring', stiffness: 110 }}>
                 <AiOrb />
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
-                style={{ width: '100%', maxWidth: 420, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '20px 18px', backdropFilter: 'blur(20px)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ffff', boxShadow: '0 0 8px #00ffff' }} />
-                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(0,255,255,0.6)', letterSpacing: '0.15em' }}>LIVE TUTOR SESSION</span>
+              <motion.div id="demo" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}
+                style={{ width: '100%', maxWidth: 420, background: 'rgba(9,13,26,0.75)', border: '1px solid rgba(78,205,196,0.13)', borderRadius: 18, padding: '18px 16px', backdropFilter: 'blur(20px)', boxShadow: '0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 11, borderBottom: '1px solid rgba(78,205,196,0.08)' }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#52D98B', boxShadow: '0 0 8px #52D98B' }} />
+                  <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.18em' }}>LIVE TUTOR SESSION · ALEX</span>
                 </div>
                 <ChatDemo />
               </motion.div>
@@ -385,66 +384,93 @@ export default function HomePage() {
         </motion.div>
       </section>
 
+      {/* ── Trust bar ── */}
+      <div style={{ borderTop: '1px solid rgba(78,205,196,0.07)', borderBottom: '1px solid rgba(78,205,196,0.07)', padding: '18px 28px', background: 'rgba(9,13,26,0.6)', backdropFilter: 'blur(12px)' }}>
+        <div style={{ maxWidth: 1160, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40, flexWrap: 'wrap' }}>
+          {[
+            { icon: Shield,   text: 'RAG-grounded answers — no hallucinations' },
+            { icon: CheckCircle2, text: 'Publicly verifiable certificate' },
+            { icon: Clock,    text: '150-hour professional curriculum' },
+            { icon: Brain,    text: 'Socratic AI — Haiku-powered, always current' },
+          ].map(({ icon: I, text }) => (
+            <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <I size={13} color="rgba(78,205,196,0.55)" />
+              <span style={{ fontSize: 12, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── Features ── */}
-      <section style={{ padding: '100px 24px', position: 'relative' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            style={{ textAlign: 'center', marginBottom: 64 }}>
-            <p style={{ fontSize: 11, fontFamily: 'monospace', color: '#00ffff', letterSpacing: '0.2em', marginBottom: 16 }}>PLATFORM FEATURES</p>
-            <h2 style={{ fontSize: 'clamp(28px,3vw,44px)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>
-              Everything you need to <span style={{ color: '#00ffff' }}>pass</span>
+      <section style={{ padding: '96px 28px' }}>
+        <div style={{ maxWidth: 1160, margin: '0 auto' }}>
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 56 }}>
+            <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.22em', marginBottom: 14 }}>PLATFORM FEATURES</p>
+            <h2 style={{ fontSize: 'clamp(26px,3vw,42px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC', marginBottom: 12 }}>
+              Everything you need to{' '}<span style={{ color: '#4ECDC4' }}>qualify</span>
             </h2>
-            <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.4)', maxWidth: 500, margin: '0 auto' }}>
-              Built for working professionals upgrading UK accounting credentials.
+            <p style={{ fontSize: 15, color: '#8EA8CC', maxWidth: 480, margin: '0 auto' }}>
+              Built for working professionals upgrading UK accounting credentials — at their own pace.
             </p>
           </motion.div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
+            {FEATURES.map((f, i) => <FeatureCard key={f.title} {...f} delay={i * 0.07} />)}
+          </div>
+        </div>
+      </section>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 20 }}>
-            {features.map(({ icon: Icon, title, desc, color }, i) => (
-              <motion.div key={title}
-                initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-                whileHover={{ y: -6, boxShadow: `0 20px 60px ${color}18` }}
-                style={{ background: 'rgba(255,255,255,0.025)', border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 20, padding: '28px 26px', cursor: 'default', transition: 'border-color 0.2s', position: 'relative', overflow: 'hidden' }}
-                onHoverStart={e => { (e.currentTarget as HTMLElement).style.borderColor = `${color}40` }}
-                onHoverEnd={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.07)' }}
-              >
-                <div style={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', background: `radial-gradient(circle, ${color}12 0%, transparent 70%)`, pointerEvents: 'none' }} />
-                <div style={{ width: 48, height: 48, borderRadius: 14, background: `${color}14`, border: `1px solid ${color}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-                  <Icon size={22} color={color} />
+      {/* ── Curriculum ── */}
+      <section style={{ padding: '96px 28px', background: 'rgba(9,13,26,0.5)', borderTop: '1px solid rgba(78,205,196,0.06)', borderBottom: '1px solid rgba(78,205,196,0.06)' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 48 }}>
+            <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#9B6FD0', letterSpacing: '0.22em', marginBottom: 14 }}>FULL CURRICULUM</p>
+            <h2 style={{ fontSize: 'clamp(26px,3vw,40px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC', marginBottom: 10 }}>
+              87 modules across{' '}<span style={{ color: '#9B6FD0' }}>12 subject areas</span>
+            </h2>
+            <p style={{ fontSize: 14, color: '#8EA8CC' }}>ACCA/ACA-grade depth · practical UK focus · real practitioner scenarios</p>
+          </motion.div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(270px,1fr))', gap: 10 }}>
+            {PARTS.map(({ n, t, m }, i) => (
+              <motion.div key={n}
+                initial={{ opacity: 0, x: -8 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.04 }}
+                whileHover={{ x: 5 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(14,21,37,0.6)', border: '1px solid rgba(78,205,196,0.08)', borderRadius: 13, padding: '13px 16px', backdropFilter: 'blur(8px)', transition: 'border-color 0.2s' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))', border: '1px solid rgba(78,205,196,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }}>
+                  {n}
                 </div>
-                <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 10, color: '#fff' }}>{title}</h3>
-                <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65 }}>{desc}</p>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#E8F0FC', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t}</p>
+                  <p style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }}>{m} modules</p>
+                </div>
+                <ChevronRight size={13} color="#4A6285" />
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Curriculum ── */}
-      <section style={{ padding: '100px 24px', background: 'rgba(0,255,255,0.02)', borderTop: '1px solid rgba(0,255,255,0.06)', borderBottom: '1px solid rgba(0,255,255,0.06)' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            style={{ textAlign: 'center', marginBottom: 56 }}>
-            <p style={{ fontSize: 11, fontFamily: 'monospace', color: '#a855f7', letterSpacing: '0.2em', marginBottom: 14 }}>FULL CURRICULUM</p>
-            <h2 style={{ fontSize: 'clamp(28px,3vw,40px)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 10 }}>
-              87 modules across <span style={{ color: '#a855f7' }}>12 subject areas</span>
+      {/* ── Testimonials ── */}
+      <section style={{ padding: '96px 28px' }}>
+        <div style={{ maxWidth: 1060, margin: '0 auto' }}>
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 48 }}>
+            <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#52D98B', letterSpacing: '0.22em', marginBottom: 12 }}>STUDENT OUTCOMES</p>
+            <h2 style={{ fontSize: 'clamp(24px,2.8vw,38px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC' }}>
+              What professionals are <span style={{ color: '#52D98B' }}>saying</span>
             </h2>
-            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)' }}>ACCA/ACA-grade depth, practical UK focus</p>
           </motion.div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
-            {parts.map(({ n, t }, i) => (
-              <motion.div key={n}
-                initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }} transition={{ delay: i * 0.05 }}
-                whileHover={{ x: 4 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '14px 18px' }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,rgba(0,255,255,0.2),rgba(120,0,255,0.2))', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 800, color: '#00ffff', fontFamily: 'monospace' }}>
-                  {n}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 16 }}>
+            {TESTIMONIALS.map((t, i) => (
+              <motion.div key={t.name}
+                initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                style={{ background: 'rgba(14,21,37,0.7)', border: '1px solid rgba(82,217,139,0.12)', borderRadius: 18, padding: '24px', backdropFilter: 'blur(12px)', boxShadow: '0 2px 16px rgba(0,0,0,0.3)' }}>
+                <div style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
+                  {'★★★★★'.split('').map((s, j) => <span key={j} style={{ color: '#E8B84B', fontSize: 13 }}>{s}</span>)}
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.75)', flex: 1 }}>{t}</span>
-                <CheckCircle2 size={15} color="rgba(34,197,94,0.6)" />
+                <p style={{ fontSize: 13.5, color: '#8EA8CC', lineHeight: 1.7, marginBottom: 18, fontStyle: 'italic' }}>"{t.quote}"</p>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#E8F0FC' }}>{t.name}</p>
+                  <p style={{ fontSize: 11, color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }}>{t.role}</p>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -452,37 +478,44 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ── */}
-      <section style={{ padding: '120px 24px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 500, height: 500, background: 'radial-gradient(circle, rgba(0,255,255,0.07) 0%, transparent 65%)', pointerEvents: 'none' }} />
-        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ position: 'relative', zIndex: 1, maxWidth: 600, margin: '0 auto' }}>
-          <motion.div animate={{ rotate: [0, 360] }} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            style={{ width: 64, height: 64, margin: '0 auto 28px', borderRadius: '50%', border: '1px solid rgba(0,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Brain size={28} color="#00ffff" />
+      <section style={{ padding: '110px 28px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 600, background: 'radial-gradient(circle, rgba(78,205,196,0.07) 0%, transparent 60%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '40%', left: '20%', width: 300, height: 300, background: 'radial-gradient(circle, rgba(155,111,208,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+        <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ position: 'relative', zIndex: 1, maxWidth: 580, margin: '0 auto' }}>
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
+            style={{ width: 60, height: 60, margin: '0 auto 24px', borderRadius: '50%', border: '1px solid rgba(78,205,196,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Brain size={26} color="#4ECDC4" />
           </motion.div>
-          <h2 style={{ fontSize: 'clamp(28px,3.5vw,48px)', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 16 }}>
-            Ready to start learning?
+          <h2 style={{ fontSize: 'clamp(26px,3.5vw,46px)', fontWeight: 800, letterSpacing: '-0.025em', marginBottom: 14, color: '#E8F0FC' }}>
+            Ready to start?
           </h2>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.45)', marginBottom: 40, lineHeight: 1.7 }}>
-            Join professionals upgrading their UK accounting skills with the power of AI-guided, Socratic learning.
+          <p style={{ fontSize: 15, color: '#8EA8CC', marginBottom: 36, lineHeight: 1.75 }}>
+            Join professionals across the UK upgrading their accounting skills — guided by an AI that genuinely teaches.
           </p>
-          <Link href="/register" style={{ textDecoration: 'none' }}>
-            <motion.button
-              whileHover={{ scale: 1.05, boxShadow: '0 0 60px rgba(0,255,255,0.35)' }}
-              whileTap={{ scale: 0.97 }}
-              style={{ padding: '16px 44px', borderRadius: 14, background: 'linear-gradient(135deg,rgba(0,255,255,0.22),rgba(120,0,255,0.22))', border: '1px solid rgba(0,255,255,0.45)', color: '#00ffff', fontWeight: 700, fontSize: 16, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              Create your free account <ArrowRight size={18} />
-            </motion.button>
-          </Link>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link href="/register" style={{ textDecoration: 'none' }}>
+              <motion.button whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(78,205,196,0.3)' }} whileTap={{ scale: 0.97 }}
+                style={{ padding: '15px 40px', borderRadius: 13, background: 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                Create free account <ArrowRight size={16} />
+              </motion.button>
+            </Link>
+            <Link href="/login" style={{ textDecoration: 'none' }}>
+              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                style={{ padding: '15px 28px', borderRadius: 13, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#8EA8CC', fontWeight: 500, fontSize: 15, cursor: 'pointer' }}>
+                Sign in
+              </motion.button>
+            </Link>
+          </div>
         </motion.div>
       </section>
 
       {/* ── Footer ── */}
-      <footer style={{ padding: '32px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
-          <Brain size={14} color="rgba(0,255,255,0.4)" />
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>UK ACCOUNTING PRO</span>
+      <footer style={{ padding: '28px', borderTop: '1px solid rgba(78,205,196,0.07)', textAlign: 'center', background: 'rgba(5,8,16,0.8)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+          <Brain size={13} color="rgba(78,205,196,0.35)" />
+          <span style={{ fontSize: 12, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.1em' }}>UK ACCOUNTING PRO</span>
         </div>
-        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© {new Date().getFullYear()} AI-Powered Professional Learning</p>
+        <p style={{ fontSize: 11, color: '#4A6285' }}>© {new Date().getFullYear()} AI-Powered Professional Learning</p>
       </footer>
     </div>
   )

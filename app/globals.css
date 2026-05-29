@@ -2,260 +2,419 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* ─── Aurora Wave Design System ─────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════
+   AURORA WAVE — DEEP SPACE DESIGN SYSTEM
+   Inspired by Gemini's vivid flowing aurora aesthetic
+   Palette: deep navy base · electric cyan · violet · rose · teal
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --foreground-rgb: 220, 240, 255;
-  --background-rgb: 3, 7, 18;
+  /* ── Background depths ── */
+  --bg-base:          #050810;
+  --bg-surface:       #090D1A;
+  --bg-elevated:      #0E1525;
+  --bg-hover:         #131C30;
 
-  /* Aurora palette */
-  --aurora-cyan:      0, 220, 255;
-  --aurora-violet:    150, 50, 255;
-  --aurora-magenta:   255, 50, 180;
-  --aurora-teal:      0, 200, 180;
-  --aurora-blue:      30, 80, 255;
-  --aurora-gold:      255, 200, 50;
+  /* ── Aurora accent colours ── */
+  --ac-cyan:          #4ECDC4;
+  --ac-violet:        #9B6FD0;
+  --ac-indigo:        #5B78D8;
+  --ac-mint:          #52D98B;
+  --ac-gold:          #E8B84B;
+  --ac-rose:          #E8507A;
+  --ac-pink:          #E040FB;
+  --ac-blue:          #448AFF;
 
-  /* Glass */
-  --glass-1: rgba(255,255,255,0.025);
-  --glass-2: rgba(255,255,255,0.045);
-  --glass-border: rgba(0, 220, 255, 0.12);
+  /* ── RGB triplets for rgba() usage ── */
+  --ac-cyan-rgb:      78, 205, 196;
+  --ac-violet-rgb:    155, 111, 208;
+  --ac-indigo-rgb:    91, 120, 216;
+  --ac-mint-rgb:      82, 217, 139;
+  --ac-gold-rgb:      232, 184, 75;
+  --ac-rose-rgb:      232, 80, 122;
+  --ac-pink-rgb:      224, 64, 251;
+  --ac-blue-rgb:      68, 138, 255;
 
-  /* Depths */
-  --depth-1: rgba(3,7,18,0.97);
-  --depth-2: rgba(5,10,24,0.92);
-  --depth-3: rgba(8,14,32,0.85);
+  /* ── Text ── */
+  --text-primary:     #E8F0FC;
+  --text-secondary:   #8EA8CC;
+  --text-tertiary:    #4A6285;
+  --text-accent:      #7DD8D4;
+
+  /* ── Borders ── */
+  --border-subtle:    rgba(78,205,196, 0.12);
+  --border-medium:    rgba(78,205,196, 0.25);
+  --border-strong:    rgba(78,205,196, 0.45);
+
+  /* ── Glass surfaces ── */
+  --glass-sm:  rgba(9, 13, 26, 0.55);
+  --glass-md:  rgba(6, 10, 20, 0.72);
+  --glass-lg:  rgba(4,  7, 16, 0.85);
+
+  /* ── 3D depth shadows ── */
+  --shadow-sm:   0 2px  8px rgba(0,0,0,0.4),  0 1px 2px rgba(0,0,0,0.6);
+  --shadow-md:   0 4px 20px rgba(0,0,0,0.5),  0 2px 6px rgba(0,0,0,0.6);
+  --shadow-lg:   0 8px 40px rgba(0,0,0,0.6),  0 4px 12px rgba(0,0,0,0.65);
+  --shadow-xl:   0 16px 64px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.75);
+
+  /* ── Glow effects ── */
+  --glow-cyan:    0 0 20px rgba(78,205,196, 0.5), 0 0 60px rgba(78,205,196, 0.2);
+  --glow-violet:  0 0 20px rgba(155,111,208,0.5), 0 0 60px rgba(155,111,208,0.2);
+  --glow-mint:    0 0 16px rgba(82,217,139, 0.45);
 }
 
-/* ─── Base ───────────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
-
-body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
-  font-family: 'Inter', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
+/* ══ Base reset ══ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 
-/* ─── Aurora background canvas ───────────────────────────────────────────────── */
-.aurora-bg {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
+body {
+  color: var(--text-primary);
+  background: var(--bg-base);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
 }
 
-.aurora-bg::before,
-.aurora-bg::after,
-.aurora-bg .aurora-layer-3 {
-  content: '';
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.55;
-  mix-blend-mode: screen;
-  will-change: transform, opacity;
+/* ══════════════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════════
+   3D DEPTH UTILITIES
+   ══════════════════════════════════════════════════════════════════════════════ */
+.depth-card {
+  background: rgba(14, 21, 37, 0.75);
+  border: 1px solid rgba(78,205,196, 0.15);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md),
+              inset 0 1px 0 rgba(255,255,255,0.07),
+              inset 0 -1px 0 rgba(0,0,0,0.3);
+  backdrop-filter: blur(20px) saturate(150%);
+}
+.depth-inset {
+  background: rgba(5, 8, 16, 0.7);
+  border: 1px solid rgba(0,0,0,0.5);
+  border-radius: 10px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.55), inset 0 1px 2px rgba(0,0,0,0.4);
+}
+.depth-panel {
+  background: linear-gradient(180deg, rgba(9,13,26,0.97) 0%, rgba(6,9,18,0.98) 100%);
+  border-right: 1px solid rgba(78,205,196, 0.10);
+  box-shadow: 4px 0 28px rgba(0,0,0,0.5), inset -1px 0 0 rgba(255,255,255,0.03);
+}
+.depth-pill {
+  background: linear-gradient(135deg,
+    rgba(78,205,196,  0.18),
+    rgba(155,111,208, 0.12));
+  border: 1px solid rgba(78,205,196, 0.28);
+  border-radius: 99px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4),
+              inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
-.aurora-bg::before {
-  width: 80vw; height: 80vw;
-  top: -30%; left: -20%;
-  background: radial-gradient(ellipse, rgba(var(--aurora-cyan),0.45) 0%, rgba(var(--aurora-violet),0.3) 40%, transparent 70%);
-  animation: auroraDrift1 18s ease-in-out infinite alternate;
+/* ══════════════════════════════════════════════════════════════════════════════
+   GLASS PANELS
+   ══════════════════════════════════════════════════════════════════════════════ */
+.glass-sm {
+  background: var(--glass-sm);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.glass-md {
+  background: var(--glass-md);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(22px) saturate(160%);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-.aurora-bg::after {
-  width: 70vw; height: 70vw;
-  bottom: -25%; right: -15%;
-  background: radial-gradient(ellipse, rgba(var(--aurora-magenta),0.4) 0%, rgba(var(--aurora-blue),0.35) 45%, transparent 70%);
-  animation: auroraDrift2 22s ease-in-out infinite alternate;
+/* ══════════════════════════════════════════════════════════════════════════════
+   SCROLLBARS
+   ══════════════════════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar              { width: 4px; height: 4px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: rgba(78,205,196, 0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover  { background: rgba(78,205,196, 0.45); }
+.chat-messages::-webkit-scrollbar { display: none; }
+.chat-messages { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TEXT UTILITIES
+   ══════════════════════════════════════════════════════════════════════════════ */
+.aurora-text {
+  background: linear-gradient(90deg,
+    var(--ac-cyan)   0%,
+    var(--ac-blue)   40%,
+    var(--ac-violet) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.label-mono {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
-.aurora-bg .aurora-layer-3 {
-  width: 60vw; height: 60vw;
-  top: 20%; left: 30%;
-  background: radial-gradient(ellipse, rgba(var(--aurora-teal),0.35) 0%, rgba(var(--aurora-violet),0.25) 50%, transparent 70%);
-  animation: auroraDrift3 26s ease-in-out infinite alternate;
+/* ══════════════════════════════════════════════════════════════════════════════
+   ANIMATED BORDER — rotating conic gradient (send button, quiz modal)
+   ══════════════════════════════════════════════════════════════════════════════ */
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
 }
-
-/* ─── Aurora keyframes ───────────────────────────────────────────────────────── */
-@keyframes auroraDrift1 {
-  0%   { transform: translate(0,0)    scale(1);    opacity: 0.5; }
-  33%  { transform: translate(8%,12%) scale(1.08); opacity: 0.65; }
-  66%  { transform: translate(-6%,5%) scale(0.94); opacity: 0.48; }
-  100% { transform: translate(12%,-8%) scale(1.12); opacity: 0.58; }
-}
-@keyframes auroraDrift2 {
-  0%   { transform: translate(0,0)      scale(1);    opacity: 0.45; }
-  33%  { transform: translate(-10%,-8%) scale(1.06); opacity: 0.6; }
-  66%  { transform: translate(5%,10%)   scale(0.96); opacity: 0.5; }
-  100% { transform: translate(-8%,6%)   scale(1.1);  opacity: 0.55; }
-}
-@keyframes auroraDrift3 {
-  0%   { transform: translate(0,0)    scale(1)    rotate(0deg);  opacity: 0.38; }
-  50%  { transform: translate(6%,-6%) scale(1.05) rotate(8deg);  opacity: 0.5; }
-  100% { transform: translate(-5%,8%) scale(0.95) rotate(-6deg); opacity: 0.42; }
-}
-
-/* ─── Aurora wave ripple (chat send / button press) ──────────────────────────── */
-@keyframes auroraRipple {
-  0%   { transform: scale(0.6); opacity: 0.8; }
-  100% { transform: scale(2.4); opacity: 0; }
-}
-.aurora-ripple {
-  position: absolute; inset: 0; border-radius: inherit;
-  background: radial-gradient(circle, rgba(var(--aurora-cyan),0.4), transparent 70%);
-  animation: auroraRipple 0.65s ease-out forwards;
-  pointer-events: none;
-}
-
-/* ─── Aurora border shimmer ─────────────────────────────────────────────────── */
-@keyframes borderShimmer {
-  0%   { background-position: 0%   50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0%   50%; }
+@keyframes borderRotate {
+  0%   { --angle: 0deg; }
+  100% { --angle: 360deg; }
 }
 .aurora-border {
   position: relative;
   border-radius: 14px;
-  padding: 1px;
-  background: linear-gradient(120deg,
-    rgba(var(--aurora-cyan),0.7),
-    rgba(var(--aurora-violet),0.7),
-    rgba(var(--aurora-magenta),0.6),
-    rgba(var(--aurora-teal),0.7),
-    rgba(var(--aurora-cyan),0.7)
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--angle),
+    transparent 0deg,
+    rgba(78,205,196,  0.9) 60deg,
+    rgba(68,138,255,  0.7) 120deg,
+    rgba(155,111,208, 0.9) 200deg,
+    rgba(224,64,251,  0.6) 270deg,
+    rgba(78,205,196,  0.9) 300deg,
+    transparent 360deg
   );
-  background-size: 300% 300%;
-  animation: borderShimmer 5s linear infinite;
+  animation: borderRotate 3s linear infinite;
 }
 
-/* ─── Aurora text gradient ───────────────────────────────────────────────────── */
-.aurora-text {
-  background: linear-gradient(90deg,
-    rgb(var(--aurora-cyan)),
-    rgb(var(--aurora-violet)),
-    rgb(var(--aurora-magenta)),
-    rgb(var(--aurora-cyan))
-  );
-  background-size: 300%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: borderShimmer 6s linear infinite;
+/* ══════════════════════════════════════════════════════════════════════════════
+   CHAT MESSAGES
+   ══════════════════════════════════════════════════════════════════════════════ */
+@keyframes msgSlideUp {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.message-enter {
+  animation: msgSlideUp 0.20s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
 }
 
-/* ─── Scrollbars ─────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar              { width: 4px; height: 4px; }
-::-webkit-scrollbar-track        { background: rgba(0,0,0,0.2); }
-::-webkit-scrollbar-thumb        { background: rgba(var(--aurora-cyan),0.25); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover  { background: rgba(var(--aurora-cyan),0.5); }
-
-/* hide scrollbar on chat panel */
-.chat-messages::-webkit-scrollbar { display: none; }
-.chat-messages { scrollbar-width: none; -ms-overflow-style: none; }
-
-/* ─── Chat message entrance ──────────────────────────────────────────────────── */
-@keyframes waveIn {
-  0%   { opacity: 0; transform: translateY(12px) scale(0.97); }
-  60%  { transform: translateY(-3px) scale(1.01); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+/* speaking-bubble: static glow only, no pulsing animation that restarts on every token */
+.speaking-bubble {
+  box-shadow: 0 0 12px rgba(78,205,196, 0.12), 0 0 0 1px rgba(78,205,196, 0.08);
+  transition: box-shadow 0.4s ease;
 }
-.message-enter { animation: waveIn 0.32s cubic-bezier(0.34,1.56,0.64,1) both; }
 
-/* ─── Aurora typing dots ─────────────────────────────────────────────────────── */
-@keyframes auroraTyping {
-  0%, 80%, 100% { transform: translateY(0)   scale(0.85); opacity: 0.35; }
-  40%           { transform: translateY(-7px) scale(1.1);  opacity: 1; }
+/* aurora-input inside the new borderless wrapper */
+.aurora-input::placeholder { color: var(--text-tertiary); opacity: 0.7; }
+.aurora-input:focus        { outline: none; }
+
+/* visual card fade-in */
+@keyframes visualFadeIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+.visual-card-enter {
+  animation: visualFadeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* make SVGs inside visual cards fill the container */
+.visual-card-enter svg { display: block; width: 100%; height: auto; }
+
+/* suggestion chips in empty state */
+.chat-suggestion:hover {
+  background: rgba(78,205,196,0.14) !important;
+  border-color: rgba(78,205,196,0.35) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TYPING DOTS
+   ══════════════════════════════════════════════════════════════════════════════ */
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0);    opacity: 0.35; }
+  30%            { transform: translateY(-6px); opacity: 1;    }
 }
 .typing-dot {
-  animation: auroraTyping 1.4s ease-in-out infinite;
+  width: 7px; height: 7px;
   border-radius: 50%;
+  animation: typingBounce 1.4s ease-in-out infinite;
 }
-.typing-dot:nth-child(1) { animation-delay: 0s;     background: rgb(var(--aurora-cyan)); }
-.typing-dot:nth-child(2) { animation-delay: 0.18s;  background: rgb(var(--aurora-violet)); }
-.typing-dot:nth-child(3) { animation-delay: 0.36s;  background: rgb(var(--aurora-magenta)); }
+.typing-dot:nth-child(1) { background: var(--ac-cyan);   animation-delay: 0s;    }
+.typing-dot:nth-child(2) { background: var(--ac-violet); animation-delay: 0.20s; }
+.typing-dot:nth-child(3) { background: var(--ac-blue);   animation-delay: 0.40s; }
 
-/* ─── Pulse glow ─────────────────────────────────────────────────────────────── */
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 8px  rgba(var(--aurora-cyan),0.4); }
-  50%      { box-shadow: 0 0 22px rgba(var(--aurora-cyan),0.9), 0 0 40px rgba(var(--aurora-violet),0.4); }
-}
-.pulse-glow { animation: pulseGlow 2.2s ease-in-out infinite; }
-
-/* ─── Orb speaking ring ──────────────────────────────────────────────────────── */
-@keyframes orbRing {
-  0%   { transform: scale(1);    opacity: 0.7; }
-  100% { transform: scale(1.65); opacity: 0; }
+/* ══════════════════════════════════════════════════════════════════════════════
+   ORB RINGS (expand-out pulse rings around the orb)
+   ══════════════════════════════════════════════════════════════════════════════ */
+@keyframes orbExpand {
+  0%   { transform: scale(1);    opacity: 0.7;  }
+  100% { transform: scale(1.75); opacity: 0;    }
 }
 .orb-ring {
   position: absolute; inset: -8px;
   border-radius: 50%;
-  border: 1.5px solid rgba(var(--aurora-cyan),0.6);
-  animation: orbRing 1.8s ease-out infinite;
   pointer-events: none;
+  border: 1.5px solid rgba(78,205,196, 0.55);
+  animation: orbExpand 2s ease-out infinite;
 }
-.orb-ring:nth-child(2) { animation-delay: 0.6s; border-color: rgba(var(--aurora-violet),0.5); }
-.orb-ring:nth-child(3) { animation-delay: 1.2s; border-color: rgba(var(--aurora-magenta),0.4); }
+.orb-ring:nth-child(2) { animation-delay: 0.66s; border-color: rgba(155,111,208, 0.45); }
+.orb-ring:nth-child(3) { animation-delay: 1.32s; border-color: rgba(68,138,255,  0.35); }
 
-/* ─── Glass card ─────────────────────────────────────────────────────────────── */
-.glass-card {
-  background: var(--glass-1);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-radius: 14px;
+/* ══════════════════════════════════════════════════════════════════════════════
+   AUDIO BAR wrapper
+   ══════════════════════════════════════════════════════════════════════════════ */
+.audio-bar-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 240px;
+  height: 50px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(5, 8, 18, 0.65);
+  border: 1px solid rgba(78,205,196, 0.18);
+  box-shadow: var(--shadow-sm),
+              0 0 20px rgba(78,205,196, 0.08),
+              inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-/* ─── Tap pulse (mic / interactive) ─────────────────────────────────────────── */
-@keyframes tapPulse { 0%,100%{ opacity:0.45 } 50%{ opacity:1 } }
-
-/* ─── Aurora progress bar fill ───────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════
+   PROGRESS BAR
+   ══════════════════════════════════════════════════════════════════════════════ */
 @keyframes progressShine {
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
 }
 .aurora-progress-fill {
   background: linear-gradient(90deg,
-    rgba(var(--aurora-cyan),0.9),
-    rgba(var(--aurora-violet),1),
-    rgba(var(--aurora-magenta),0.9),
-    rgba(var(--aurora-cyan),0.9)
-  );
+    var(--ac-cyan)   0%,
+    var(--ac-blue)   35%,
+    var(--ac-violet) 65%,
+    var(--ac-cyan)   100%);
   background-size: 200%;
   animation: progressShine 2.5s linear infinite;
+  border-radius: 99px;
+  box-shadow: 0 0 8px rgba(78,205,196, 0.4);
 }
 
-/* ─── Input aurora focus ─────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════════════
+   INPUT FOCUS
+   ══════════════════════════════════════════════════════════════════════════════ */
 .aurora-input:focus {
   outline: none;
-  border-color: rgba(var(--aurora-cyan), 0.55) !important;
-  box-shadow: 0 0 0 2px rgba(var(--aurora-cyan),0.12),
-              0 0 16px rgba(var(--aurora-violet),0.15);
+  border-color: rgba(78,205,196, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(78,205,196, 0.12),
+              0 0 16px rgba(78,205,196, 0.15),
+              inset 0 2px 6px rgba(0,0,0,0.35) !important;
 }
 
-/* ─── Chat bubble glow on last assistant message (speaking) ──────────────────── */
-@keyframes speakGlow {
-  0%,100% { box-shadow: 0 0 10px rgba(var(--aurora-cyan),0.1); }
-  50%     { box-shadow: 0 0 28px rgba(var(--aurora-cyan),0.3), 0 0 48px rgba(var(--aurora-violet),0.15); }
-}
-.speaking-bubble { animation: speakGlow 1.6s ease-in-out infinite; }
-
-/* ─── Section trail active item aurora shimmer ───────────────────────────────── */
-@keyframes trailShimmer {
-  0%   { background-position: 0%   50%; }
-  100% { background-position: 200% 50%; }
-}
+/* ══════════════════════════════════════════════════════════════════════════════
+   SECTION TRAIL ACTIVE
+   ══════════════════════════════════════════════════════════════════════════════ */
 .trail-active {
   background: linear-gradient(135deg,
-    rgba(var(--aurora-cyan),0.14),
-    rgba(var(--aurora-violet),0.14),
-    rgba(var(--aurora-cyan),0.14)
+    rgba(78,205,196,  0.14),
+    rgba(155,111,208, 0.10));
+  box-shadow: inset 2px 0 0 var(--ac-cyan);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BUTTON BASE
+   ══════════════════════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 10px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  transition: all 0.18s ease;
+}
+.btn-primary {
+  background: linear-gradient(135deg,
+    rgba(78,205,196,  0.25),
+    rgba(155,111,208, 0.20));
+  border: 1px solid rgba(78,205,196, 0.40);
+  color: var(--ac-cyan);
+  box-shadow: var(--shadow-sm), 0 0 18px rgba(78,205,196, 0.18);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg,
+    rgba(78,205,196,  0.35),
+    rgba(155,111,208, 0.28));
+  box-shadow: var(--shadow-md), 0 0 28px rgba(78,205,196, 0.28);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MISC ANIMATIONS
+   ══════════════════════════════════════════════════════════════════════════════ */
+@keyframes tapPulse    { 0%,100%{ opacity:0.45 } 50%{ opacity:1 } }
+@keyframes onlinePulse {
+  0%,100%{ transform:scale(1);    box-shadow:0 0 6px  rgba(82,217,139,0.5); }
+  50%    { transform:scale(1.45); box-shadow:0 0 14px rgba(82,217,139,0.9); }
+}
+@keyframes floatY {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-6px); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SKELETON LOADING
+   ══════════════════════════════════════════════════════════════════════════════ */
+@keyframes skeletonShimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(78,205,196,0.09)  50%,
+    rgba(255,255,255,0.04) 75%
   );
-  background-size: 200%;
-  animation: trailShimmer 3s linear infinite;
+  background-size: 600px 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   AURORA CHAT BLOBS
+   ══════════════════════════════════════════════════════════════════════════════ */
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.18;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: chatBlobFloat 14s infinite alternate ease-in-out;
+}
+.aurora-blob-cyan {
+  top: -8%;
+  left: -5%;
+  width: 320px;
+  height: 320px;
+  background: #4ecdc4;
+}
+.aurora-blob-violet {
+  bottom: -12%;
+  right: -8%;
+  width: 360px;
+  height: 360px;
+  background: #9b6fd0;
+  animation-delay: -4s;
+  animation-duration: 18s;
+}
+.aurora-blob-indigo {
+  top: 38%;
+  left: 28%;
+  width: 240px;
+  height: 240px;
+  background: #5b78d8;
+  animation-delay: -8s;
+  animation-duration: 11s;
+}
+@keyframes chatBlobFloat {
+  0%   { transform: translate(0,    0)   scale(1);   }
+  40%  { transform: translate(30px, -55px) scale(1.18); }
+  100% { transform: translate(-18px, 28px) scale(0.88); }
 }

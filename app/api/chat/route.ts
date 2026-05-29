@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, getStudent, saveSession, updateSession } from '@/lib/supabase-server'
 import { searchSimilar } from '@/lib/retrieval'
-import { getModuleIntro } from '@/lib/embeddings'
 import { tutorStream } from '@/lib/anthropic'
 import { logUsage } from '@/lib/costTracker'
 import { calculateCost } from '@/lib/costTracker'
 import type { ChatMessage } from '@/types'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
@@ -30,12 +30,13 @@ export async function POST(req: NextRequest) {
       completedSections?: string[]
       teachingPointIdx?: number
       teachingPointTitle?: string | null
+      teachingPointContent?: string | null
       totalTeachingPoints?: number
       allTeachingPoints?: string[]
       phase?: import('@/lib/anthropic').TeachingPhase
     }
 
-    const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, totalTeachingPoints, allTeachingPoints, phase } = body
+    const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase } = body
 
     if (!message || !moduleId) {
       return NextResponse.json({ error: 'message and moduleId are required' }, { status: 400 })
@@ -54,18 +55,42 @@ export async function POST(req: NextRequest) {
       order: 0,
     }
 
-    // RAG — fetch content for the current section from HTML file
+    // RAG — HTML course file is the single source of truth
+    // Teaching point content (exact block from HTML) is used when available — it IS the content to teach
     const isAutoStart = message === '__AUTO_START__'
     let ragContext = ''
-    if (currentSection?.sectionId) {
-      const { getSectionContent } = await import('@/lib/courseHtml')
+    const { getModuleSections, getSectionContent } = await import('@/lib/courseHtml')
+
+    if (teachingPointContent && teachingPointContent.trim().length > 20) {
+      // Exact content block for this teaching point from the HTML — use as primary context
+      // Also include the full section content so MCQ questions can draw on broader context
+      const sectionCtx = currentSection?.sectionId
+        ? getSectionContent(moduleId, currentSection.sectionId)
+        : ''
+      ragContext = `TEACHING POINT CONTENT (teach THIS exactly):\n${teachingPointContent}\n\nFULL SECTION CONTEXT (for MCQ options and broader understanding):\n${sectionCtx.slice(0, 1500)}`
+    } else if (currentSection?.sectionId) {
       ragContext = getSectionContent(moduleId, currentSection.sectionId)
     } else if (isAutoStart) {
-      const introChunks = await getModuleIntro(moduleId, 5)
-      ragContext = introChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
+      const sections = getModuleSections(moduleId)
+      if (sections.length > 0) {
+        ragContext = getSectionContent(moduleId, sections[0].section_id)
+      }
     } else {
-      const searchChunks = await searchSimilar(message, moduleId, 3)
-      ragContext = searchChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
+      if (currentSection?.sectionId) {
+        ragContext = getSectionContent(moduleId, currentSection.sectionId)
+      }
+      try {
+        const searchChunks = await searchSimilar(message, moduleId, 2)
+        if (searchChunks.length > 0) {
+          const extra = searchChunks.map((c: { content: string }) => c.content).join('\n\n---\n\n')
+          ragContext = ragContext ? `${ragContext}\n\n---\n\n${extra}` : extra
+        }
+      } catch { /* DB unavailable */ }
+    }
+
+    if (!ragContext) {
+      const sections = getModuleSections(moduleId)
+      if (sections.length > 0) ragContext = getSectionContent(moduleId, sections[0].section_id)
     }
 
     // Get or create session, load history
@@ -103,7 +128,7 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of tutorStream({ student, module: mod, history, message, ragContext, currentSection, completedSections, teachingPointIdx, teachingPointTitle, totalTeachingPoints, allTeachingPoints, phase })) {
+          for await (const chunk of tutorStream({ student, module: mod, history, message, ragContext, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase })) {
             if (typeof chunk === 'string') {
               fullResponse += chunk
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: chunk })}\n\n`))

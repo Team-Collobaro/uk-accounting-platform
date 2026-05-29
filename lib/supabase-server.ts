@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js'
 import type {
   Student,
   ModuleProgress,
@@ -37,13 +38,16 @@ export async function createServerSupabaseClient() {
 }
 
 // Admin client — service role key, bypasses RLS (lazy singleton so scripts can dotenv first)
-let _supabaseAdmin: ReturnType<typeof createSupabaseClient> | null = null
-export const supabaseAdmin = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _supabaseAdmin: SupabaseClient<any> | null = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabaseAdmin = new Proxy({} as SupabaseClient<any>, {
   get(_target, prop) {
     if (!_supabaseAdmin) {
       _supabaseAdmin = createSupabaseClient(getSupabaseUrl(), getServiceKey(), { auth: { persistSession: false } })
     }
-    return (_supabaseAdmin as Record<string | symbol, unknown>)[prop]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (_supabaseAdmin as any)[prop]
   },
 })
 

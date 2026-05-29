@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Zap } from 'lucide-react'
+import WatchSpinner from '@/components/WatchSpinner'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
@@ -23,16 +25,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (signInError) {
-        setError(signInError.message)
-        return
-      }
-
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) { setError(signInError.message); return }
       const redirectTo = searchParams.get('redirectTo') ?? '/dashboard'
       router.push(redirectTo)
       router.refresh()
@@ -43,73 +37,183 @@ export default function LoginPage() {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    background: 'rgba(14,21,37,0.8)',
+    border: '1px solid rgba(78,205,196,0.2)',
+    borderRadius: 12,
+    color: '#e8f0fc',
+    fontSize: 14,
+    outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    boxSizing: 'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: '0.08em',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  }
+
   return (
     <>
-      <h1 className="text-2xl font-semibold text-slate-800 mb-1">Welcome back</h1>
-      <p className="text-slate-500 text-sm mb-6">Sign in to continue learning</p>
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#e8f0fc', letterSpacing: '-0.02em', marginBottom: 6 }}>
+          Welcome back
+        </h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+          Sign in to continue your learning journey
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Email */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Email address
-          </label>
+          <label style={labelStyle}>Email address</label>
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             required
             autoComplete="email"
-            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-black focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
             placeholder="you@example.com"
+            style={inputStyle}
+            onFocus={e => {
+              e.currentTarget.style.borderColor = 'rgba(78,205,196,0.55)'
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(78,205,196,0.08)'
+            }}
+            onBlur={e => {
+              e.currentTarget.style.borderColor = 'rgba(78,205,196,0.2)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
           />
         </div>
 
+        {/* Password */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Password
-          </label>
-          <div className="relative">
+          <label style={labelStyle}>Password</label>
+          <div style={{ position: 'relative' }}>
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-3.5 py-2.5 pr-10 border border-slate-300 rounded-lg text-sm text-black focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
               placeholder="••••••••"
+              style={{ ...inputStyle, paddingRight: 44 }}
+              onFocus={e => {
+                e.currentTarget.style.borderColor = 'rgba(78,205,196,0.55)'
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(78,205,196,0.08)'
+              }}
+              onBlur={e => {
+                e.currentTarget.style.borderColor = 'rgba(78,205,196,0.2)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              style={{
+                position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(255,255,255,0.3)', padding: 0, display: 'flex', alignItems: 'center',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(78,205,196,0.8)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
             >
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-            {error}
-          </div>
-        )}
+        {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              style={{
+                background: 'rgba(232,80,122,0.1)',
+                border: '1px solid rgba(232,80,122,0.3)',
+                borderRadius: 10, padding: '12px 16px',
+                fontSize: 13, color: '#e8507a', lineHeight: 1.5,
+              }}
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <button
+        {/* Submit */}
+        <motion.button
           type="submit"
           disabled={loading}
-          className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2"
+          whileHover={!loading ? { scale: 1.02, boxShadow: '0 0 40px rgba(78,205,196,0.25)' } : {}}
+          whileTap={!loading ? { scale: 0.98 } : {}}
+          style={{
+            width: '100%',
+            padding: '13px 24px',
+            borderRadius: 12,
+            border: '1px solid rgba(78,205,196,0.45)',
+            background: loading
+              ? 'rgba(78,205,196,0.08)'
+              : 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(91,120,216,0.22))',
+            color: loading ? 'rgba(78,205,196,0.5)' : '#4ECDC4',
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            letterSpacing: '0.04em',
+            transition: 'background 0.2s, color 0.2s',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          }}
         >
-          {loading && <Loader2 size={16} className="animate-spin" />}
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
+          {loading ? (
+            <>
+              <WatchSpinner size={18} />
+              Signing in…
+            </>
+          ) : (
+            <>
+              <Zap size={15} fill="#4ECDC4" />
+              Sign in
+            </>
+          )}
+        </motion.button>
       </form>
 
-      <p className="text-center text-sm text-slate-500 mt-6">
+      {/* Divider */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em' }}>OR</span>
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+      </div>
+
+      {/* Footer */}
+      <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
         Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-brand-600 font-medium hover:underline">
-          Create one
+        <Link href="/register" style={{ color: '#4ECDC4', fontWeight: 600, textDecoration: 'none' }}>
+          Create one free
         </Link>
       </p>
     </>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
