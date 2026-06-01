@@ -94,6 +94,61 @@ function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: Analyse
         innerRef.current.style.opacity = `${Math.min(1, op)}`
       }
 
+      // Mid ring — mid driven
+      if (midRef.current) {
+        const s = idle ? 0.92 + 0.08 * Math.sin(t * 0.9 + 1) : 0.85 + mid * 0.4
+        const op = idle ? 0.35 + 0.1 * Math.sin(t * 0.7) : 0.45 + mid * 0.45
+        midRef.current.style.transform = `scale(${s})`
+        midRef.current.style.opacity = `${Math.min(1, op)}`
+      }
+
+      // Outer ring — high driven
+      if (outerRef.current) {
+        const s = idle ? 0.88 + 0.12 * Math.sin(t * 0.6 + 2) : 0.8 + high * 0.45
+        const op = idle ? 0.2 + 0.08 * Math.sin(t * 0.5) : 0.3 + high * 0.5
+        outerRef.current.style.transform = `scale(${s})`
+        outerRef.current.style.opacity = `${Math.min(1, op)}`
+      }
+
+      frameRef.current = requestAnimationFrame(tick)
+    }
+    frameRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameRef.current)
+  }, [analyser, speaking])
+
+  const SIZE = 220
+  const ringStyle = (color: string): React.CSSProperties => ({
+    position: 'absolute', inset: 0, borderRadius: '50%',
+    border: `1.5px solid ${color}`,
+    boxShadow: `0 0 18px ${color}, inset 0 0 12px ${color}`,
+  })
+
+  return (
+    <div style={{
+      width: SIZE, height: SIZE, position: 'relative',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      {/* outer ring */}
+      <div ref={outerRef} style={{ ...ringStyle('rgba(155,111,208,0.28)'), position: 'absolute', inset: 0, borderRadius: '50%' }} />
+      {/* mid ring */}
+      <div ref={midRef} style={{ ...ringStyle('rgba(78,205,196,0.35)'), position: 'absolute', inset: '14px', borderRadius: '50%' }} />
+      {/* inner ring */}
+      <div ref={innerRef} style={{ ...ringStyle('rgba(78,205,196,0.5)'), position: 'absolute', inset: '28px', borderRadius: '50%' }} />
+      {/* core */}
+      <div ref={coreRef} style={{
+        width: SIZE * 0.48, height: SIZE * 0.48, borderRadius: '50%',
+        background: 'radial-gradient(circle at 38% 38%, rgba(78,205,196,0.22) 0%, rgba(155,111,208,0.14) 60%, transparent 100%)',
+        border: '1.5px solid rgba(78,205,196,0.45)',
+        boxShadow: '0 0 32px rgba(78,205,196,0.25), inset 0 0 20px rgba(155,111,208,0.12)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 28, color: 'rgba(78,205,196,0.8)',
+      }}>
+        <Brain size={36} strokeWidth={1.2} />
+      </div>
+    </div>
+  )
+}
+
 function isSubSection(id: string) { return (id.match(/\./g) ?? []).length >= 2 }
 
 function groupSections(sections: Section[]) {
@@ -512,9 +567,10 @@ function splitLabelDesc(line: string): LabeledItem {
 
 function parseContent(raw: string): ContentSegment[] {
   // Strip :::VISUAL signal lines — they're just a trigger for the diagram, not displayed text
-  const cleaned = raw.replace(/:::VISUAL\n?/g, '')
+  const cleaned = raw.replace(/:::VISUAL\r?\n?/g, '')
   const segments: ContentSegment[] = []
-  const blockRe = /\n?:::(PILLARS|STEPS|TERMS|MCQ)\n([\s\S]*?):::/g
+  // Match block with closing ::: OR end-of-string (handles truncated/missing closing :::)
+  const blockRe = /[ \t]*:::(PILLARS|STEPS|TERMS|MCQ)\r?\n([\s\S]*?)(?:[ \t]*:::[ \t]*(?:\r?\n|$)|$)/g
   raw = cleaned
   let last = 0
   let m: RegExpExecArray | null
@@ -525,7 +581,7 @@ function parseContent(raw: string): ContentSegment[] {
     }
     const type = m[1] as 'PILLARS' | 'STEPS' | 'TERMS' | 'MCQ'
     const body = m[2].trim()
-    const lines = body.split('\n').map(l => l.trim()).filter(Boolean)
+    const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
 
     if (type === 'MCQ') {
       const question = lines[0] ?? ''
@@ -840,7 +896,7 @@ function renderInline(text: string): React.ReactNode {
 function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null; isStreaming?: boolean }) {
   // While streaming, hide any incomplete :::MCQ block so raw text never shows
   const displayContent = isStreaming
-    ? content.replace(/\n?:::MCQ[\s\S]*$/, '')
+    ? content.replace(/[ \t]*:::MCQ[\s\S]*$/, '')
     : content
   const segments = parseContent(displayContent)
   return (
@@ -1599,6 +1655,28 @@ export default function CourseModulePage() {
       .then(d=>{if (d.progress) setSectionProgress(d.progress)})
       .catch(()=>{})
   },[moduleId])
+
+  // Auto-resume: jump to the last in-progress section (or first incomplete) on load
+  const didAutoResume = useRef(false)
+  useEffect(()=>{
+    if (didAutoResume.current) return
+    if (!sectionsLoaded || sections.length === 0 || sectionProgress.length === 0) return
+    didAutoResume.current = true
+    // Find the last section that has been started but not completed
+    const inProgressIdx = sections.reduce<number>((found, s, i) => {
+      const p = sectionProgress.find(p => p.section_id === s.section_id)
+      return p && p.status !== 'completed' ? i : found
+    }, -1)
+    if (inProgressIdx > 0) {
+      setCurrentSectionIdx(inProgressIdx)
+      return
+    }
+    // No in-progress — find first section without a completed record
+    const firstIncompleteIdx = sections.findIndex(s =>
+      sectionProgress.find(p => p.section_id === s.section_id)?.status !== 'completed'
+    )
+    if (firstIncompleteIdx > 0) setCurrentSectionIdx(firstIncompleteIdx)
+  },[sectionsLoaded, sections, sectionProgress])
 
   useEffect(()=>{
     if (!currentSection) return
