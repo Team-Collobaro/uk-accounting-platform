@@ -1242,26 +1242,6 @@ function PageSkeleton() {
           </div>
         </div>
 
-        {/* right col */}
-        <div style={{
-          width: 276, flexShrink: 0,
-          background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
-          borderLeft: '1px solid var(--border-subtle)',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', padding: '12px 0' }}>
-            <div className="skeleton" style={{ flex: 1, height: 14, margin: '0 16px', borderRadius: 4 }} />
-            <div className="skeleton" style={{ flex: 1, height: 14, margin: '0 16px', borderRadius: 4 }} />
-          </div>
-          <div style={{ padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="skeleton" style={{ width: '60%', height: 14 }} />
-            <div className="skeleton" style={{ width: '100%', height: 20 }} />
-            <div className="skeleton" style={{ width: '100%', height: 36, borderRadius: 8 }} />
-            {[0,1,2,3,4].map(i => (
-              <div key={i} className="skeleton" style={{ width: '100%', height: 56, borderRadius: 9 }} />
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -1289,8 +1269,6 @@ export default function CourseModulePage() {
   const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([])
   const currentProgress = sectionProgress.find(p => p.section_id === currentSection?.section_id) ?? null
 
-  const [sectionContent, setSectionContent] = useState('')
-  const [rightTab,       setRightTab]       = useState<'notes'|'content'>('content')
 
   const CHAT_KEY = `chat_history_${moduleId}`
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -1494,7 +1472,8 @@ export default function CourseModulePage() {
         signal: abort.signal,
         body:JSON.stringify({message:text,moduleId,sessionId:sidRef.current,
           moduleTitle:mTitleRef.current,partNumber:pNumRef.current,partTitle:pTitleRef.current,
-          currentSection:secRef.current,completedSections:doneSecsRef.current,
+          currentSection:secRef.current ? {sectionId:secRef.current.section_id,sectionTitle:secRef.current.section_title,sectionOrder:secRef.current.section_order} : undefined,
+          completedSections:doneSecsRef.current,
           teachingPointIdx:ptIdx,teachingPointTitle:cp?.title??null,
           teachingPointContent:cp?.content??null,
           totalTeachingPoints:pts.length,allTeachingPoints:pts.map(p=>p.title),phase:tPhaseRef.current})})
@@ -1723,14 +1702,6 @@ export default function CourseModulePage() {
     }
   },[sessionKP,currentSection])
 
-  useEffect(()=>{
-    if (!currentSection) return
-    setSectionContent('')
-    fetch(`/api/section-content?moduleId=${moduleId}&sectionId=${encodeURIComponent(currentSection.section_id)}`)
-      .then(r=>r.json() as Promise<{content:string}>)
-      .then(d=>{if (d.content) setSectionContent(d.content)})
-      .catch(()=>{})
-  },[currentSection,moduleId])
 
   // Auto-start removed — student taps "Start Lesson" to begin
 
@@ -1798,8 +1769,6 @@ export default function CourseModulePage() {
   const totalSections  = sections.length
   const progressPct    = totalSections>0 ? Math.round(completedCount/totalSections*100) : 0
   const canGoNext      = quizPassed||moduleAlreadyCompleted
-  const [showSections,       setShowSections]       = useState(true)
-  const [showNotes,          setShowNotes]          = useState(true)
   const [showKeyboardHelp,   setShowKeyboardHelp]   = useState(false)
   const [sectionCompleted,   setSectionCompleted]   = useState(false)
   const [showAdvancePrompt,  setShowAdvancePrompt]  = useState(false)
@@ -1976,10 +1945,15 @@ export default function CourseModulePage() {
             </select>
           )}
 
-          {currentSection && currentSectionIdx < sections.length-1 && (
+          {currentSection && currentProgress?.status !== 'completed' && (
             <button onClick={completeSection} style={hudBtn(false,'var(--ac-mint)','110,201,160')}>
-              <Check size={12} /> Done
+              <Check size={12} /> Mark Done
             </button>
+          )}
+          {currentSection && currentProgress?.status === 'completed' && (
+            <div style={{ ...hudBtn(true,'var(--ac-mint)','110,201,160'), cursor: 'default', opacity: 0.6 }}>
+              <CheckCircle2 size={12} /> Done
+            </div>
           )}
 
           {exchangeCount >= 4 && (
@@ -2016,12 +1990,6 @@ export default function CourseModulePage() {
           <button onClick={()=>setShowKeyboardHelp(v=>!v)} style={hudBtn(showKeyboardHelp)} title="Keyboard shortcuts (Alt+K)">
             <Keyboard size={13} />
           </button>
-          <button onClick={()=>setShowSections(v=>!v)} style={hudBtn(showSections)} title="Toggle sections">
-            <ChevronLeft size={13} />
-          </button>
-          <button onClick={()=>setShowNotes(v=>!v)} style={hudBtn(showNotes)} title="Toggle notes">
-            <ChevronRight size={13} />
-          </button>
         </div>
       </header>
 
@@ -2029,8 +1997,7 @@ export default function CourseModulePage() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', zIndex: 5 }}>
 
         {/* COL 1 — Sections */}
-        {showSections && (
-          <div style={{
+        <div style={{
             width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
             background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
             borderRight: '1px solid var(--border-subtle)',
@@ -2114,7 +2081,6 @@ export default function CourseModulePage() {
               )}
             </div>
           </div>
-        )}
 
         {/* COL 2 — Avatar + Chat */}
         <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, position:'relative' }}>
@@ -2469,79 +2435,6 @@ export default function CourseModulePage() {
           </div>
         </div>
 
-        {/* COL 3 — Content + Notes */}
-        {showNotes && (
-          <div style={{
-            width:276, flexShrink:0, display:'flex', flexDirection:'column',
-            background:'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
-            borderLeft:'1px solid var(--border-subtle)',
-            boxShadow:'-2px 0 18px rgba(0,0,0,0.4), inset 1px 0 0 rgba(255,255,255,0.025)',
-          }}>
-            {/* tabs */}
-            <div style={{ display:'flex', borderBottom:'1px solid var(--border-subtle)', flexShrink:0 }}>
-              {(['content','notes'] as const).map(tab=>(
-                <button key={tab} onClick={()=>setRightTab(tab)} style={{
-                  flex:1, padding:'10px 0', background:'none', border:'none', cursor:'pointer',
-                  fontSize:10, fontFamily:'monospace', letterSpacing:'0.14em', fontWeight:700,
-                  color: rightTab===tab ? 'var(--ac-cyan)' : 'var(--text-tertiary)',
-                  borderBottom: rightTab===tab ? '2px solid var(--ac-cyan)' : '2px solid transparent',
-                  transition:'all 0.2s',
-                  textShadow: rightTab===tab ? '0 0 8px rgba(126,207,206,0.5)' : 'none',
-                }}>
-                  {tab==='content' ? 'CONTENT' : 'NOTES'}
-                </button>
-              ))}
-            </div>
-
-            {rightTab==='content' ? (
-              <div style={{ flex:1, overflowY:'auto', padding:'12px 12px' }}>
-                {currentSection && (
-                  <div style={{ marginBottom:10 }}>
-                    <p className="label-mono aurora-text" style={{ marginBottom:3 }}>§{currentSection.section_id}</p>
-                    <p style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', lineHeight:1.4, marginBottom:10 }}>{currentSection.section_title}</p>
-                    {currentProgress?.status!=='completed' ? (
-                      <button onClick={completeSection} style={{
-                        width:'100%', padding:'7px 0', borderRadius:8, cursor:'pointer', marginBottom:10,
-                        background:'rgba(110,201,160,0.08)', border:'1px solid rgba(110,201,160,0.28)',
-                        color:'var(--ac-mint)', fontSize:11, fontWeight:700, fontFamily:'monospace',
-                        letterSpacing:'0.08em', display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-                        boxShadow:'var(--shadow-sm)',
-                      }}>
-                        <Check size={11} /> MARK AS DONE
-                      </button>
-                    ) : (
-                      <div style={{ width:'100%', padding:'7px 0', borderRadius:8, marginBottom:10,
-                        background:'rgba(110,201,160,0.05)', border:'1px solid rgba(110,201,160,0.2)',
-                        color:'var(--ac-mint)', fontSize:11, fontWeight:700, fontFamily:'monospace',
-                        letterSpacing:'0.08em', display:'flex', alignItems:'center', justifyContent:'center', gap:5, opacity:0.7 }}>
-                        <CheckCircle2 size={11} /> COMPLETED
-                      </div>
-                    )}
-                  </div>
-                )}
-                {sectionContent
-                  ? <SectionNotePoints content={sectionContent} />
-                  : (
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:100, flexDirection:'column', gap:7 }}>
-                      <Loader2 size={15} color="var(--ac-cyan)" className="animate-spin" style={{ opacity:0.4 }} />
-                      <p style={{ fontSize:11, color:'var(--text-tertiary)' }}>Loading content…</p>
-                    </div>
-                  )
-                }
-              </div>
-            ) : (
-              <NotesPanel section={currentSection} progress={currentProgress} moduleId={moduleId}
-                onSave={(notes,kp)=>{
-                  setSectionProgress(prev=>{
-                    const ex=prev.find(p=>p.section_id===currentSection?.section_id)
-                    if (!ex||!currentSection) return prev
-                    return prev.map(p=>p.section_id===currentSection.section_id?{...p,notes,key_points:kp}:p)
-                  })
-                }}
-              />
-            )}
-          </div>
-        )}
       </div>
 
       {/* quiz modal */}
