@@ -1260,6 +1260,7 @@ export default function CourseModulePage() {
   const [partNumber,  setPartNumber]  = useState(1)
   const [partTitle,   setPartTitle]   = useState('')
   const [nextModule,  setNextModule]  = useState<string|null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   const [sections,          setSections]          = useState<Section[]>([])
   const [sectionsLoaded,    setSectionsLoaded]    = useState(false)
@@ -1269,14 +1270,9 @@ export default function CourseModulePage() {
   const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([])
   const currentProgress = sectionProgress.find(p => p.section_id === currentSection?.section_id) ?? null
 
-
-  const CHAT_KEY = `chat_history_${moduleId}`
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = localStorage.getItem(`chat_history_${moduleId}`)
-      return saved ? (JSON.parse(saved) as Message[]) : []
-    } catch { return [] }
-  })
+  // userId-scoped key — prevents one user seeing another user's history on the same browser
+  const CHAT_KEY = userId ? `chat_history_${userId}_${moduleId}` : null
+  const [messages, setMessages] = useState<Message[]>([])
   const [input,         setInput]         = useState('')
   const [streaming,     setStreaming]      = useState(false)
   const [sessionId,     setSessionId]     = useState<string|undefined>()
@@ -1285,9 +1281,28 @@ export default function CourseModulePage() {
   const [quizPassed,    setQuizPassed]    = useState(false)
   const [moduleAlreadyCompleted, setModuleAlreadyCompleted] = useState(false)
 
+  // Resolve the logged-in user ID once on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? null
+      setUserId(uid)
+    }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Load user-scoped history from localStorage once userId is known
+  useEffect(() => {
+    if (!CHAT_KEY) return
+    try {
+      const saved = localStorage.getItem(CHAT_KEY)
+      if (saved) setMessages(JSON.parse(saved) as Message[])
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [CHAT_KEY])
+
   // Persist chat history to localStorage on every change (skip empty streaming placeholder)
   useEffect(() => {
-    if (messages.length === 0) return
+    if (!CHAT_KEY || messages.length === 0) return
     try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)) } catch { /* quota exceeded */ }
   }, [messages, CHAT_KEY])
 
