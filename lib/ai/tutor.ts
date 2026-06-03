@@ -1,12 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { Student, Module, ChatMessage, QuizQuestion, QuizResult, ProgressAnalysis } from '@/types'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-const MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001'
-const MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '380', 10)
-
-// ─── History compression ──────────────────────────────────────────────────────
+import type { Student, Module, ChatMessage } from '@/types'
+import { client, MODEL, MAX_TOKENS } from './client'
 
 function compressHistory(history: ChatMessage[]): ChatMessage[] {
   if (history.length <= 6) return history
@@ -27,8 +21,6 @@ function compressHistory(history: ChatMessage[]): ChatMessage[] {
 
   return [summary, ...recent]
 }
-
-// ─── Streaming tutor ──────────────────────────────────────────────────────────
 
 // Teaching phases that drive the structured loop
 export type TeachingPhase = 'PRE_NOTES' | 'EXPLAIN' | 'CONFIRM' | 'POST_NOTES' | 'CHECK' | 'WRAP'
@@ -301,124 +293,4 @@ ${ragContext.slice(0, 1000)}`
   }
 
   yield { done: true, inputTokens, outputTokens }
-}
-
-// ─── Quiz generation ──────────────────────────────────────────────────────────
-
-export async function generateQuiz(params: {
-  module: Module
-  ragContext: string
-  count?: number
-}): Promise<QuizQuestion[]> {
-  const { module: mod, ragContext, count = 5 } = params
-
-  const prompt = `You are a UK accounting examiner creating multiple choice questions for: ${mod.title}
-Generate exactly ${count} MCQ questions based ONLY on the provided content.
-Each question must test practical understanding not just memorisation.
-Mix difficulty: 40% straightforward, 40% application, 20% analysis.
-
-COURSE CONTENT:
-${ragContext}
-
-Return ONLY a valid JSON array with no markdown, no preamble, no explanation:
-[
-  {
-    "id": "q1",
-    "question": "question text here",
-    "options": ["A. option", "B. option", "C. option", "D. option"],
-    "correct": "A",
-    "explanation": "why A is correct and others are wrong",
-    "topic": "specific topic this tests"
-  }
-]`
-
-  async function attempt(strictMode: boolean): Promise<QuizQuestion[]> {
-    const extra = strictMode
-      ? '\n\nCRITICAL: Output ONLY the raw JSON array. No text before or after. No markdown code fences.'
-      : ''
-
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
-      temperature: 0.1,
-      messages: [{ role: 'user', content: prompt + extra }],
-    })
-
-    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-
-    // Strip markdown fences if present
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim()
-
-    const parsed = JSON.parse(cleaned) as QuizQuestion[]
-    if (!Array.isArray(parsed)) throw new Error('Response is not an array')
-    return parsed
-  }
-
-  try {
-    return await attempt(false)
-  } catch {
-    return await attempt(true)
-  }
-}
-
-// ─── Progress analysis ────────────────────────────────────────────────────────
-
-export async function analyseProgress(params: {
-  student: Student
-  recentResults: QuizResult[]
-  completedModules: string[]
-}): Promise<ProgressAnalysis> {
-  const { student, recentResults, completedModules } = params
-
-  const prompt = `You are a learning progress analyst for a UK accounting course with 87 modules.
-Analyse this student's performance and recommend next steps.
-
-Student: ${student.name}
-Completed modules: ${completedModules.length} of 87 (${Math.round((completedModules.length / 87) * 100)}%)
-Average quiz score: ${student.avgQuizScore}%
-Known weak topics: ${student.weakTopics.join(', ') || 'none'}
-
-Recent quiz results (last ${recentResults.length}):
-${recentResults
-  .map(
-    (r) =>
-      `- Module ${r.moduleId}: ${r.percentage}% (${r.passed ? 'passed' : 'failed'}), weak areas: ${r.weakAreas.join(', ') || 'none'}`
-  )
-  .join('\n')}
-
-Return ONLY valid JSON with no markdown:
-{
-  "recommendation": "proceed OR review OR exam",
-  "reason": "brief explanation",
-  "suggestedModule": "module id if review needed or null",
-  "weakTopics": ["topic1", "topic2"],
-  "overallProgress": percentage as number
-}`
-
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 300,
-    temperature: 0.2,
-    messages: [{ role: 'user', content: prompt }],
-  })
-
-  const raw = response.content[0].type === 'text' ? response.content[0].text : '{}'
-  const cleaned = raw
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-
-  try {
-    return JSON.parse(cleaned) as ProgressAnalysis
-  } catch {
-    return {
-      recommendation: 'proceed',
-      reason: 'Unable to analyse at this time.',
-      weakTopics: student.weakTopics,
-      overallProgress: Math.round((completedModules.length / 87) * 100),
-    }
-  }
 }

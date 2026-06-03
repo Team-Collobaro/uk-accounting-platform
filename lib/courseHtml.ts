@@ -2,21 +2,7 @@ import * as cheerio from 'cheerio'
 import * as fs from 'fs'
 import * as path from 'path'
 import { parseModuleSections } from './courseParser'
-
-const PART_TITLES: Record<number, string> = {
-  0: 'Front Matter', 1: 'Foundations', 2: 'Cloud Software Platforms',
-  3: 'VAT', 4: 'Payroll PAYE & CIS', 5: 'Year-End Accounts',
-  6: 'Corporation Tax', 7: 'Self Assessment', 8: 'Incorporation',
-  9: 'Cessation', 10: 'Structure Changes', 11: 'Specialist Tax',
-  12: 'Practice & Ethics', 13: 'Appendices',
-}
-
-function getPartNumber(n: number) {
-  if (n <= 7) return 1; if (n <= 12) return 2; if (n <= 20) return 3
-  if (n <= 26) return 4; if (n <= 34) return 5; if (n <= 40) return 6
-  if (n <= 48) return 7; if (n <= 57) return 8; if (n <= 66) return 9
-  if (n <= 74) return 10; if (n <= 82) return 11; return 12
-}
+import { PART_TITLES, getPartNumber } from '@/constants/course'
 
 // Singleton — parsed once per process
 let _cache: cheerio.CheerioAPI | null = null

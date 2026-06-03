@@ -9,353 +9,20 @@ import BlurText from '@/components/reactbits/BlurText'
 import CountUp from '@/components/reactbits/CountUp'
 import {
   BookOpen, Award, TrendingUp, Clock,
-  CheckCircle2, Circle, Lock, ChevronRight,
-  AlertCircle, Brain, Sparkles, Zap, ChevronDown, ChevronUp,
+  CheckCircle2, Lock, ChevronRight,
+  AlertCircle, Brain, Sparkles, ChevronDown, ChevronUp,
   Flame, Target, Play, ArrowRight, Star, Trophy, Rocket,
-  BookMarked, Coffee, Lightbulb,
+  BookMarked,
 } from 'lucide-react'
+import { PARTS, MODULE_TITLES, MOTIVATIONAL } from '@/features/dashboard/constants'
+import type { ProgressData } from '@/features/dashboard/types'
+import { CelebrationBurst } from '@/features/dashboard/CelebrationBurst'
+import { ProgressRing } from '@/features/dashboard/ProgressRing'
+import { StatCard } from '@/features/dashboard/StatCard'
+import { QuickModuleCard } from '@/features/dashboard/QuickModuleCard'
+import { DashboardSkeleton } from '@/features/dashboard/DashboardSkeleton'
+import { MilestoneToast } from '@/features/dashboard/MilestoneToast'
 
-function mods(from: number, to: number) {
-  return Array.from({ length: to - from + 1 }, (_, i) => `m${String(i + from).padStart(2, '0')}`)
-}
-
-const PARTS = [
-  { number: 1,  title: 'Foundations',             modules: mods(1,  7),  color: '#4ECDC4' },
-  { number: 2,  title: 'Cloud Software Platforms', modules: mods(8,  12), color: '#9B6FD0' },
-  { number: 3,  title: 'VAT',                      modules: mods(13, 20), color: '#E8B84B' },
-  { number: 4,  title: 'Payroll PAYE & CIS',        modules: mods(21, 26), color: '#52D98B' },
-  { number: 5,  title: 'Year-End Accounts',         modules: mods(27, 34), color: '#E87B6F' },
-  { number: 6,  title: 'Corporation Tax',           modules: mods(35, 40), color: '#6FA8E8' },
-  { number: 7,  title: 'Self Assessment',           modules: mods(41, 48), color: '#E87BB8' },
-  { number: 8,  title: 'Incorporation',             modules: mods(49, 57), color: '#4ECDC4' },
-  { number: 9,  title: 'Cessation',                 modules: mods(58, 66), color: '#52D98B' },
-  { number: 10, title: 'Structure Changes',         modules: mods(67, 74), color: '#E8B84B' },
-  { number: 11, title: 'Specialist Tax',            modules: mods(75, 82), color: '#9B6FD0' },
-  { number: 12, title: 'Practice & Ethics',         modules: mods(83, 87), color: '#4ECDC4' },
-]
-
-const MODULE_TITLES: Record<string, string> = {
-  m01: 'UK Compliance Landscape',       m02: 'UK Business Structures',
-  m03: 'Double-Entry Bookkeeping',      m04: 'Chart of Accounts',
-  m05: 'Bookkeeping Cycle',             m06: 'Source Documents',
-  m07: 'Cash vs Accruals Basis',        m08: 'Dext',
-  m09: 'Xero',                          m10: 'QuickBooks Online',
-  m11: 'Sage Business Cloud',           m12: 'FreeAgent',
-  m13: 'VAT Fundamentals',              m14: 'VAT Schemes',
-  m15: 'VAT on Goods',                  m16: 'VAT on Services',
-  m17: 'VAT on Land & Property',        m18: 'Partial Exemption',
-  m19: 'VAT Errors & Penalties',        m20: 'Making Tax Digital (VAT)',
-  m21: 'PAYE Fundamentals',             m22: 'Statutory Payments',
-  m23: 'Auto-Enrolment Pensions',       m24: 'Benefits in Kind & P11D',
-  m25: 'Year-End Payroll',              m26: 'CIS',
-  m27: 'Year-End Process',              m28: 'Adjusting Journals',
-  m29: 'FRS 105 Micro-Entity',          m30: 'FRS 102 Section 1A',
-  m31: 'FRS 102 Full',                  m32: 'Disclosure Reasoning',
-  m33: 'iXBRL Tagging',                 m34: 'Companies House Filing',
-  m35: 'Corporation Tax Fundamentals',  m36: 'Adjusting to Taxable Profit',
-  m37: 'Capital Allowances',            m38: 'R&D Tax Relief',
-  m39: 'Loss & Group Relief',           m40: 'CT600 Walkthrough',
-  m41: 'SA100 Main Return',             m42: 'SA103 Self-Employment',
-  m43: 'SA105 Property Income',         m44: 'SA108 Capital Gains',
-  m45: 'SA104 Partnership Income',      m46: 'SA109 Residence & Domicile',
-  m47: 'Tax Calculation & PoA',         m48: 'SA Reliefs',
-  m49: 'Choosing a Structure',          m50: 'Sole Trader Setup',
-  m51: 'Partnership Setup',             m52: 'Ltd Company Setup',
-  m53: 'LLP Setup',                     m54: 'Charity Registration',
-  m55: 'Sole Trader → Ltd',             m56: 'Partnership → LLP / Ltd',
-  m57: 'First-Year Filings',            m58: 'Sole Trader Cessation',
-  m59: 'Partnership Cessation',         m60: 'Ltd Strike-Off (DS01)',
-  m61: "Members' Voluntary Liquidation",m62: "Creditors' Voluntary Liquidation",
-  m63: 'Compulsory Liquidation',        m64: 'Administration & CVA',
-  m65: 'Final Accounts on Cessation',   m66: 'Capital Distributions & BADR',
-  m67: 'Ltd → Sole Trader',             m68: 'Sole Trader → Partnership',
-  m69: 'Partnership → Ltd',             m70: 'Group Restructuring',
-  m71: 'Ltd → Charity / CIO',           m72: 'Asset Sale vs Share Sale',
-  m73: 'Demergers',                     m74: 'Reconstructions',
-  m75: 'IR35 / Off-Payroll',            m76: 'Inheritance Tax',
-  m77: 'Stamp Duty Land Tax',           m78: 'CGT Reliefs',
-  m79: 'Trusts',                        m80: 'Non-Domiciled Status',
-  m81: 'HMRC Enquiries',                m82: 'Penalty Regimes',
-  m83: 'AML & MLR 2017',                m84: 'Professional Ethics',
-  m85: 'Engagement Letters',            m86: 'GDPR for Accountants',
-  m87: 'Professional Indemnity Insurance',
-}
-
-const MOTIVATIONAL = [
-  { icon: Coffee,    text: 'One module a day keeps the confusion away.' },
-  { icon: Lightbulb, text: 'Alex is ready to guide you through any topic.' },
-  { icon: Rocket,   text: 'The UK\'s best accounting minds started exactly here.' },
-  { icon: Star,     text: 'Consistency beats intensity — keep your streak going.' },
-  { icon: Trophy,   text: 'Every module completed is a skill gained for life.' },
-]
-
-interface ProgressData {
-  completedModules: string[]
-  overallPercentage: number
-  avgQuizScore: number
-  nextRecommendedModule: string
-  certificates: Array<{ id: string; verification_code: string; final_score: number; completion_date: string }>
-}
-
-// ─── Celebration particle burst ──────────────────────────────────────────────
-function CelebrationBurst({ active }: { active: boolean }) {
-  if (!active) return null
-  return (
-    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 200 }}>
-      {Array.from({ length: 20 }, (_, i) => {
-        const angle = (i / 20) * 360
-        const dist = 80 + Math.random() * 120
-        const colors = ['#4ECDC4', '#9B6FD0', '#52D98B', '#E8B84B', '#E87B6F']
-        return (
-          <motion.div key={i}
-            initial={{ x: '50vw', y: '50vh', scale: 0, opacity: 1 }}
-            animate={{
-              x: `calc(50vw + ${Math.cos(angle * Math.PI / 180) * dist}px)`,
-              y: `calc(50vh + ${Math.sin(angle * Math.PI / 180) * dist}px)`,
-              scale: [0, 1.2, 0],
-              opacity: [1, 1, 0],
-            }}
-            transition={{ duration: 1.2, ease: 'easeOut', delay: i * 0.03 }}
-            style={{
-              position: 'absolute', width: 8, height: 8, borderRadius: '50%',
-              background: colors[i % colors.length],
-              boxShadow: `0 0 8px ${colors[i % colors.length]}`,
-            }}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── Progress ring ────────────────────────────────────────────────────────────
-function ProgressRing({ pct, color, size = 88 }: { pct: number; color: string; size?: number }) {
-  const r = (size - 10) / 2
-  const circ = 2 * Math.PI * r
-  const dash = (pct / 100) * circ
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={5} />
-      <motion.circle
-        cx={size/2} cy={size/2} r={r} fill="none"
-        stroke={color} strokeWidth={5} strokeLinecap="round"
-        strokeDasharray={circ}
-        initial={{ strokeDashoffset: circ }}
-        animate={{ strokeDashoffset: circ - dash }}
-        transition={{ duration: 1.4, ease: 'easeOut', delay: 0.3 }}
-        style={{ filter: `drop-shadow(0 0 8px ${color})` }}
-      />
-    </svg>
-  )
-}
-
-// ─── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({ icon: Icon, label, value, countTo, color, delay, suffix }: {
-  icon: React.ElementType; label: string; value: string; countTo?: number; color: string; delay: number; suffix?: string
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
-      whileHover={{ y: -4, scale: 1.02 }}
-      style={{
-        background: `linear-gradient(135deg, ${color}08 0%, rgba(5,8,16,0.6) 100%)`,
-        border: `1px solid ${color}25`,
-        borderRadius: 16, padding: '18px 20px',
-        display: 'flex', alignItems: 'center', gap: 14,
-        position: 'relative', overflow: 'hidden',
-        backdropFilter: 'blur(12px)',
-        cursor: 'default',
-        transition: 'box-shadow 0.2s',
-      }}
-      whileTap={{ scale: 0.98 }}
-    >
-      <div style={{ position: 'absolute', top: -24, right: -24, width: 80, height: 80, borderRadius: '50%', background: `radial-gradient(circle,${color}10 0%,transparent 70%)`, pointerEvents: 'none' }} />
-      <div style={{ width: 44, height: 44, borderRadius: 13, background: `${color}15`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={19} color={color} />
-      </div>
-      <div>
-        <p style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 3, textTransform: 'uppercase' }}>{label}</p>
-        <p style={{ fontSize: 22, fontWeight: 800, color: '#E8F0FC', lineHeight: 1 }}>
-          {countTo !== undefined
-            ? <><CountUp to={countTo} from={0} duration={1.4} delay={delay} />{suffix}</>
-            : value}
-        </p>
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Quick module card ────────────────────────────────────────────────────────
-function QuickModuleCard({ moduleId, status, color, isNext, onClick }: {
-  moduleId: string; status: 'completed' | 'available' | 'locked'; color: string; isNext?: boolean; onClick: () => void
-}) {
-  const isDone  = status === 'completed'
-  const isAvail = status === 'available'
-  return (
-    <motion.div
-      whileHover={status !== 'locked' ? { scale: 1.02, y: -2 } : {}}
-      whileTap={status !== 'locked' ? { scale: 0.97 } : {}}
-      onClick={onClick}
-      style={{
-        padding: '11px 13px', borderRadius: 11,
-        cursor: status !== 'locked' ? 'pointer' : 'default',
-        background: isDone ? `${color}0a` : isNext ? 'rgba(78,205,196,0.07)' : isAvail ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.015)',
-        border: isDone ? `1px solid ${color}30` : isNext ? '1px solid rgba(78,205,196,0.3)' : isAvail ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.03)',
-        opacity: status === 'locked' ? 0.35 : 1,
-        transition: 'all 0.15s',
-        display: 'flex', alignItems: 'center', gap: 10,
-        position: 'relative', overflow: 'hidden',
-      }}
-    >
-      {isNext && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(78,205,196,0.04) 0%, transparent 60%)', pointerEvents: 'none' }} />}
-      <div style={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
-        {isDone
-          ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: `${color}18`, border: `1px solid ${color}50`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle2 size={12} color={color} />
-            </div>
-          : isNext
-            ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(78,205,196,0.15)', border: '1px solid rgba(78,205,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Play size={9} color="#4ECDC4" style={{ marginLeft: 1 }} />
-              </div>
-            : isAvail
-              ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Circle size={9} color="rgba(255,255,255,0.35)" />
-                </div>
-              : <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Lock size={9} color="rgba(255,255,255,0.18)" />
-                </div>
-        }
-      </div>
-      <div style={{ minWidth: 0, flex: 1, position: 'relative', zIndex: 1 }}>
-        <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.08em', marginBottom: 2 }}>{moduleId.toUpperCase()}</p>
-        <p style={{ fontSize: 12, fontWeight: isNext ? 600 : 500, color: isDone ? color : isNext ? '#4ECDC4' : isAvail ? '#8EA8CC' : 'rgba(255,255,255,0.25)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {MODULE_TITLES[moduleId] ?? moduleId.toUpperCase()}
-        </p>
-      </div>
-      {(isAvail || isNext) && <ChevronRight size={12} color={isNext ? 'rgba(78,205,196,0.5)' : 'rgba(255,255,255,0.2)'} style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />}
-    </motion.div>
-  )
-}
-
-// ─── Skeleton shimmer ─────────────────────────────────────────────────────────
-function Shimmer({ w, h, r = 10, delay = 0 }: { w: string | number; h: number; r?: number; delay?: number }) {
-  return (
-    <motion.div
-      animate={{ opacity: [0.04, 0.12, 0.04] }}
-      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut', delay }}
-      style={{ width: w, height: h, borderRadius: r, background: 'linear-gradient(90deg, rgba(78,205,196,0.08) 0%, rgba(155,111,208,0.12) 50%, rgba(78,205,196,0.08) 100%)', flexShrink: 0 }}
-    />
-  )
-}
-
-function DashboardSkeleton() {
-  return (
-    <div style={{ minHeight: '100vh', color: '#E8F0FC', padding: '0 0 100px' }}>
-      <div style={{ padding: '28px 28px 24px', borderBottom: '1px solid rgba(78,205,196,0.07)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Shimmer w={42} h={42} r={14} delay={0} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <Shimmer w={80} h={9} r={5} delay={0.05} />
-                <Shimmer w={140} h={22} r={8} delay={0.1} />
-                <Shimmer w={110} h={11} r={5} delay={0.15} />
-              </div>
-            </div>
-            <Shimmer w={160} h={46} r={12} delay={0.1} />
-          </div>
-          <div style={{ background: 'rgba(78,205,196,0.03)', border: '1px solid rgba(78,205,196,0.1)', borderRadius: 20, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <Shimmer w={52} h={52} r={16} delay={0.05} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Shimmer w={160} h={10} r={5} delay={0.1} />
-                <Shimmer w={220} h={18} r={7} delay={0.15} />
-                <Shimmer w={140} h={11} r={5} delay={0.2} />
-              </div>
-            </div>
-            <Shimmer w={120} h={44} r={13} delay={0.1} />
-          </div>
-        </div>
-      </div>
-      <div style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 22 }}>
-          {[0, 0.06, 0.12, 0.18, 0.24, 0.3].map((d, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: d }}
-              style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <Shimmer w={44} h={44} r={13} delay={d} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                <Shimmer w={70} h={9} r={4} delay={d + 0.05} />
-                <Shimmer w={50} h={20} r={6} delay={d + 0.1} />
-              </div>
-            </motion.div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {Array.from({ length: 7 }, (_, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 + i * 0.04 }}
-              style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <Shimmer w={34} h={34} r={10} delay={i * 0.04} />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <Shimmer w={60} h={9} r={4} delay={i * 0.04 + 0.05} />
-                <Shimmer w={i % 2 === 0 ? 160 : 200} h={14} r={6} delay={i * 0.04 + 0.1} />
-              </div>
-              <Shimmer w={72} h={3} r={3} delay={i * 0.04 + 0.08} />
-              <Shimmer w={15} h={15} r={4} delay={i * 0.04 + 0.12} />
-            </motion.div>
-          ))}
-        </div>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 32 }}>
-          {[0, 0.2, 0.4].map((d, i) => (
-            <motion.div key={i} animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0.8, 0.3] }}
-              transition={{ duration: 1.2, repeat: Infinity, delay: d }}
-              style={{ width: 6, height: 6, borderRadius: '50%', background: i === 0 ? '#4ECDC4' : i === 1 ? '#9B6FD0' : '#52D98B' }} />
-          ))}
-        </motion.div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Milestone toast ──────────────────────────────────────────────────────────
-function MilestoneToast({ message, icon: Icon, color, onDismiss }: {
-  message: string; icon: React.ElementType; color: string; onDismiss: () => void
-}) {
-  useEffect(() => {
-    const t = setTimeout(onDismiss, 4000)
-    return () => clearTimeout(t)
-  }, [onDismiss])
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 60, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 40, scale: 0.9 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      onClick={onDismiss}
-      style={{
-        position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 300, cursor: 'pointer',
-        background: `linear-gradient(135deg, ${color}18, rgba(5,8,16,0.92))`,
-        border: `1px solid ${color}45`,
-        borderRadius: 16, padding: '14px 22px',
-        display: 'flex', alignItems: 'center', gap: 12,
-        backdropFilter: 'blur(20px)',
-        boxShadow: `0 8px 40px rgba(0,0,0,0.5), 0 0 30px ${color}20`,
-        minWidth: 280,
-      }}
-    >
-      <div style={{ width: 38, height: 38, borderRadius: 12, background: `${color}20`, border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={18} color={color} />
-      </div>
-      <div>
-        <p style={{ fontSize: 11, color: color, fontFamily: 'monospace', letterSpacing: '0.12em', marginBottom: 2 }}>MILESTONE</p>
-        <p style={{ fontSize: 14, fontWeight: 600, color: '#E8F0FC' }}>{message}</p>
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -384,17 +51,16 @@ export default function DashboardPage() {
         const data = await progressRes.json() as ProgressData
         const newCount = data.completedModules.length
 
-        // Check for milestones
         if (prevCompletedRef.current > 0 && newCount > prevCompletedRef.current) {
           setCelebration(true)
           setTimeout(() => setCelebration(false), 2000)
 
-          if (newCount === 1) setMilestone({ message: 'First module complete!', icon: Rocket, color: '#4ECDC4' })
-          else if (newCount === 5) setMilestone({ message: '5 modules done — keep it up!', icon: Star, color: '#E8B84B' })
-          else if (newCount === 10) setMilestone({ message: '10 modules! You\'re on a roll.', icon: Flame, color: '#E87B6F' })
+          if (newCount === 1)  setMilestone({ message: 'First module complete!',          icon: Rocket, color: '#4ECDC4' })
+          else if (newCount === 5)  setMilestone({ message: '5 modules done — keep it up!',    icon: Star,   color: '#E8B84B' })
+          else if (newCount === 10) setMilestone({ message: "10 modules! You're on a roll.",   icon: Flame,  color: '#E87B6F' })
           else if (newCount === 25) setMilestone({ message: '25 modules — nearly a third done!', icon: Trophy, color: '#9B6FD0' })
-          else if (newCount === 50) setMilestone({ message: 'Halfway there — 50 modules!', icon: Award, color: '#52D98B' })
-          else if (newCount === 87) setMilestone({ message: 'All 87 modules complete!', icon: Trophy, color: '#E8B84B' })
+          else if (newCount === 50) setMilestone({ message: 'Halfway there — 50 modules!',    icon: Award,  color: '#52D98B' })
+          else if (newCount === 87) setMilestone({ message: 'All 87 modules complete!',        icon: Trophy, color: '#E8B84B' })
         }
         prevCompletedRef.current = newCount
 
@@ -446,7 +112,6 @@ export default function DashboardPage() {
   const goalPct    = Math.min(100, Math.round((todayDone / dailyGoal) * 100))
   const MotivIcon  = MOTIVATIONAL[motivIdx].icon
 
-  // Nearby modules (next 3 available/incomplete after nextModule)
   const allModules  = PARTS.flatMap(p => p.modules)
   const nextIdx     = allModules.indexOf(nextModule)
   const nearbyMods  = allModules.slice(Math.max(0, nextIdx - 1), nextIdx + 4).filter(m => m !== nextModule).slice(0, 3)
@@ -515,7 +180,6 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {/* Nearby modules quick-jump */}
               {nearbyMods.length > 0 && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   {nearbyMods.map(modId => {
@@ -563,10 +227,10 @@ export default function DashboardPage() {
 
         {/* ── Stats + Daily Goal row ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 22 }}>
-          <StatCard icon={BookOpen}   label="Modules done"  value={`${completed}`}    countTo={completed}                       color="#4ECDC4" delay={0.05} />
-          <StatCard icon={TrendingUp} label="Avg quiz score" value={`${progress?.avgQuizScore ?? 0}%`} countTo={progress?.avgQuizScore ?? 0} color="#52D98B" delay={0.1}  suffix="%" />
-          <StatCard icon={Clock}      label="Est. hours"     value=""                  countTo={Math.round(completed * 1.72)}    color="#E8B84B" delay={0.15} suffix="h" />
-          <StatCard icon={Award}      label="Certificates"   value=""                  countTo={progress?.certificates.length ?? 0} color="#9B6FD0" delay={0.2} />
+          <StatCard icon={BookOpen}   label="Modules done"   value={`${completed}`}               countTo={completed}                          color="#4ECDC4" delay={0.05} />
+          <StatCard icon={TrendingUp} label="Avg quiz score" value={`${progress?.avgQuizScore ?? 0}%`} countTo={progress?.avgQuizScore ?? 0}   color="#52D98B" delay={0.1}  suffix="%" />
+          <StatCard icon={Clock}      label="Est. hours"     value=""                              countTo={Math.round(completed * 1.72)}        color="#E8B84B" delay={0.15} suffix="h" />
+          <StatCard icon={Award}      label="Certificates"   value=""                              countTo={progress?.certificates.length ?? 0} color="#9B6FD0" delay={0.2} />
 
           {/* Streak */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
@@ -784,7 +448,6 @@ export default function DashboardPage() {
                 <p style={{ fontSize: 12, color: '#4A6285', lineHeight: 1.6, margin: '0 0 12px' }}>
                   Complete all 87 modules and pass the final exam with 70%+ to receive your verifiable certificate.
                 </p>
-                {/* Progress toward certificate */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
                     <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.2, delay: 0.6 }}
@@ -801,10 +464,10 @@ export default function DashboardPage() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}
           style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 10 }}>
           {[
-            { label: 'Continue learning', icon: Play, color: '#4ECDC4', href: `/course/${nextModule}` },
-            { label: 'Browse curriculum', icon: BookOpen, color: '#9B6FD0', action: () => togglePart(1) },
-            { label: 'View certificate', icon: Award, color: '#E8B84B', href: completed === 87 ? `/verify/${progress?.certificates[0]?.verification_code}` : undefined },
-            { label: 'Track progress', icon: TrendingUp, color: '#52D98B', action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
+            { label: 'Continue learning', icon: Play,       color: '#4ECDC4', href: `/course/${nextModule}` },
+            { label: 'Browse curriculum', icon: BookOpen,   color: '#9B6FD0', action: () => togglePart(1) },
+            { label: 'View certificate',  icon: Award,      color: '#E8B84B', href: completed === 87 ? `/verify/${progress?.certificates[0]?.verification_code}` : undefined },
+            { label: 'Track progress',    icon: TrendingUp, color: '#52D98B', action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
           ].map(({ label, icon: Icon, color, href, action }) => (
             <motion.div key={label}
               whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}

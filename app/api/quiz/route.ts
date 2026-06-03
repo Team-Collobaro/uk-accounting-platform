@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { searchSimilar } from '@/lib/retrieval'
-import { generateQuiz } from '@/lib/anthropic'
+import { generateQuiz } from '@/lib/ai'
 import { logUsage } from '@/lib/costTracker'
 
 export const runtime = 'nodejs'

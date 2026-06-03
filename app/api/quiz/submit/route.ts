@@ -7,7 +7,7 @@ import {
   updateStudent,
   supabaseAdmin,
 } from '@/lib/supabase-server'
-import { analyseProgress } from '@/lib/anthropic'
+import { analyseProgress } from '@/lib/ai'
 import { isEligible, generateCertificate } from '@/lib/certificate'
 import type { QuizQuestion } from '@/types'
 
