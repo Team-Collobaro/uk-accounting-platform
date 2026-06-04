@@ -31,6 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsed,      setCollapsed]      = useState(false)
   const [nextModule,     setNextModule]     = useState<string | null>(null)
   const [completedCount, setCompletedCount] = useState(0)
+  const [lastSection,    setLastSection]    = useState<{ sectionId: string; sectionTitle: string } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -40,7 +41,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     })
     fetch('/api/progress')
       .then(r => r.json() as Promise<{ nextRecommendedModule: string; completedModules: string[] }>)
-      .then(d => { setNextModule(d.nextRecommendedModule); setCompletedCount(d.completedModules?.length ?? 0) })
+      .then(d => {
+        setNextModule(d.nextRecommendedModule)
+        setCompletedCount(d.completedModules?.length ?? 0)
+        // read last visited section for this module from localStorage
+        try {
+          const raw = localStorage.getItem(`last_section_${d.nextRecommendedModule}`)
+          if (raw) setLastSection(JSON.parse(raw) as { sectionId: string; sectionTitle: string })
+        } catch { /* ignore */ }
+      })
       .catch(() => {})
   }, [supabase])
 
@@ -287,6 +296,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.16 }} style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.1em', marginBottom: 1 }}>CONTINUE</p>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#4ECDC4' }}>{nextModule.toUpperCase()}</p>
+                        {lastSection && (
+                          <p style={{ fontSize: 9, color: 'rgba(78,205,196,0.5)', marginTop: 1, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            §{lastSection.sectionId} {lastSection.sectionTitle}
+                          </p>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>

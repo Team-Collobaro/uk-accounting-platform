@@ -11,6 +11,7 @@ import type {
 
 interface UseChatParams {
   moduleId: string
+  sectionId?: string
   // Audio callbacks
   cancelSpeech: () => void
   feedToken: (tok: string) => void
@@ -47,6 +48,7 @@ interface UseChatParams {
 
 export function useChat({
   moduleId,
+  sectionId,
   cancelSpeech,
   feedToken,
   flushSpeech,
@@ -74,11 +76,13 @@ export function useChat({
   pNumRef,
   pTitleRef,
 }: UseChatParams) {
-  const CHAT_KEY = `chat_history_${moduleId}`
+  const chatKey = sectionId
+    ? `chat_history_${moduleId}_${sectionId}`
+    : `chat_history_${moduleId}`
 
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
-      const saved = localStorage.getItem(`chat_history_${moduleId}`)
+      const saved = localStorage.getItem(chatKey)
       return saved ? (JSON.parse(saved) as Message[]) : []
     } catch {
       return []
@@ -109,15 +113,15 @@ export function useChat({
     sidRef.current = sessionId
   }, [sessionId])
 
-  // Persist chat history to localStorage
+  // persist chat per section
   useEffect(() => {
     if (messages.length === 0) return
     try {
-      localStorage.setItem(CHAT_KEY, JSON.stringify(messages))
+      localStorage.setItem(chatKey, JSON.stringify(messages))
     } catch {
       /* quota exceeded */
     }
-  }, [messages, CHAT_KEY])
+  }, [messages, chatKey])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -459,6 +463,18 @@ export function useChat({
     ],
   )
 
+  const resetSection = useCallback(() => {
+    try {
+      localStorage.removeItem(chatKey)
+      if (sectionId) localStorage.removeItem(`tp_progress_${moduleId}_${sectionId}`)
+    } catch { /* ignore */ }
+    setMessages([])
+    setSessionId(undefined)
+    setExchangeCount(0)
+    hasStarted.current = false
+    cancelSpeech()
+  }, [chatKey, moduleId, sectionId, cancelSpeech])
+
   return {
     messages,
     setMessages,
@@ -476,5 +492,6 @@ export function useChat({
     doSend,
     advanceTopic,
     stopAll,
+    resetSection,
   }
 }

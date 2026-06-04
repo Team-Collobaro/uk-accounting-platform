@@ -32,7 +32,7 @@ import {
   Keyboard,
   Sparkles,
 } from "lucide-react";
-import type { SectionProgress } from "@/types/course";
+import type { SectionProgress, Message } from "@/types/course";
 import StarBorder from "@/components/reactbits/StarBorder";
 import DecryptedText from "@/components/reactbits/DecryptedText";
 import SoftAurora from "@/components/SoftAurora";
@@ -77,6 +77,7 @@ export default function CourseModulePage() {
   });
   const chat = useChat({
     moduleId,
+    sectionId: sectionsData.currentSection?.section_id,
     cancelSpeech: audio.cancelSpeech,
     feedToken: audio.feedToken,
     flushSpeech: audio.flushSpeech,
@@ -172,6 +173,7 @@ export default function CourseModulePage() {
     doSend,
     advanceTopic,
     stopAll,
+    resetSection,
   } = chat;
 
   // ── Computed values ──
@@ -187,20 +189,31 @@ export default function CourseModulePage() {
   const switchSection = useCallback(
     (idx: number) => {
       if (idx === currentSectionIdx) return;
-      const oldSectionId = sections[currentSectionIdx]?.section_id ?? "";
-      if (oldSectionId)
-        try {
-          localStorage.removeItem(`tp_progress_${moduleId}_${oldSectionId}`);
-        } catch {
-          /* ignore */
-        }
+      const newSection = sections[idx];
+      if (!newSection) return;
+
+      // save last visited section for dashboard "Continue" widget
+      try {
+        localStorage.setItem(
+          `last_section_${moduleId}`,
+          JSON.stringify({ sectionId: newSection.section_id, sectionTitle: newSection.section_title }),
+        );
+      } catch { /* ignore */ }
+
+      // load new section's chat from its own key
+      let saved: Message[] = [];
+      try {
+        const raw = localStorage.getItem(`chat_history_${moduleId}_${newSection.section_id}`);
+        if (raw) saved = JSON.parse(raw) as Message[];
+      } catch { /* ignore */ }
+
       setCurrentSectionIdx(idx);
-      setMessages([]);
+      setMessages(saved);
       setSessionKP([]);
       setTeachingPoints([]);
       setCurrentPtIdx(0);
       setTPhase("PRE_NOTES");
-      hasStarted.current = false;
+      hasStarted.current = saved.length > 0;
       cancelSpeech();
     },
     [
@@ -668,6 +681,41 @@ export default function CourseModulePage() {
                 </option>
               ))}
             </select>
+          )}
+
+          {messages.length > 0 && !streaming && (
+            <button
+              onClick={() => {
+                resetSection();
+                setTeachingPoints([]);
+                setCurrentPtIdx(0);
+                setTPhase("PRE_NOTES");
+                if (currentSection) {
+                  setSectionProgress((prev) =>
+                    prev.map((p) =>
+                      p.section_id === currentSection.section_id
+                        ? { ...p, status: "in_progress", key_points: [] }
+                        : p,
+                    ),
+                  );
+                  void fetch("/api/notes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      moduleId,
+                      sectionId: currentSection.section_id,
+                      sectionTitle: currentSection.section_title,
+                      status: "in_progress",
+                      keyPoints: [],
+                    }),
+                  });
+                }
+              }}
+              style={hudBtn(false, "var(--ac-rose, #E8507A)", "232,80,122")}
+              title="Clear this section and start over"
+            >
+              ↺ Relearn
+            </button>
           )}
 
           {currentSection && currentProgress?.status !== "completed" && (

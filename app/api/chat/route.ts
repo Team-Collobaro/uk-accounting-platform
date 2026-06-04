@@ -93,12 +93,10 @@ export async function POST(req: NextRequest) {
       await import("@/lib/courseHtml");
 
     if (teachingPointContent && teachingPointContent.trim().length > 20) {
-      // Exact content block for this teaching point from the HTML — use as primary context
-      // Also include the full section content so MCQ questions can draw on broader context
-      const sectionCtx = currentSection?.sectionId
-        ? getSectionContent(moduleId, currentSection.sectionId)
+      // Pass raw section context only — tutor.ts handles combining with teachingPointContent
+      ragContext = currentSection?.sectionId
+        ? getSectionContent(moduleId, currentSection.sectionId).slice(0, 500)
         : "";
-      ragContext = `TEACHING POINT CONTENT (teach THIS exactly):\n${teachingPointContent}\n\nFULL SECTION CONTEXT (for MCQ options and broader understanding):\n${sectionCtx.slice(0, 1500)}`;
     } else if (currentSection?.sectionId) {
       ragContext = getSectionContent(moduleId, currentSection.sectionId);
     } else if (isAutoStart) {
