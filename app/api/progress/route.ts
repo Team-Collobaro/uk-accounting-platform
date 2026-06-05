@@ -14,10 +14,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const [student, moduleProgress, costReport] = await Promise.all([
+    const [student, moduleProgress, costReport, sectionsResult] = await Promise.all([
       getStudent(user.id),
       getModuleProgress(user.id),
       getStudentCost(user.id),
+      supabaseAdmin
+        .from('section_progress')
+        .select('status', { count: 'exact', head: false })
+        .eq('student_id', user.id)
+        .eq('status', 'completed'),
     ])
 
     const { data: quizResults } = await supabaseAdmin
@@ -54,6 +59,7 @@ export async function GET(req: NextRequest) {
       overallPercentage,
       weakTopics: student.weakTopics,
       avgQuizScore: student.avgQuizScore,
+      completedSections: sectionsResult.count ?? 0,
     })
   } catch (err) {
     console.error('/api/progress error:', err)

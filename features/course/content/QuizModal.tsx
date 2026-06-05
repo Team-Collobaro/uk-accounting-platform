@@ -22,6 +22,8 @@ export function QuizModal({
   moduleTitle,
   partNumber,
   partTitle,
+  sectionId,
+  sectionTitle,
   onClose,
   onComplete,
 }: {
@@ -29,6 +31,10 @@ export function QuizModal({
   moduleTitle: string;
   partNumber: number;
   partTitle: string;
+  // When set, the quiz is AI-generated for this subtopic instead of the
+  // hand-written end-of-module quiz.
+  sectionId?: string;
+  sectionTitle?: string;
   onClose: () => void;
   onComplete: (passed: boolean, score: number) => void;
 }) {
@@ -39,6 +45,26 @@ export function QuizModal({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Cache AI-generated subtopic quizzes so a retry/revisit is instant
+    // (first generation takes ~20s). Keyed per module + section.
+    const cacheKey = sectionId ? `quiz_cache_${moduleId}_${sectionId}` : null;
+
+    if (cacheKey) {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          const cached = JSON.parse(raw) as QuizQuestion[];
+          if (Array.isArray(cached) && cached.length > 0) {
+            setQuestions(cached);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        /* ignore cache read errors */
+      }
+    }
+
     fetch("/api/quiz", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -47,16 +73,27 @@ export function QuizModal({
         moduleTitle,
         partNumber,
         partTitle,
-        count: 5,
+        sectionId,
+        sectionTitle,
+        count: 10,
       }),
     })
       .then((r) => r.json() as Promise<{ questions: QuizQuestion[] }>)
       .then((d) => {
-        setQuestions(d.questions ?? []);
+        const qs = d.questions ?? [];
+        setQuestions(qs);
         setLoading(false);
+        // Only cache successful generations
+        if (cacheKey && qs.length > 0) {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(qs));
+          } catch {
+            /* ignore quota / serialization errors */
+          }
+        }
       })
       .catch(() => setLoading(false));
-  }, [moduleId, moduleTitle, partNumber, partTitle]);
+  }, [moduleId, moduleTitle, partNumber, partTitle, sectionId, sectionTitle]);
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -140,13 +177,13 @@ export function QuizModal({
                     color: "var(--text-primary)",
                   }}
                 >
-                  Knowledge Check
+                  {sectionId ? "Subtopic Check" : "Knowledge Check"}
                 </p>
                 <p
                   className="label-mono"
                   style={{ color: "var(--text-tertiary)" }}
                 >
-                  {moduleTitle}
+                  {sectionTitle ?? moduleTitle}
                 </p>
               </div>
             </div>
@@ -181,7 +218,9 @@ export function QuizModal({
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "center",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
                   padding: "40px 0",
                 }}
               >
@@ -190,6 +229,32 @@ export function QuizModal({
                   color="var(--ac-cyan)"
                   className="animate-spin"
                 />
+                {sectionId && (
+                  <p style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                    Generating questions on this subtopic…
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!loading && questions.length === 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "36px 0",
+                  textAlign: "center",
+                }}
+              >
+                <XCircle size={22} color="var(--ac-rose)" />
+                <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                  Couldn&apos;t generate questions right now.
+                </p>
+                <p style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                  Close this and click Mark Done again to retry.
+                </p>
               </div>
             )}
 
@@ -367,7 +432,9 @@ export function QuizModal({
                   as="button"
                   onClick={handleSubmit}
                   disabled={
-                    submitting || Object.keys(answers).length < questions.length
+                    submitting ||
+                    questions.length === 0 ||
+                    Object.keys(answers).length < questions.length
                   }
                   color="rgba(78,205,196,0.9)"
                   speed="3.5s"
@@ -421,7 +488,7 @@ export function QuizModal({
                   color: result.passed ? "var(--ac-mint)" : "var(--ac-rose)",
                 }}
               >
-                {result.passed ? "Continue learning →" : "Try again later"}
+                {result.passed ? "Continue learning →" : "Continue anyway →"}
               </button>
             )}
           </div>

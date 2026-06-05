@@ -29,9 +29,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [studentName,    setStudentName]    = useState('')
   const [mobileOpen,     setMobileOpen]     = useState(false)
   const [collapsed,      setCollapsed]      = useState(false)
-  const [nextModule,     setNextModule]     = useState<string | null>(null)
-  const [completedCount, setCompletedCount] = useState(0)
-  const [lastSection,    setLastSection]    = useState<{ sectionId: string; sectionTitle: string } | null>(null)
+  const [nextModule,        setNextModule]        = useState<string | null>(null)
+  const [completedModules,  setCompletedModules]  = useState(0)
+  const [completedSections, setCompletedSections] = useState(0)
+  const [lastSection,       setLastSection]       = useState<{ sectionId: string; sectionTitle: string } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -40,10 +41,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .then(({ data: s }) => { if (s) setStudentName(s.name) })
     })
     fetch('/api/progress')
-      .then(r => r.json() as Promise<{ nextRecommendedModule: string; completedModules: string[] }>)
+      .then(r => r.json() as Promise<{ nextRecommendedModule: string; completedModules: string[]; completedSections: number }>)
       .then(d => {
         setNextModule(d.nextRecommendedModule)
-        setCompletedCount(d.completedModules?.length ?? 0)
+        setCompletedModules(d.completedModules?.length ?? 0)
+        setCompletedSections(d.completedSections ?? 0)
         // read last visited section for this module from localStorage
         try {
           const raw = localStorage.getItem(`last_section_${d.nextRecommendedModule}`)
@@ -307,12 +309,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </motion.div>
               </Link>
               {!collapsed && (
-                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-                  <span style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace' }}>{completedCount}/87 DONE</span>
-                  <div style={{ flex: 1, height: 2, borderRadius: 2, background: 'rgba(255,255,255,0.05)', margin: '0 8px', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.round(completedCount / 87 * 100)}%`, height: '100%', background: '#4ECDC4', borderRadius: 2, transition: 'width 0.6s ease' }} />
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, padding: '0 2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace' }}>{completedSections} sections done</span>
+                    <span style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace' }}>{completedModules}/87 modules</span>
                   </div>
-                  <span style={{ fontSize: 9, color: '#4ECDC4', fontFamily: 'monospace' }}>{Math.round(completedCount / 87 * 100)}%</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ flex: 1, height: 2, borderRadius: 2, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.round(completedModules / 87 * 100)}%`, height: '100%', background: '#4ECDC4', borderRadius: 2, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <span style={{ fontSize: 9, color: '#4ECDC4', fontFamily: 'monospace' }}>{Math.round(completedModules / 87 * 100)}%</span>
+                  </div>
                 </div>
               )}
             </div>

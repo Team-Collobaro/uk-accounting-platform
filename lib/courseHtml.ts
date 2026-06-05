@@ -57,7 +57,18 @@ export function getSectionContent(moduleId: string, sectionId: string): string {
 
   const parsed = parseModuleSections($, moduleEl)
   const section = parsed.find(s => s.sectionId === sectionId)
-  return section?.content ?? ''
+  const content = section?.content ?? ''
+
+  // For sub-sections like 1.2.1, prepend the parent stub's intro (e.g. 1.2)
+  // so the tutor has that context without the student needing to visit the stub
+  const dotCount = (sectionId.match(/\./g) ?? []).length
+  if (dotCount >= 2) {
+    const parentId = sectionId.split('.').slice(0, 2).join('.')
+    const parent = parsed.find(s => s.sectionId === parentId)
+    if (parent?.content) return `${parent.content}\n\n${content}`
+  }
+
+  return content
 }
 
 export interface TeachingPoint {
@@ -172,7 +183,23 @@ export function getSectionTeachingPoints(moduleId: string, sectionId: string): T
     points.push({ title: section.sectionTitle, content: section.content })
   }
 
-  return points
+  // Strip structural headings that aren't real teaching content
+  const isStructural = (title: string) =>
+    /end-of-section\s*mcq|end.of.section|module\s*\d+\s*[—-]\s*(summary|mcq|quiz)/i.test(title)
+  const filtered = points.filter(p => !isStructural(p.title))
+
+  // For sub-sections like 1.2.1, prepend the parent stub's intro into the
+  // first teaching point so the tutor has that context without a separate session
+  const dotCount = (sectionId.match(/\./g) ?? []).length
+  if (dotCount >= 2 && filtered.length > 0) {
+    const parentId = sectionId.split('.').slice(0, 2).join('.')
+    const parent = sections.find(s => s.sectionId === parentId)
+    if (parent?.content) {
+      filtered[0] = { ...filtered[0], content: `${parent.content}\n\n${filtered[0].content}` }
+    }
+  }
+
+  return filtered
 }
 
 // Legacy: returns just titles for backward compatibility
@@ -180,4 +207,55 @@ export function getSectionSubTopics(moduleId: string, sectionId: string): string
   const pts = getSectionTeachingPoints(moduleId, sectionId)
   if (pts.length > 0) return pts.map(p => p.title)
   return []
+}
+
+export interface HtmlQuizQuestion {
+  id: string
+  question: string
+  options: string[]   // ["A. text", "B. text", ...]
+  correct: string     // "A" | "B" | "C" | "D"
+  explanation: string
+  topic: string
+}
+
+// Parse the hand-written quiz block embedded in the HTML for a given module.
+// Returns [] if no quiz-block is found (fall back to AI generation).
+export function getModuleQuiz(moduleId: string): HtmlQuizQuestion[] {
+  const $ = getCheerio()
+  const moduleEl = $(`#${moduleId}`)
+  if (!moduleEl.length) return []
+
+  const quizBlock = moduleEl.find('.quiz-block').first()
+  if (!quizBlock.length) return []
+
+  const questions: HtmlQuizQuestion[] = []
+  const letters = ['A', 'B', 'C', 'D']
+
+  quizBlock.find('.quiz-q').each((qi, qEl) => {
+    const questionText = $(qEl).find('.q-text').text().replace(/\s+/g, ' ').trim()
+    if (!questionText) return
+
+    const opts: string[] = []
+    let correctLetter = 'A'
+
+    $(qEl).find('.opt').each((oi, optEl) => {
+      const letter = letters[oi] ?? String.fromCharCode(65 + oi)
+      const text = $(optEl).text().replace(/\s+/g, ' ').trim()
+      opts.push(`${letter}. ${text}`)
+      if ($(optEl).attr('data-correct') === 'true') correctLetter = letter
+    })
+
+    const explanation = $(qEl).find('.feedback').text().replace(/\s+/g, ' ').trim()
+
+    questions.push({
+      id: `${moduleId}_q${qi + 1}`,
+      question: questionText,
+      options: opts,
+      correct: correctLetter,
+      explanation,
+      topic: moduleId,
+    })
+  })
+
+  return questions
 }

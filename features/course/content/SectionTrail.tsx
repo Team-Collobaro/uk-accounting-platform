@@ -59,16 +59,48 @@ export function SectionTrail({
     setExpanded((prev) => new Set(prev).add(parentId));
   }, [currentIdx, sections]);
 
-  const isUnlocked = (idx: number) => {
-    if (idx === 0) return true;
-    const prev = sections[idx - 1];
-    return (
-      progress.find((p) => p.section_id === prev.section_id)?.status ===
-      "completed"
-    );
+  const groups = groupSections(sections);
+
+  // Parent stubs (h2 sections that have children) are containers, not
+  // completable units — the student progresses through the children.
+  const stubIds = new Set(
+    groups.filter((g) => g.children.length > 0).map((g) => g.parent.section_id),
+  );
+
+  // Linear sequence of the sections that actually gate progress (everything
+  // except stub parents). A unit unlocks once the previous unit is completed.
+  const completable = sections.filter((s) => !stubIds.has(s.section_id));
+  const completableIdx = new Map(
+    completable.map((s, i) => [s.section_id, i]),
+  );
+
+  const isCompleted = (sectionId: string) =>
+    progress.find((p) => p.section_id === sectionId)?.status === "completed";
+
+  // The gate: index of the first not-yet-completed unit. Everything up to and
+  // including it is reachable; anything past it stays locked even if older,
+  // out-of-order progress rows happen to mark a later unit complete.
+  const firstIncomplete = completable.findIndex(
+    (s) => !isCompleted(s.section_id),
+  );
+  const gateIdx = firstIncomplete === -1 ? completable.length : firstIncomplete;
+
+  const isSectionUnlocked = (sectionId: string): boolean => {
+    // A stub unlocks exactly when its first child does.
+    if (stubIds.has(sectionId)) {
+      const group = groups.find((g) => g.parent.section_id === sectionId);
+      const firstChild = group?.children[0]?.section.section_id;
+      return firstChild ? isSectionUnlocked(firstChild) : true;
+    }
+    // Already done → always revisitable (and shows its ✓, never a lock).
+    if (isCompleted(sectionId)) return true;
+    const k = completableIdx.get(sectionId);
+    if (k === undefined) return true;
+    // Unlocked only if every preceding unit is complete.
+    return k <= gateIdx;
   };
 
-  const groups = groupSections(sections);
+  const isUnlocked = (idx: number) => isSectionUnlocked(sections[idx].section_id);
 
   return (
     <div
@@ -82,21 +114,22 @@ export function SectionTrail({
       }}
     >
       {groups.map(({ parent, parentIdx, children }) => {
-        const parentDone =
-          progress.find((p) => p.section_id === parent.section_id)?.status ===
-          "completed";
         const isCurParent = currentIdx === parentIdx;
         const parentLocked = !isUnlocked(parentIdx);
         const isExp = expanded.has(parent.section_id);
         const hasChildren = children.length > 0;
-        const groupIds = [
-          parent.section_id,
-          ...children.map((c) => c.section.section_id),
-        ];
+        // Exclude the stub parent from the counter — only count real sub-sections
+        const groupIds = hasChildren
+          ? children.map((c) => c.section.section_id)
+          : [parent.section_id];
         const groupDone = groupIds.filter(
           (id) =>
             progress.find((p) => p.section_id === id)?.status === "completed",
         ).length;
+        // For groups with children, only show ✓ when ALL children are done
+        const parentDone = hasChildren
+          ? groupDone === groupIds.length && groupIds.length > 0
+          : progress.find((p) => p.section_id === parent.section_id)?.status === "completed";
 
         return (
           <div key={parent.section_id}>
@@ -104,7 +137,7 @@ export function SectionTrail({
             <button
               onClick={() => {
                 if (!parentLocked) {
-                  if (hasChildren)
+                  if (hasChildren) {
                     setExpanded((prev) => {
                       const n = new Set(prev);
                       n.has(parent.section_id)
@@ -112,7 +145,11 @@ export function SectionTrail({
                         : n.add(parent.section_id);
                       return n;
                     });
-                  onSelect(parentIdx);
+                    // Skip the thin parent stub — go straight to first child
+                    onSelect(children[0].idx);
+                  } else {
+                    onSelect(parentIdx);
+                  }
                 }
               }}
               className={isCurParent ? "trail-active" : ""}

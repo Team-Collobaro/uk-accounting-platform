@@ -46,6 +46,14 @@ export default function CourseModulePage() {
   const [input, setInput] = useState("");
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizPassed, setQuizPassed] = useState(false);
+  // How the quiz was opened:
+  //  "section" = AI quiz on a subtopic's Mark Done → completing advances to
+  //              the next topic.
+  //  "final"   = end-of-module HTML quiz → completing unlocks the next module.
+  const [quizTrigger, setQuizTrigger] = useState<"section" | "final">("final");
+  // Set once the student submits the quiz, so closing the results advances
+  // them (score doesn't gate progress). Cancelling leaves them in place.
+  const quizCompletedRef = useRef(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [sectionCompleted, setSectionCompleted] = useState(false);
   const [showAdvancePrompt, setShowAdvancePrompt] = useState(false);
@@ -110,6 +118,19 @@ export default function CourseModulePage() {
   useEffect(() => {
     doSendRef.current = chat.doSend;
   }, [chat.doSend]);
+
+  // Keep last_section in sync with wherever the user currently is,
+  // including auto-resume jumps that bypass switchSection
+  useEffect(() => {
+    const sec = sectionsData.currentSection;
+    if (!sec) return;
+    try {
+      localStorage.setItem(
+        `last_section_${moduleId}`,
+        JSON.stringify({ sectionId: sec.section_id, sectionTitle: sec.section_title }),
+      );
+    } catch { /* ignore */ }
+  }, [sectionsData.currentSection, moduleId]);
 
   // Let speakText stop the mic before speaking
   useEffect(() => {
@@ -183,7 +204,43 @@ export default function CourseModulePage() {
   const totalSections = sections.length;
   const progressPct =
     totalSections > 0 ? Math.round((completedCount / totalSections) * 100) : 0;
+
   const canGoNext = quizPassed || moduleAlreadyCompleted;
+
+  // Stub sections (e.g. 1.2) are auto-skipped and never marked complete,
+  // so exclude them from the quiz-unlock check
+  const stubSectionIds = new Set(
+    sections
+      .filter((s) =>
+        sections.some((other) =>
+          other.section_id.startsWith(s.section_id + "."),
+        ),
+      )
+      .map((s) => s.section_id),
+  );
+  const realSections = sections.filter((s) => !stubSectionIds.has(s.section_id));
+  const quizUnlockedNow =
+    realSections.length > 0 &&
+    realSections.every(
+      (s) =>
+        sectionProgress.find((p) => p.section_id === s.section_id)?.status ===
+        "completed",
+    );
+
+  // Restore "this module is already cleared" from localStorage so the next
+  // module stays unlocked after a reload. Score doesn't gate progress, so the
+  // server's module-completion flag can't be relied on here.
+  //
+  // NOTE: the module quiz deliberately does NOT auto-open. The student starts
+  // it from the sidebar "Module Quiz" button — that way reloading the page or
+  // finishing a subtopic quiz never makes it pop up unexpectedly.
+  useEffect(() => {
+    let done = false;
+    try {
+      done = localStorage.getItem(`module_quiz_done_${moduleId}`) === "1";
+    } catch { /* ignore */ }
+    setQuizPassed(done);
+  }, [moduleId]);
 
   // ── switchSection ──
   const switchSection = useCallback(
@@ -270,6 +327,14 @@ export default function CourseModulePage() {
         setSectionCompleted(false);
         switchSection(currentSectionIdx + 1);
       }, 2800);
+    } else {
+      // Last subtopic finished → clear the module so the next one unlocks and
+      // it stays unlocked across reloads. The end-of-module quiz remains
+      // available (optional) via the sidebar "Module Quiz" button.
+      setQuizPassed(true);
+      try {
+        localStorage.setItem(`module_quiz_done_${moduleId}`, "1");
+      } catch { /* ignore */ }
     }
   }, [
     currentSection,
@@ -295,6 +360,7 @@ export default function CourseModulePage() {
       }
       if (e.altKey && e.key === "q") {
         e.preventDefault();
+        setQuizTrigger("final");
         setShowQuiz(true);
         return;
       }
@@ -509,7 +575,7 @@ export default function CourseModulePage() {
         {/* left */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push("/dashboard")}
             style={{
               background: "none",
               border: "none",
@@ -720,7 +786,10 @@ export default function CourseModulePage() {
 
           {currentSection && currentProgress?.status !== "completed" && (
             <button
-              onClick={completeSection}
+              onClick={() => {
+                setQuizTrigger("section");
+                setShowQuiz(true);
+              }}
               style={hudBtn(false, "var(--ac-mint)", "110,201,160")}
             >
               <Check size={12} /> Mark Done
@@ -741,7 +810,10 @@ export default function CourseModulePage() {
           {exchangeCount >= 4 && (
             <StarBorder
               as="button"
-              onClick={() => setShowQuiz(true)}
+              onClick={() => {
+                setQuizTrigger("final");
+                setShowQuiz(true);
+              }}
               color="rgba(155,111,208,0.85)"
               speed="4s"
               thickness={1}
@@ -857,16 +929,12 @@ export default function CourseModulePage() {
               sections={sections}
               currentIdx={currentSectionIdx}
               progress={sectionProgress}
-              quizUnlocked={
-                sections.length > 0 &&
-                sections.every(
-                  (s) =>
-                    sectionProgress.find((p) => p.section_id === s.section_id)
-                      ?.status === "completed",
-                )
-              }
+              quizUnlocked={quizUnlockedNow}
               onSelect={switchSection}
-              onStartFinalQuiz={() => setShowQuiz(true)}
+              onStartFinalQuiz={() => {
+                setQuizTrigger("final");
+                setShowQuiz(true);
+              }}
             />
           ) : !sectionsLoaded ? (
             <div
@@ -995,7 +1063,7 @@ export default function CourseModulePage() {
             ))}
           </div>
 
-          {/* module nav */}
+          {/* section nav */}
           <div
             style={{
               padding: "9px 12px",
@@ -1005,16 +1073,22 @@ export default function CourseModulePage() {
               flexShrink: 0,
             }}
           >
+            {/* PREV — go to previous section, or previous module if at start */}
             <button
               onClick={() => {
-                const n = parseInt(moduleId.replace("m", ""), 10);
-                if (n > 1)
-                  router.push(`/course/m${String(n - 1).padStart(2, "0")}`);
+                if (currentSectionIdx > 0) {
+                  switchSection(currentSectionIdx - 1);
+                } else {
+                  const n = parseInt(moduleId.replace("m", ""), 10);
+                  if (n > 1)
+                    router.push(`/course/m${String(n - 1).padStart(2, "0")}`);
+                }
               }}
+              disabled={currentSectionIdx === 0 && parseInt(moduleId.replace("m", ""), 10) <= 1}
               style={{
                 background: "none",
                 border: "none",
-                cursor: "pointer",
+                cursor: currentSectionIdx === 0 && parseInt(moduleId.replace("m", ""), 10) <= 1 ? "default" : "pointer",
                 color: "var(--text-tertiary)",
                 fontSize: 10,
                 display: "flex",
@@ -1022,12 +1096,33 @@ export default function CourseModulePage() {
                 gap: 3,
                 fontFamily: "monospace",
                 letterSpacing: "0.08em",
+                opacity: currentSectionIdx === 0 && parseInt(moduleId.replace("m", ""), 10) <= 1 ? 0.3 : 1,
               }}
             >
               <ChevronLeft size={12} /> PREV
             </button>
-            {nextModule &&
-              (canGoNext ? (
+
+            {/* NEXT — go to next section, or next module if at end */}
+            {currentSectionIdx < sections.length - 1 ? (
+              <button
+                onClick={() => switchSection(currentSectionIdx + 1)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-tertiary)",
+                  fontSize: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontFamily: "monospace",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                NEXT <ChevronRight size={12} />
+              </button>
+            ) : nextModule ? (
+              canGoNext ? (
                 <button
                   onClick={() => router.push(`/course/${nextModule}`)}
                   style={{
@@ -1060,7 +1155,8 @@ export default function CourseModulePage() {
                 >
                   <Lock size={9} /> NEXT
                 </span>
-              ))}
+              )
+            ) : null}
           </div>
         </div>
 
@@ -1361,6 +1457,53 @@ export default function CourseModulePage() {
                     <Brain size={16} />
                     Start Lesson
                   </button>
+
+                  {/* Relearn shortcut when section is already completed */}
+                  {currentProgress?.status === "completed" && (
+                    <button
+                      onClick={() => {
+                        resetSection();
+                        setTeachingPoints([]);
+                        setCurrentPtIdx(0);
+                        setTPhase("PRE_NOTES");
+                        if (currentSection) {
+                          setSectionProgress((prev) =>
+                            prev.map((p) =>
+                              p.section_id === currentSection.section_id
+                                ? { ...p, status: "in_progress", key_points: [] }
+                                : p,
+                            ),
+                          );
+                          void fetch("/api/notes", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              moduleId,
+                              sectionId: currentSection.section_id,
+                              sectionTitle: currentSection.section_title,
+                              status: "in_progress",
+                              keyPoints: [],
+                            }),
+                          });
+                        }
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "7px 18px",
+                        borderRadius: 10,
+                        background: "rgba(232,80,122,0.08)",
+                        border: "1px solid rgba(232,80,122,0.25)",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--ac-rose, #E8507A)",
+                      }}
+                    >
+                      ↺ Relearn this section
+                    </button>
+                  )}
 
                   {/* Or ask a question */}
                   <p
@@ -1790,10 +1933,50 @@ export default function CourseModulePage() {
           moduleTitle={moduleTitle}
           partNumber={partNumber}
           partTitle={partTitle}
-          onClose={() => setShowQuiz(false)}
-          onComplete={(passed) => {
-            setQuizPassed(passed);
+          sectionId={
+            quizTrigger === "section" ? currentSection?.section_id : undefined
+          }
+          sectionTitle={
+            quizTrigger === "section"
+              ? currentSection?.section_title
+              : undefined
+          }
+          onClose={() => {
             setShowQuiz(false);
+            // Only advance if the student actually finished the quiz (not if
+            // they cancelled out of it). Score doesn't gate progress.
+            if (!quizCompletedRef.current) return;
+            quizCompletedRef.current = false;
+
+            if (quizTrigger === "section") {
+              // Subtopic quiz done → mark it complete and move to the next
+              // topic. Finishing the last subtopic unlocks the next module
+              // (handled in completeSection).
+              completeSection();
+            } else if (quizUnlockedNow) {
+              // End-of-module quiz, taken once the whole module is done →
+              // on to the next module (or the dashboard if this was the last).
+              setQuizPassed(true);
+              if (nextModule) {
+                router.push(`/course/${nextModule}`);
+              } else {
+                router.push("/dashboard");
+              }
+            }
+            // A "final" quiz taken mid-module (the header practice button) just
+            // closes — it shouldn't unlock or skip ahead.
+          }}
+          onComplete={() => {
+            // Quiz submitted — record it so closing the results advances.
+            // Keep the modal open so answers can be reviewed first.
+            quizCompletedRef.current = true;
+            if (quizTrigger === "final" && quizUnlockedNow) {
+              // Remember the module quiz is done so it won't re-pop on refresh.
+              setQuizPassed(true);
+              try {
+                localStorage.setItem(`module_quiz_done_${moduleId}`, "1");
+              } catch { /* ignore */ }
+            }
           }}
         />
       )}

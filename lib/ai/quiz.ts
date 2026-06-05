@@ -35,18 +35,26 @@ Return ONLY a valid JSON array with no markdown, no preamble, no explanation:
 
     const response = await client.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      // Each MCQ (question + 4 options + explanation) runs ~250–350 tokens, so
+      // scale the budget to the requested count or the JSON gets truncated.
+      max_tokens: Math.max(2000, count * 400),
       temperature: 0.1,
       messages: [{ role: 'user', content: prompt + extra }],
     })
 
     const raw = response.content[0].type === 'text' ? response.content[0].text : ''
 
-    // Strip markdown fences if present
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim()
+    // Pull out just the JSON array — tolerant of markdown fences or any
+    // stray preamble/trailing text the model might add.
+    const start = raw.indexOf('[')
+    const end = raw.lastIndexOf(']')
+    const cleaned =
+      start !== -1 && end > start
+        ? raw.slice(start, end + 1)
+        : raw
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim()
 
     const parsed = JSON.parse(cleaned) as QuizQuestion[]
     if (!Array.isArray(parsed)) throw new Error('Response is not an array')
