@@ -45,11 +45,30 @@ export function useSections(moduleId: string) {
       .catch(() => {})
   }, [moduleId])
 
-  // Auto-resume: jump to last in-progress or first incomplete section on load
+  // Auto-resume: restore the exact section the user was on when they left,
+  // falling back to last in-progress or first incomplete if no saved position
   useEffect(() => {
     if (didAutoResume.current) return
-    if (!sectionsLoaded || sections.length === 0 || sectionProgress.length === 0) return
+    if (!sectionsLoaded || sections.length === 0) return
+
+    // Priority 1: restore exact section from localStorage
+    try {
+      const saved = localStorage.getItem(`last_section_${moduleId}`)
+      if (saved) {
+        const { sectionId } = JSON.parse(saved) as { sectionId: string }
+        const savedIdx = sections.findIndex((s) => s.section_id === sectionId)
+        if (savedIdx >= 0) {
+          didAutoResume.current = true
+          setCurrentSectionIdx(savedIdx)
+          return
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Priority 2: last in-progress or first incomplete (needs progress data)
+    if (sectionProgress.length === 0) return
     didAutoResume.current = true
+
     const inProgressIdx = sections.reduce<number>((found, s, i) => {
       const p = sectionProgress.find((p) => p.section_id === s.section_id)
       return p && p.status !== "completed" ? i : found
@@ -63,7 +82,7 @@ export function useSections(moduleId: string) {
         sectionProgress.find((p) => p.section_id === s.section_id)?.status !== "completed",
     )
     if (firstIncompleteIdx > 0) setCurrentSectionIdx(firstIncompleteIdx)
-  }, [sectionsLoaded, sections, sectionProgress])
+  }, [sectionsLoaded, sections, sectionProgress, moduleId])
 
   // Sync sessionKP into sectionProgress
   useEffect(() => {

@@ -1,8 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Brain, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import StarBorder from "@/components/reactbits/StarBorder";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import type { QuizQuestion } from "@/types";
 
 type QuizResult = {
@@ -108,392 +119,187 @@ export function QuizModal({
     if (data) onComplete(data.passed, data.percentage);
   };
 
+  const allAnswered =
+    questions.length > 0 && Object.keys(answers).length >= questions.length;
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(3,5,14,0.85)",
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        backdropFilter: "blur(10px)",
-      }}
-    >
-      {/* bordered wrapper */}
-      <div
-        className="aurora-border"
-        style={{
-          width: "100%",
-          maxWidth: 620,
-          maxHeight: "88vh",
-          borderRadius: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--bg-elevated)",
-            borderRadius: 15,
-            maxHeight: "88vh",
-            boxShadow: "var(--shadow-xl)",
-          }}
-        >
-          {/* header */}
-          <div
-            style={{
-              padding: "16px 22px",
-              borderBottom: "1px solid var(--border-subtle)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 9,
-                  background:
-                    "linear-gradient(135deg,rgba(126,207,206,0.18),rgba(139,126,200,0.16))",
-                  border: "1px solid var(--border-medium)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                <Brain size={17} color="var(--ac-cyan)" />
-              </div>
-              <div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  {sectionId ? "Subtopic Check" : "Knowledge Check"}
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="flex max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b px-5 py-4 text-left">
+          <DialogTitle>{sectionId ? "Subtopic Check" : "Knowledge Check"}</DialogTitle>
+          <DialogDescription className="truncate">
+            {sectionTitle ?? moduleTitle}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* body */}
+        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+          {loading && (
+            <div className="flex flex-col items-center gap-3 py-10">
+              <Loader2 size={26} className="animate-spin text-muted-foreground" />
+              {sectionId && (
+                <p className="text-xs text-muted-foreground">
+                  Generating questions on this subtopic…
                 </p>
-                <p
-                  className="label-mono"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  {sectionTitle ?? moduleTitle}
-                </p>
-              </div>
+              )}
             </div>
-            <button
-              onClick={onClose}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--text-tertiary)",
-                fontSize: 18,
-                lineHeight: 1,
-                padding: 4,
-              }}
-            >
-              ✕
-            </button>
-          </div>
+          )}
 
-          {/* body */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: "18px 22px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 18,
-            }}
-          >
-            {loading && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "40px 0",
-                }}
-              >
-                <Loader2
-                  size={26}
-                  color="var(--ac-cyan)"
-                  className="animate-spin"
-                />
-                {sectionId && (
-                  <p style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                    Generating questions on this subtopic…
-                  </p>
-                )}
-              </div>
-            )}
+          {!loading && questions.length === 0 && (
+            <div className="flex flex-col items-center gap-1.5 py-9 text-center">
+              <XCircle size={22} className="text-muted-foreground" />
+              <p className="text-sm text-foreground">
+                Couldn&apos;t generate questions right now.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Close this and click Mark Done again to retry.
+              </p>
+            </div>
+          )}
 
-            {!loading && questions.length === 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "36px 0",
-                  textAlign: "center",
-                }}
-              >
-                <XCircle size={22} color="var(--ac-rose)" />
-                <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                  Couldn&apos;t generate questions right now.
-                </p>
-                <p style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                  Close this and click Mark Done again to retry.
-                </p>
-              </div>
-            )}
+          {!loading && result && (
+            <Alert>
+              {result.passed ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <XCircle className="h-4 w-4" />
+              )}
+              <AlertTitle>
+                {result.passed ? "Passed" : "Not yet"} — {result.score}/
+                {result.total} correct ({result.percentage}%)
+              </AlertTitle>
+              {result.weakAreas.length > 0 && (
+                <AlertDescription>
+                  Revisit: {result.weakAreas.join(", ")}
+                </AlertDescription>
+              )}
+            </Alert>
+          )}
 
-            {!loading && result && (
-              <div
-                style={{
-                  borderRadius: 11,
-                  padding: "14px 18px",
-                  background: result.passed
-                    ? "rgba(110,201,160,0.07)"
-                    : "rgba(196,123,138,0.07)",
-                  border: `1px solid ${result.passed ? "rgba(110,201,160,0.28)" : "rgba(196,123,138,0.25)"}`,
-                  boxShadow: `var(--shadow-sm), 0 0 20px ${result.passed ? "rgba(110,201,160,0.1)" : "rgba(196,123,138,0.08)"}`,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  {result.passed ? (
-                    <CheckCircle2 size={19} color="var(--ac-mint)" />
-                  ) : (
-                    <XCircle size={19} color="var(--ac-rose)" />
-                  )}
-                  <p
-                    style={{
-                      fontWeight: 700,
-                      color: result.passed
-                        ? "var(--ac-mint)"
-                        : "var(--ac-rose)",
-                      fontSize: 14,
-                    }}
-                  >
-                    {result.passed
-                      ? `Passed — ${result.percentage}%`
-                      : `Not yet — ${result.percentage}%`}
-                  </p>
-                </div>
-                {result.weakAreas.length > 0 && (
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-tertiary)",
-                      marginTop: 5,
-                    }}
-                  >
-                    Revisit: {result.weakAreas.join(", ")}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {!loading &&
-              questions.map((q, qi) => (
-                <div
-                  key={q.id}
-                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                >
-                  <p
-                    style={{
-                      fontSize: 13,
-                      color: "var(--text-primary)",
-                      fontWeight: 500,
-                      lineHeight: 1.55,
-                    }}
-                  >
+          {!loading &&
+            questions.map((q, qi) => {
+              const correctLetter = q.correct.trim().toUpperCase();
+              const userLetter = (answers[q.id] ?? "").trim().toUpperCase();
+              const gotItWrong = !!result && userLetter !== correctLetter;
+              const correctOption = q.options.find(
+                (o) => o.trim().charAt(0).toUpperCase() === correctLetter,
+              );
+              return (
+                <div key={q.id} className="flex flex-col gap-2">
+                  <p className="text-sm font-medium leading-snug text-foreground">
                     {qi + 1}. {q.question}
                   </p>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 5 }}
+                  <RadioGroup
+                    value={answers[q.id] ?? ""}
+                    onValueChange={(v) =>
+                      !result && setAnswers((p) => ({ ...p, [q.id]: v }))
+                    }
+                    className="gap-1.5"
                   >
-                    {q.options.map((opt) => (
-                      <label
-                        key={opt}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 10,
-                          padding: "9px 13px",
-                          borderRadius: 9,
-                          cursor: result ? "default" : "pointer",
-                          transition: "all 0.18s",
-                          background:
-                            answers[q.id] === opt
-                              ? "rgba(126,207,206,0.08)"
-                              : "rgba(255,255,255,0.02)",
-                          border: `1px solid ${answers[q.id] === opt ? "rgba(126,207,206,0.32)" : "var(--border-subtle)"}`,
-                          boxShadow:
-                            answers[q.id] === opt
-                              ? "0 0 10px rgba(126,207,206,0.08)"
-                              : "none",
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name={q.id}
-                          value={opt}
-                          checked={answers[q.id] === opt}
-                          onChange={() =>
+                    {q.options.map((opt, oi) => {
+                      const id = `${q.id}-${oi}`;
+                      const letter = opt.trim().charAt(0).toUpperCase();
+                      const selected = userLetter === letter;
+                      // After grading: highlight the correct option green, and
+                      // a wrong pick red. Before grading: just show selection.
+                      const isCorrect = !!result && letter === correctLetter;
+                      const isWrongPick =
+                        !!result && selected && letter !== correctLetter;
+                      return (
+                        <label
+                          key={opt}
+                          htmlFor={id}
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 transition-colors",
                             !result &&
-                            setAnswers((p) => ({ ...p, [q.id]: opt }))
-                          }
-                          style={{
-                            marginTop: 2,
-                            accentColor: "var(--ac-cyan)",
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color:
-                              answers[q.id] === opt
-                                ? "var(--text-primary)"
-                                : "var(--text-secondary)",
-                            lineHeight: 1.5,
-                          }}
+                              (selected
+                                ? "border-foreground bg-accent"
+                                : "hover:bg-accent/50"),
+                            isCorrect &&
+                              "border-green-500/60 bg-green-500/10",
+                            isWrongPick && "border-red-500/60 bg-red-500/10",
+                            result &&
+                              !isCorrect &&
+                              !isWrongPick &&
+                              "opacity-60",
+                            result && "cursor-default",
+                          )}
                         >
-                          {opt}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
+                          <RadioGroupItem
+                            value={letter}
+                            id={id}
+                            disabled={!!result}
+                            className={cn(
+                              "mt-0.5",
+                              isCorrect && "border-green-500 text-green-500",
+                              isWrongPick && "border-red-500 text-red-500",
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "flex-1 text-sm leading-snug",
+                              isCorrect
+                                ? "text-green-600 dark:text-green-400"
+                                : isWrongPick
+                                  ? "text-red-600 dark:text-red-400"
+                                  : selected
+                                    ? "text-foreground"
+                                    : "text-muted-foreground",
+                            )}
+                          >
+                            {opt}
+                          </span>
+                          {isCorrect && (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                          )}
+                          {isWrongPick && (
+                            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </RadioGroup>
                   {result?.explanations[q.id] && (
                     <div
-                      style={{
-                        padding: "9px 13px",
-                        borderRadius: 9,
-                        fontSize: 11,
-                        lineHeight: 1.5,
-                        background:
-                          answers[q.id] === result.explanations[q.id].correct
-                            ? "rgba(110,201,160,0.07)"
-                            : "rgba(196,123,138,0.07)",
-                        color:
-                          answers[q.id] === result.explanations[q.id].correct
-                            ? "var(--ac-mint)"
-                            : "var(--ac-rose)",
-                        border: `1px solid ${answers[q.id] === result.explanations[q.id].correct ? "rgba(110,201,160,0.22)" : "rgba(196,123,138,0.2)"}`,
-                      }}
+                      className={cn(
+                        "rounded-md border px-3 py-2 text-xs leading-snug text-muted-foreground",
+                        gotItWrong
+                          ? "border-red-500/30 bg-red-500/5"
+                          : "bg-muted/40",
+                      )}
                     >
-                      <strong>
-                        Correct: {result.explanations[q.id].correct}
-                      </strong>{" "}
-                      — {result.explanations[q.id].explanation}
+                      {gotItWrong && (
+                        <p className="mb-1 font-medium text-red-600 dark:text-red-400">
+                          Correct answer: {correctOption ?? correctLetter}
+                        </p>
+                      )}
+                      <span>{result.explanations[q.id].explanation}</span>
                     </div>
                   )}
                 </div>
-              ))}
-          </div>
-
-          {/* footer */}
-          <div
-            style={{
-              padding: "13px 22px",
-              borderTop: "1px solid var(--border-subtle)",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 9,
-            }}
-          >
-            {!result ? (
-              <>
-                <button
-                  onClick={onClose}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 9,
-                    background: "none",
-                    border: "1px solid var(--border-subtle)",
-                    color: "var(--text-secondary)",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <StarBorder
-                  as="button"
-                  onClick={handleSubmit}
-                  disabled={
-                    submitting ||
-                    questions.length === 0 ||
-                    Object.keys(answers).length < questions.length
-                  }
-                  color="rgba(78,205,196,0.9)"
-                  speed="3.5s"
-                  thickness={1}
-                  style={{
-                    opacity:
-                      submitting ||
-                      Object.keys(answers).length < questions.length
-                        ? 0.38
-                        : 1,
-                    cursor:
-                      submitting ||
-                      Object.keys(answers).length < questions.length
-                        ? "not-allowed"
-                        : "pointer",
-                    borderRadius: 9,
-                  }}
-                >
-                  <span
-                    className="btn btn-primary"
-                    style={{
-                      padding: "8px 20px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      border: "none",
-                      background: "none",
-                      boxShadow: "none",
-                    }}
-                  >
-                    {submitting && (
-                      <Loader2 size={13} className="animate-spin" />
-                    )}{" "}
-                    Submit
-                  </span>
-                </StarBorder>
-              </>
-            ) : (
-              <button
-                onClick={onClose}
-                style={{
-                  padding: "8px 20px",
-                  borderRadius: 9,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  background: result.passed
-                    ? "rgba(110,201,160,0.12)"
-                    : "rgba(196,123,138,0.08)",
-                  border: `1px solid ${result.passed ? "rgba(110,201,160,0.35)" : "rgba(196,123,138,0.25)"}`,
-                  color: result.passed ? "var(--ac-mint)" : "var(--ac-rose)",
-                }}
-              >
-                {result.passed ? "Continue learning →" : "Continue anyway →"}
-              </button>
-            )}
-          </div>
+              );
+            })}
         </div>
-      </div>
-    </div>
+
+        {/* footer */}
+        <DialogFooter className="border-t px-5 py-3">
+          {!result ? (
+            <>
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={submitting || !allAnswered}>
+                {submitting && <Loader2 size={14} className="mr-1.5 animate-spin" />}
+                Submit
+              </Button>
+            </>
+          ) : (
+            <Button onClick={onClose}>
+              {result.passed ? "Continue learning →" : "Continue anyway →"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

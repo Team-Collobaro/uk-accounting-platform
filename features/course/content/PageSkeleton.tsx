@@ -1,189 +1,42 @@
+import { Skeleton } from "@/components/ui/skeleton";
+
 export function PageSkeleton() {
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100vh",
-        background: "var(--bg-base)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        fontFamily: "'Inter', system-ui, sans-serif",
-      }}
-    >
-      {/* HUD bar */}
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 18px",
-          height: 52,
-          flexShrink: 0,
-          background: "var(--glass-lg)",
-          borderBottom: "1px solid var(--border-subtle)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div className="skeleton" style={{ width: 60, height: 22 }} />
-          <div className="skeleton" style={{ width: 160, height: 28 }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div
-            className="skeleton"
-            style={{ width: 160, height: 16, borderRadius: 99 }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div className="skeleton" style={{ width: 72, height: 28 }} />
-          <div className="skeleton" style={{ width: 72, height: 28 }} />
-          <div className="skeleton" style={{ width: 32, height: 28 }} />
-        </div>
-      </header>
+    <div className="flex h-screen w-full overflow-hidden bg-background font-sans">
+      {/* sidebar */}
+      <div className="flex w-[260px] shrink-0 flex-col gap-2 border-r p-3">
+        <Skeleton className="h-3.5 w-1/2" />
+        <Skeleton className="mb-3 h-4 w-4/5" />
+        {[90, 75, 85, 70, 80, 88].map((w, i) => (
+          <Skeleton key={i} className="h-9 rounded-md" style={{ width: `${w}%` }} />
+        ))}
+      </div>
 
-      {/* 3-col body */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* left col */}
-        <div
-          style={{
-            width: 220,
-            flexShrink: 0,
-            background:
-              "linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)",
-            borderRight: "1px solid var(--border-subtle)",
-            padding: "12px 10px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div className="skeleton" style={{ width: "55%", height: 14 }} />
-          {[90, 140, 110, 125, 105, 145].map((w, i) => (
-            <div
-              key={i}
-              className="skeleton"
-              style={{ width: w, height: 34, borderRadius: 9 }}
-            />
-          ))}
-        </div>
-
-        {/* centre col */}
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-          }}
-        >
-          {/* orb zone */}
-          <div
-            style={{
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              paddingTop: 22,
-              paddingBottom: 18,
-              gap: 12,
-              borderBottom: "1px solid rgba(78,205,196,0.12)",
-            }}
-          >
-            <div
-              className="skeleton"
-              style={{ width: 220, height: 220, borderRadius: "50%" }}
-            />
-            <div
-              className="skeleton"
-              style={{ width: 240, height: 52, borderRadius: 6 }}
-            />
+      {/* main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* header */}
+        <div className="flex h-[52px] shrink-0 items-center justify-between border-b px-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-6 w-16" />
+            <Skeleton className="h-7 w-40" />
           </div>
-
-          {/* messages area */}
-          <div
-            style={{
-              flex: 1,
-              padding: "16px 20px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 9 }}>
-              <div
-                className="skeleton"
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  flexShrink: 0,
-                }}
-              />
-              <div
-                className="skeleton"
-                style={{
-                  width: "65%",
-                  height: 68,
-                  borderRadius: "14px 14px 14px 3px",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <div
-                className="skeleton"
-                style={{
-                  width: "45%",
-                  height: 44,
-                  borderRadius: "14px 14px 3px 14px",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 9 }}>
-              <div
-                className="skeleton"
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  flexShrink: 0,
-                }}
-              />
-              <div
-                className="skeleton"
-                style={{
-                  width: "72%",
-                  height: 88,
-                  borderRadius: "14px 14px 14px 3px",
-                }}
-              />
-            </div>
+          <Skeleton className="h-2 w-40 rounded-full" />
+          <div className="flex gap-2">
+            <Skeleton className="h-7 w-20" />
+            <Skeleton className="h-7 w-20" />
           </div>
+        </div>
 
-          {/* input bar */}
-          <div
-            style={{
-              padding: "10px 16px",
-              flexShrink: 0,
-              background: "var(--glass-lg)",
-              borderTop: "1px solid var(--border-subtle)",
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            <div
-              className="skeleton"
-              style={{ flex: 1, height: 42, borderRadius: 12 }}
-            />
-            <div
-              className="skeleton"
-              style={{ width: 40, height: 40, borderRadius: 11 }}
-            />
-            <div
-              className="skeleton"
-              style={{ width: 40, height: 40, borderRadius: 11 }}
-            />
-          </div>
+        {/* messages */}
+        <div className="flex flex-1 flex-col gap-4 p-5">
+          <Skeleton className="h-16 w-[65%] rounded-lg" />
+          <Skeleton className="h-11 w-[45%] self-end rounded-lg" />
+          <Skeleton className="h-20 w-[72%] rounded-lg" />
+        </div>
+
+        {/* input */}
+        <div className="shrink-0 border-t p-3">
+          <Skeleton className="h-12 w-full rounded-lg" />
         </div>
       </div>
     </div>

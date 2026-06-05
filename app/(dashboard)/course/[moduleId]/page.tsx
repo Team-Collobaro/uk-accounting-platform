@@ -9,9 +9,7 @@ import { useSections } from "@/features/course/hooks/useSections";
 import { useTeachingPoints } from "@/features/course/hooks/useTeachingPoints";
 import { useMic } from "@/features/course/hooks/useMic";
 import { useChat } from "@/features/course/hooks/useChat";
-import { AuroraStatus } from "@/features/course/content/AuroraStatus";
 import { SectionTrail } from "@/features/course/content/SectionTrail";
-import { NotesPromptBanner } from "@/features/course/content/NotesPromptBanner";
 import { QuizModal } from "@/features/course/content/QuizModal";
 import { PageSkeleton } from "@/features/course/content/PageSkeleton";
 import { AssistantMessage } from "@/features/course/content/AssistantMessage";
@@ -30,12 +28,23 @@ import {
   Check,
   Lock,
   Keyboard,
-  Sparkles,
+  Square,
+  RotateCcw,
 } from "lucide-react";
 import type { SectionProgress, Message } from "@/types/course";
-import StarBorder from "@/components/reactbits/StarBorder";
-import DecryptedText from "@/components/reactbits/DecryptedText";
-import SoftAurora from "@/components/SoftAurora";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
 
 export default function CourseModulePage() {
   const params = useParams();
@@ -46,6 +55,7 @@ export default function CourseModulePage() {
   const [input, setInput] = useState("");
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizPassed, setQuizPassed] = useState(false);
+  const [voiceName, setVoiceName] = useState<string | undefined>(undefined);
   // How the quiz was opened:
   //  "section" = AI quiz on a subtopic's Mark Done → completing advances to
   //              the next topic.
@@ -147,7 +157,6 @@ export default function CourseModulePage() {
     audioEnabled,
     setAudioEnabled,
     isSpeaking,
-    userActivated,
     setUserActivated,
     availableVoices,
     voiceRef,
@@ -346,6 +355,56 @@ export default function CourseModulePage() {
     setSectionProgress,
   ]);
 
+  // ── relearn (reset) current section ──
+  const handleRelearn = useCallback(() => {
+    resetSection();
+    setTeachingPoints([]);
+    setCurrentPtIdx(0);
+    setTPhase("PRE_NOTES");
+    if (currentSection) {
+      setSectionProgress((prev) =>
+        prev.map((p) =>
+          p.section_id === currentSection.section_id
+            ? { ...p, status: "in_progress", key_points: [] }
+            : p,
+        ),
+      );
+      void fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          moduleId,
+          sectionId: currentSection.section_id,
+          sectionTitle: currentSection.section_title,
+          status: "in_progress",
+          keyPoints: [],
+        }),
+      });
+    }
+  }, [
+    resetSection,
+    setTeachingPoints,
+    setCurrentPtIdx,
+    setTPhase,
+    currentSection,
+    setSectionProgress,
+    moduleId,
+  ]);
+
+  const startLesson = useCallback(() => {
+    setUserActivated(true);
+    hasStarted.current = true;
+    setTPhase("PRE_NOTES");
+    void doSend("__AUTO_START__", true);
+  }, [setUserActivated, hasStarted, setTPhase, doSend]);
+
+  const sendInput = useCallback(() => {
+    const t = input.trim();
+    if (!t || streamRef.current) return;
+    setInput("");
+    void doSend(t, false);
+  }, [input, doSend]);
+
   // ── Keyboard shortcuts ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -384,87 +443,33 @@ export default function CourseModulePage() {
     return () => window.removeEventListener("keydown", handler);
   }, [stopAll, completeSection, currentSectionIdx, sections.length, toggleMic, setAudioEnabled]);
 
-  /* ── shared button styles ── */
-  const hudBtn = (
-    active: boolean,
-    accent = "var(--ac-cyan)",
-    accentRgb = "126,207,206",
-  ): React.CSSProperties => ({
-    padding: "5px 11px",
-    borderRadius: 8,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 5,
-    fontSize: 11,
-    fontWeight: 600,
-    background: active ? `rgba(${accentRgb},0.12)` : "rgba(255,255,255,0.03)",
-    border: `1px solid ${active ? `rgba(${accentRgb},0.30)` : "var(--border-subtle)"}`,
-    color: active ? accent : "var(--text-secondary)",
-    boxShadow: active
-      ? `var(--shadow-sm), 0 0 12px rgba(${accentRgb},0.1)`
-      : "var(--shadow-sm)",
-    transition: "all 0.18s ease",
-    letterSpacing: "0.04em",
-  });
+  const currentVoiceName = voiceName ?? voiceRef.current?.name;
+  const shortVoice = (name?: string) =>
+    name ? name.replace(/Microsoft |Google /, "").slice(0, 16) : "Voice";
 
   /* ══ RENDER ══ */
   if (!sectionsLoaded) return <PageSkeleton />;
 
+  const moduleLabel = `M${moduleId.replace("m", "").padStart(2, "0")}`;
+  const moduleNum = parseInt(moduleId.replace("m", ""), 10);
+
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100vh",
-        background: "var(--bg-base)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        fontFamily: "'Inter', system-ui, sans-serif",
-        position: "relative",
-      }}
-    >
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
       {/* ── Section advance toast ── */}
       <AnimatePresence>
         {showAdvancePrompt && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 20, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            style={{
-              position: "fixed",
-              bottom: 28,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 200,
-              pointerEvents: "none",
-              background:
-                "linear-gradient(135deg, rgba(82,217,139,0.15), rgba(78,205,196,0.1))",
-              border: "1px solid rgba(82,217,139,0.4)",
-              borderRadius: 14,
-              padding: "12px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              backdropFilter: "blur(20px)",
-              boxShadow:
-                "0 8px 40px rgba(0,0,0,0.4), 0 0 20px rgba(82,217,139,0.15)",
-            }}
+            exit={{ opacity: 0, y: -10, scale: 0.96 }}
+            className="pointer-events-none fixed bottom-7 left-1/2 z-[200] flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-card px-5 py-3 shadow-lg"
           >
-            <CheckCircle2 size={18} color="#52D98B" />
+            <CheckCircle2 size={18} className="text-foreground" />
             <div>
-              <p
-                style={{
-                  fontSize: 11,
-                  color: "#52D98B",
-                  fontFamily: "monospace",
-                  letterSpacing: "0.1em",
-                  marginBottom: 2,
-                }}
-              >
-                SECTION COMPLETE
+              <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                Section complete
               </p>
-              <p style={{ fontSize: 13, color: "#E8F0FC", fontWeight: 600 }}>
+              <p className="text-sm font-semibold text-foreground">
                 Moving to next section…
               </p>
             </div>
@@ -476,35 +481,14 @@ export default function CourseModulePage() {
       <AnimatePresence>
         {showKeyboardHelp && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+            initial={{ opacity: 0, scale: 0.96, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+            exit={{ opacity: 0, scale: 0.96, y: -8 }}
             onClick={() => setShowKeyboardHelp(false)}
-            style={{
-              position: "fixed",
-              top: 62,
-              right: 16,
-              zIndex: 150,
-              background: "rgba(9,13,26,0.96)",
-              border: "1px solid rgba(78,205,196,0.2)",
-              borderRadius: 14,
-              padding: "16px 18px",
-              minWidth: 240,
-              backdropFilter: "blur(20px)",
-              boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
-              cursor: "pointer",
-            }}
+            className="fixed right-4 top-[60px] z-[150] min-w-[240px] cursor-pointer rounded-lg border bg-card p-4 shadow-lg"
           >
-            <p
-              style={{
-                fontSize: 11,
-                color: "rgba(78,205,196,0.7)",
-                fontFamily: "monospace",
-                letterSpacing: "0.14em",
-                marginBottom: 12,
-              }}
-            >
-              KEYBOARD SHORTCUTS
+            <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Keyboard shortcuts
             </p>
             {[
               { key: "Alt+N", label: "Next section" },
@@ -516,410 +500,192 @@ export default function CourseModulePage() {
               { key: "Enter", label: "Send message" },
               { key: "Shift+Enter", label: "New line" },
             ].map(({ key, label }) => (
-              <div
-                key={key}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 7,
-                }}
-              >
-                <span style={{ fontSize: 12, color: "#8EA8CC" }}>{label}</span>
-                <kbd
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "monospace",
-                    color: "#4ECDC4",
-                    background: "rgba(78,205,196,0.1)",
-                    border: "1px solid rgba(78,205,196,0.25)",
-                    borderRadius: 5,
-                    padding: "2px 7px",
-                  }}
-                >
+              <div key={key} className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">{label}</span>
+                <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">
                   {key}
                 </kbd>
               </div>
             ))}
-            <p
-              style={{
-                fontSize: 9,
-                color: "#4A6285",
-                fontFamily: "monospace",
-                marginTop: 8,
-                textAlign: "center",
-              }}
-            >
+            <p className="mt-2 text-center font-mono text-[9px] text-muted-foreground">
               click to close
             </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── HUD BAR ── */}
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 18px",
-          height: 52,
-          flexShrink: 0,
-          zIndex: 10,
-          background: "var(--glass-lg)",
-          borderBottom: "1px solid var(--border-subtle)",
-          backdropFilter: "blur(24px) saturate(150%)",
-          boxShadow: "0 1px 0 rgba(255,255,255,0.04), var(--shadow-sm)",
-        }}
-      >
+      {/* ── HEADER ── */}
+      <header className="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b px-4">
         {/* left */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => router.push("/dashboard")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--text-tertiary)",
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "4px 6px",
-              borderRadius: 7,
-              transition: "color 0.18s",
-            }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLElement).style.color =
-                "var(--text-primary)")
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLElement).style.color =
-                "var(--text-tertiary)")
-            }
+            className="gap-1.5"
           >
-            <ChevronLeft size={15} />
-            <span
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.08em",
-                fontFamily: "monospace",
-              }}
-            >
-              BACK
-            </span>
-          </button>
-          <div
-            style={{ width: 1, height: 18, background: "var(--border-subtle)" }}
-          />
-          <div>
-            <p
-              style={{
-                fontSize: 9,
-                fontFamily: "monospace",
-                letterSpacing: "0.16em",
-                color: "var(--ac-cyan)",
-                opacity: 0.75,
-              }}
-            >
-              PART {partNumber} · {moduleId.toUpperCase()}
+            <ChevronLeft size={15} /> Back
+          </Button>
+          <Separator orientation="vertical" className="h-5" />
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Part {partNumber} · {moduleId.toUpperCase()}
             </p>
-            <p
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "var(--text-primary)",
-                marginTop: 1,
-                maxWidth: 300,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <DecryptedText
-                text={moduleTitle}
-                animateOn="view"
-                sequential={true}
-                revealDirection="start"
-                speed={28}
-                className="aurora-text"
-                encryptedClassName="aurora-text"
-              />
+            <p className="max-w-[280px] truncate text-sm font-semibold text-foreground">
+              {moduleTitle}
             </p>
           </div>
         </div>
 
         {/* centre — progress */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div>
-            <p
-              style={{
-                fontSize: 9,
-                fontFamily: "monospace",
-                color: "var(--text-tertiary)",
-                letterSpacing: "0.12em",
-                marginBottom: 3,
-                textAlign: "right",
-              }}
-            >
+        <div className="flex items-center gap-3">
+          <div className="hidden lg:block">
+            <p className="mb-1 text-right font-mono text-[10px] text-muted-foreground">
               {completedCount}/{totalSections} sections
             </p>
-            <div
-              style={{
-                width: 160,
-                height: 4,
-                background: "rgba(255,255,255,0.06)",
-                borderRadius: 99,
-                overflow: "hidden",
-                boxShadow: "inset 0 1px 2px rgba(0,0,0,0.4)",
-              }}
-            >
-              <div
-                className="aurora-progress-fill"
-                style={{
-                  height: "100%",
-                  width: `${progressPct}%`,
-                  transition: "width 0.55s ease",
-                }}
-              />
-            </div>
+            <Progress value={progressPct} className="h-1.5 w-40" />
           </div>
           {currentSection && (
-            <div className="depth-pill" style={{ padding: "3px 10px" }}>
-              <p
-                style={{
-                  fontSize: 10,
-                  color: "var(--ac-cyan)",
-                  fontFamily: "monospace",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                § {currentSection.section_id}
-              </p>
-            </div>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              § {currentSection.section_id}
+            </Badge>
           )}
         </div>
 
         {/* right controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant={audioEnabled ? "secondary" : "ghost"}
+            size="sm"
+            className="gap-1.5"
             onClick={() => {
               setAudioEnabled((v) => !v);
               if (audioEnabled) cancelSpeech();
             }}
-            style={hudBtn(audioEnabled)}
           >
-            {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            <span style={{ fontFamily: "monospace" }}>
-              {audioEnabled ? "AUDIO" : "MUTED"}
+            {audioEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            <span className="hidden font-mono text-[11px] sm:inline">
+              {audioEnabled ? "Audio" : "Muted"}
             </span>
-          </button>
+          </Button>
 
           {availableVoices.length > 1 && (
-            <select
-              onChange={(e) => {
-                const v = availableVoices.find(
-                  (v) => v.name === e.target.value,
-                );
-                if (v) voiceRef.current = v;
-              }}
-              defaultValue={voiceRef.current?.name ?? ""}
-              style={{
-                padding: "4px 7px",
-                borderRadius: 7,
-                fontSize: 11,
-                fontFamily: "monospace",
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid var(--border-subtle)",
-                color: "var(--text-secondary)",
-                cursor: "pointer",
-                maxWidth: 145,
-                outline: "none",
-              }}
-            >
-              {availableVoices.map((v) => (
-                <option
-                  key={v.name}
-                  value={v.name}
-                  style={{ background: "#0C1020", color: "#D8E4F0" }}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="font-mono text-[11px]">
+                  {shortVoice(currentVoiceName)}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                <DropdownMenuRadioGroup
+                  value={currentVoiceName ?? ""}
+                  onValueChange={(name) => {
+                    const v = availableVoices.find((vv) => vv.name === name);
+                    if (v) {
+                      voiceRef.current = v;
+                      setVoiceName(v.name);
+                    }
+                  }}
                 >
-                  {v.name.replace(/Microsoft |Google /, "").slice(0, 18)} (
-                  {v.lang})
-                </option>
-              ))}
-            </select>
+                  {availableVoices.map((v) => (
+                    <DropdownMenuRadioItem
+                      key={v.name}
+                      value={v.name}
+                      className="text-xs"
+                    >
+                      {v.name.replace(/Microsoft |Google /, "").slice(0, 22)} ({v.lang})
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
           {messages.length > 0 && !streaming && (
-            <button
-              onClick={() => {
-                resetSection();
-                setTeachingPoints([]);
-                setCurrentPtIdx(0);
-                setTPhase("PRE_NOTES");
-                if (currentSection) {
-                  setSectionProgress((prev) =>
-                    prev.map((p) =>
-                      p.section_id === currentSection.section_id
-                        ? { ...p, status: "in_progress", key_points: [] }
-                        : p,
-                    ),
-                  );
-                  void fetch("/api/notes", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      moduleId,
-                      sectionId: currentSection.section_id,
-                      sectionTitle: currentSection.section_title,
-                      status: "in_progress",
-                      keyPoints: [],
-                    }),
-                  });
-                }
-              }}
-              style={hudBtn(false, "var(--ac-rose, #E8507A)", "232,80,122")}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5"
+              onClick={handleRelearn}
               title="Clear this section and start over"
             >
-              ↺ Relearn
-            </button>
+              <RotateCcw size={13} /> Relearn
+            </Button>
           )}
 
           {currentSection && currentProgress?.status !== "completed" && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
               onClick={() => {
                 setQuizTrigger("section");
                 setShowQuiz(true);
               }}
-              style={hudBtn(false, "var(--ac-mint)", "110,201,160")}
             >
-              <Check size={12} /> Mark Done
-            </button>
+              <Check size={13} /> Mark Done
+            </Button>
           )}
           {currentSection && currentProgress?.status === "completed" && (
-            <div
-              style={{
-                ...hudBtn(true, "var(--ac-mint)", "110,201,160"),
-                cursor: "default",
-                opacity: 0.6,
-              }}
-            >
-              <CheckCircle2 size={12} /> Done
+            <div className="flex items-center gap-1.5 px-2 text-xs text-muted-foreground">
+              <CheckCircle2 size={13} /> Done
             </div>
           )}
 
           {exchangeCount >= 4 && (
-            <StarBorder
-              as="button"
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
               onClick={() => {
                 setQuizTrigger("final");
                 setShowQuiz(true);
               }}
-              color="rgba(155,111,208,0.85)"
-              speed="4s"
-              thickness={1}
-              style={{
-                ...hudBtn(false, "var(--ac-violet)", "139,126,200"),
-                padding: "0",
-                borderRadius: 8,
-              }}
             >
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "5px 11px",
-                }}
-              >
-                <Brain size={12} /> Quiz
-              </span>
-            </StarBorder>
+              <Brain size={13} /> Quiz
+            </Button>
           )}
 
           {canGoNext && nextModule && (
-            <button
+            <Button
+              size="sm"
+              className="gap-1.5"
               onClick={() => router.push(`/course/${nextModule}`)}
-              style={hudBtn(true, "var(--ac-mint)", "110,201,160")}
             >
-              Next <ChevronRight size={12} />
-            </button>
+              Next <ChevronRight size={13} />
+            </Button>
           )}
           {!canGoNext && nextModule && exchangeCount > 0 && (
             <div
               title="Pass the quiz to unlock"
-              style={{ ...hudBtn(false), opacity: 0.4, cursor: "default" }}
+              className="flex items-center gap-1.5 px-2 text-xs text-muted-foreground opacity-50"
             >
-              <Lock size={10} /> Next
+              <Lock size={11} /> Next
             </div>
           )}
 
-          <div
-            style={{ width: 1, height: 18, background: "var(--border-subtle)" }}
-          />
-          <button
+          <Separator orientation="vertical" className="h-5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
             onClick={() => setShowKeyboardHelp((v) => !v)}
-            style={hudBtn(showKeyboardHelp)}
             title="Keyboard shortcuts (Alt+K)"
           >
-            <Keyboard size={13} />
-          </button>
+            <Keyboard size={14} />
+          </Button>
         </div>
       </header>
 
-      {/* ── MAIN 2-COL ── */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          overflow: "hidden",
-          position: "relative",
-          zIndex: 5,
-        }}
-      >
-        {/* COL 1 — Sections */}
-        <div
-          style={{
-            width: 220,
-            flexShrink: 0,
-            display: "flex",
-            flexDirection: "column",
-            background:
-              "linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)",
-            borderRight: "1px solid var(--border-subtle)",
-            boxShadow:
-              "2px 0 18px rgba(0,0,0,0.4), inset -1px 0 0 rgba(255,255,255,0.025)",
-          }}
-        >
-          <div
-            style={{
-              padding: "10px 12px 8px",
-              borderBottom: "1px solid var(--border-subtle)",
-              flexShrink: 0,
-            }}
-          >
-            <p
-              style={{
-                fontSize: 9,
-                fontFamily: "monospace",
-                color: "var(--ac-cyan)",
-                letterSpacing: "0.16em",
-                marginBottom: 3,
-                opacity: 0.7,
-              }}
-            >
-              M{moduleId.replace("m", "").padStart(2, "0")} · TOPICS
+      {/* ── MAIN ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* SIDEBAR */}
+        <aside className="flex w-[260px] shrink-0 flex-col border-r bg-card/30">
+          <div className="shrink-0 border-b px-3 py-2.5">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              {moduleLabel} · Topics
             </p>
-            <p
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                color: "var(--text-secondary)",
-                lineHeight: 1.3,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
+            <p className="truncate text-xs font-medium text-foreground">
               {moduleTitle}
             </p>
           </div>
@@ -936,126 +702,46 @@ export default function CourseModulePage() {
                 setShowQuiz(true);
               }}
             />
-          ) : !sectionsLoaded ? (
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <Loader2
-                size={17}
-                color="var(--ac-cyan)"
-                className="animate-spin"
-                style={{ opacity: 0.5 }}
-              />
-              <p style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                Loading…
-              </p>
-            </div>
           ) : (
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: 11,
-                  color: "var(--text-tertiary)",
-                  padding: "0 12px",
-                  textAlign: "center",
-                }}
-              >
+            <div className="flex flex-1 items-center justify-center">
+              <p className="px-3 text-center text-xs text-muted-foreground">
                 No sections found
               </p>
             </div>
           )}
 
           {/* module-end items */}
-          <div
-            style={{
-              borderTop: "1px solid var(--border-subtle)",
-              flexShrink: 0,
-              padding: "7px 8px 4px",
-            }}
-          >
+          <div className="shrink-0 space-y-1 border-t px-2 py-2">
             {[
+              { label: `Module ${moduleNum} — Summary`, done: moduleAlreadyCompleted },
               {
-                label: `Module ${parseInt(moduleId.replace("m", ""), 10)} — Summary`,
-                done: moduleAlreadyCompleted,
-              },
-              {
-                label: `Module ${parseInt(moduleId.replace("m", ""), 10)} — End-of-Section MCQ (10 questions)`,
+                label: `Module ${moduleNum} — End-of-Section MCQ (10 questions)`,
                 done: quizPassed || moduleAlreadyCompleted,
               },
             ].map((item, i) => (
               <div
                 key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "5px 8px",
-                  borderRadius: 8,
-                  marginBottom: 3,
-                  background: item.done
-                    ? "rgba(110,201,160,0.05)"
-                    : "rgba(255,255,255,0.02)",
-                  border: item.done
-                    ? "1px solid rgba(110,201,160,0.18)"
-                    : "1px solid rgba(255,255,255,0.05)",
-                }}
+                className={cn(
+                  "flex items-center gap-2 rounded-md border px-2 py-1.5",
+                  item.done ? "border-border" : "border-transparent",
+                )}
               >
-                <div
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: item.done
-                      ? "rgba(110,201,160,0.15)"
-                      : "rgba(255,255,255,0.04)",
-                    border: item.done
-                      ? "1px solid rgba(110,201,160,0.45)"
-                      : "1px solid rgba(255,255,255,0.1)",
-                  }}
-                >
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border bg-muted">
                   {item.done ? (
-                    <Check size={9} color="var(--ac-mint)" />
+                    <Check size={9} className="text-foreground" />
                   ) : (
-                    <span
-                      style={{
-                        fontSize: 6,
-                        color: "var(--text-tertiary)",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <span className="text-[7px] font-bold text-muted-foreground">
                       {i === 0 ? "★" : "?"}
                     </span>
                   )}
                 </div>
                 <span
-                  style={{
-                    fontSize: 10,
-                    lineHeight: 1.4,
-                    flex: 1,
-                    color: item.done
-                      ? "var(--ac-mint)"
-                      : "var(--text-tertiary)",
-                    textDecoration: item.done ? "line-through" : "none",
-                    opacity: item.done ? 0.65 : 1,
-                  }}
+                  className={cn(
+                    "flex-1 text-[10px] leading-snug",
+                    item.done
+                      ? "text-muted-foreground line-through"
+                      : "text-muted-foreground",
+                  )}
                 >
                   {item.label}
                 </span>
@@ -1064,609 +750,107 @@ export default function CourseModulePage() {
           </div>
 
           {/* section nav */}
-          <div
-            style={{
-              padding: "9px 12px",
-              borderTop: "1px solid var(--border-subtle)",
-              display: "flex",
-              justifyContent: "space-between",
-              flexShrink: 0,
-            }}
-          >
-            {/* PREV — go to previous section, or previous module if at start */}
-            <button
+          <div className="flex shrink-0 items-center justify-between border-t px-2 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 font-mono text-[10px] uppercase tracking-wide"
               onClick={() => {
                 if (currentSectionIdx > 0) {
                   switchSection(currentSectionIdx - 1);
-                } else {
-                  const n = parseInt(moduleId.replace("m", ""), 10);
-                  if (n > 1)
-                    router.push(`/course/m${String(n - 1).padStart(2, "0")}`);
+                } else if (moduleNum > 1) {
+                  router.push(`/course/m${String(moduleNum - 1).padStart(2, "0")}`);
                 }
               }}
-              disabled={currentSectionIdx === 0 && parseInt(moduleId.replace("m", ""), 10) <= 1}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: currentSectionIdx === 0 && parseInt(moduleId.replace("m", ""), 10) <= 1 ? "default" : "pointer",
-                color: "var(--text-tertiary)",
-                fontSize: 10,
-                display: "flex",
-                alignItems: "center",
-                gap: 3,
-                fontFamily: "monospace",
-                letterSpacing: "0.08em",
-                opacity: currentSectionIdx === 0 && parseInt(moduleId.replace("m", ""), 10) <= 1 ? 0.3 : 1,
-              }}
+              disabled={currentSectionIdx === 0 && moduleNum <= 1}
             >
-              <ChevronLeft size={12} /> PREV
-            </button>
+              <ChevronLeft size={12} /> Prev
+            </Button>
 
-            {/* NEXT — go to next section, or next module if at end */}
             {currentSectionIdx < sections.length - 1 ? (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 font-mono text-[10px] uppercase tracking-wide"
                 onClick={() => switchSection(currentSectionIdx + 1)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--text-tertiary)",
-                  fontSize: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 3,
-                  fontFamily: "monospace",
-                  letterSpacing: "0.08em",
-                }}
               >
-                NEXT <ChevronRight size={12} />
-              </button>
+                Next <ChevronRight size={12} />
+              </Button>
             ) : nextModule ? (
               canGoNext ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 font-mono text-[10px] uppercase tracking-wide"
                   onClick={() => router.push(`/course/${nextModule}`)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--text-tertiary)",
-                    fontSize: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 3,
-                    fontFamily: "monospace",
-                    letterSpacing: "0.08em",
-                  }}
                 >
-                  NEXT <ChevronRight size={12} />
-                </button>
+                  Next <ChevronRight size={12} />
+                </Button>
               ) : (
-                <span
-                  style={{
-                    color: "var(--text-tertiary)",
-                    fontSize: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 3,
-                    fontFamily: "monospace",
-                    letterSpacing: "0.08em",
-                    opacity: 0.45,
-                  }}
-                >
-                  <Lock size={9} /> NEXT
+                <span className="flex items-center gap-1 px-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground opacity-50">
+                  <Lock size={9} /> Next
                 </span>
               )
             ) : null}
           </div>
-        </div>
+        </aside>
 
-        {/* COL 2 — Avatar + Chat */}
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 0,
-            position: "relative",
-          }}
-        >
-          {/* ── AVATAR ZONE ── */}
-          <div
-            style={{
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              paddingTop: 18,
-              paddingBottom: 14,
-              borderBottom: "1px solid rgba(78,205,196,0.12)",
-              boxShadow:
-                "inset 0 -1px 0 rgba(78,205,196,0.06), 0 4px 40px rgba(0,0,0,0.3)",
-              position: "relative",
-              zIndex: 1,
-              overflow: "hidden",
-              minHeight: 200,
-            }}
-          >
-            {/* SoftAurora background */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 0,
-                pointerEvents: "none",
-              }}
-            >
-              <SoftAurora
-                speed={0.45}
-                scale={1.3}
-                brightness={1.1}
-                color1="#4ecdc4"
-                color2="#9b6fd0"
-                noiseFrequency={2.0}
-                noiseAmplitude={0.7}
-                bandHeight={0.5}
-                bandSpread={0.9}
-                octaveDecay={0.12}
-                layerOffset={0.9}
-                colorSpeed={0.7}
-                enableMouseInteraction={true}
-                mouseInfluence={0.18}
-              />
-            </div>
-
-            <div
-              style={{
-                position: "relative",
-                zIndex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                width: "100%",
-                gap: 8,
-              }}
-            >
-              {/* section label */}
-              {currentSection && (
-                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <div
-                    style={{
-                      width: 5,
-                      height: 5,
-                      borderRadius: "50%",
-                      background: isSpeaking
-                        ? "var(--ac-cyan)"
-                        : "var(--border-medium)",
-                      boxShadow: isSpeaking ? "var(--glow-cyan)" : "none",
-                      transition: "all 0.4s",
-                      animation: isSpeaking
-                        ? "onlinePulse 2s infinite"
-                        : "none",
-                    }}
-                  />
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--text-tertiary)",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    <span style={{ color: "var(--ac-cyan)", marginRight: 5 }}>
-                      §{currentSection.section_id}
-                    </span>
-                    {currentSection.section_title.length > 38
-                      ? currentSection.section_title.slice(0, 36) + "…"
-                      : currentSection.section_title}
-                  </p>
-                </div>
-              )}
-
-              <AuroraStatus speaking={isSpeaking} />
-            </div>
-          </div>
-
-          {/* notes prompt banner */}
-          {teachingPoints.length > 0 && (
-            <NotesPromptBanner
-              phase={tPhase}
-              topicTitle={teachingPoints[currentPtIdx]?.title ?? null}
-              topicIdx={currentPtIdx}
-              total={teachingPoints.length}
-            />
-          )}
-
-          {/* ── MESSAGES ── */}
-          <div
-            className="chat-messages"
-            style={
-              {
-                flex: 1,
-                overflowY: "auto",
-                padding: "16px 18px 8px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                position: "relative",
-                zIndex: 1,
-              } as React.CSSProperties
-            }
-          >
-            {/* top fade mask */}
-            <div
-              style={{
-                position: "sticky",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 28,
-                marginBottom: -28,
-                pointerEvents: "none",
-                zIndex: 2,
-                background:
-                  "linear-gradient(to bottom, var(--bg-base) 0%, transparent 100%)",
-                flexShrink: 0,
-              }}
-            />
-
+        {/* CHAT COLUMN */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* MESSAGES */}
+          <div className="chat-messages flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 && !streaming && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 20,
-                    background: "rgba(10,14,28,0.7)",
-                    border: "1px solid rgba(78,205,196,0.14)",
-                    borderRadius: 20,
-                    padding: "32px 36px",
-                    maxWidth: 320,
-                    textAlign: "center",
-                    boxShadow:
-                      "var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)",
-                    backdropFilter: "blur(16px)",
-                  }}
-                >
-                  {/* Alex avatar */}
-                  <div style={{ position: "relative" }}>
-                    <div
-                      style={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: "50%",
-                        background:
-                          "linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.22))",
-                        border: "2px solid rgba(78,205,196,0.4)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 24,
-                        fontWeight: 800,
-                        color: "var(--ac-cyan)",
-                        boxShadow: "0 0 32px rgba(78,205,196,0.2)",
-                      }}
-                    >
-                      A
-                    </div>
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: 2,
-                        right: 2,
-                        width: 14,
-                        height: 14,
-                        borderRadius: "50%",
-                        background: "#22c55e",
-                        border: "2px solid rgba(10,14,28,0.9)",
-                        boxShadow: "0 0 8px #22c55e",
-                      }}
-                    />
-                  </div>
-
-                  {/* Intro text */}
-                  <div>
-                    <p
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: "var(--text-primary)",
-                        margin: "0 0 6px",
-                      }}
-                    >
-                      Hi, I&apos;m Alex
-                    </p>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "var(--text-secondary)",
-                        lineHeight: 1.7,
-                        margin: 0,
-                      }}
-                    >
-                      Your AI tutor for
-                      <br />
-                      <span
-                        style={{ color: "var(--ac-cyan)", fontWeight: 600 }}
-                      >
-                        {currentSection?.section_title ?? moduleTitle}
-                      </span>
-                    </p>
-                    {currentSection && (
-                      <p
-                        style={{
-                          fontSize: 11,
-                          color: "var(--text-tertiary)",
-                          marginTop: 8,
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        Select a topic from the left panel,
-                        <br />
-                        then tap{" "}
-                        <strong style={{ color: "var(--ac-cyan)" }}>
-                          Start Lesson
-                        </strong>{" "}
-                        to begin.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Start Lesson button */}
-                  <button
-                    onClick={() => {
-                      setUserActivated(true);
-                      hasStarted.current = true;
-                      setTPhase("PRE_NOTES");
-                      void doSend("__AUTO_START__", true);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "12px 28px",
-                      borderRadius: 13,
-                      background:
-                        "linear-gradient(135deg, #4ECDC4 0%, #52D98B 100%)",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "#050810",
-                      boxShadow: "0 4px 20px rgba(78,205,196,0.3)",
-                      transition: "box-shadow 0.18s, transform 0.18s",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.boxShadow =
-                        "0 6px 28px rgba(78,205,196,0.45)";
-                      (e.currentTarget as HTMLElement).style.transform =
-                        "translateY(-1px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.boxShadow =
-                        "0 4px 20px rgba(78,205,196,0.3)";
-                      (e.currentTarget as HTMLElement).style.transform = "none";
-                    }}
-                  >
-                    <Brain size={16} />
-                    Start Lesson
-                  </button>
-
-                  {/* Relearn shortcut when section is already completed */}
-                  {currentProgress?.status === "completed" && (
-                    <button
-                      onClick={() => {
-                        resetSection();
-                        setTeachingPoints([]);
-                        setCurrentPtIdx(0);
-                        setTPhase("PRE_NOTES");
-                        if (currentSection) {
-                          setSectionProgress((prev) =>
-                            prev.map((p) =>
-                              p.section_id === currentSection.section_id
-                                ? { ...p, status: "in_progress", key_points: [] }
-                                : p,
-                            ),
-                          );
-                          void fetch("/api/notes", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              moduleId,
-                              sectionId: currentSection.section_id,
-                              sectionTitle: currentSection.section_title,
-                              status: "in_progress",
-                              keyPoints: [],
-                            }),
-                          });
-                        }
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "7px 18px",
-                        borderRadius: 10,
-                        background: "rgba(232,80,122,0.08)",
-                        border: "1px solid rgba(232,80,122,0.25)",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "var(--ac-rose, #E8507A)",
-                      }}
-                    >
-                      ↺ Relearn this section
-                    </button>
-                  )}
-
-                  {/* Or ask a question */}
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "var(--text-tertiary)",
-                      margin: 0,
-                    }}
-                  >
-                    or type a question below
+              <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
+                <div className="max-w-sm">
+                  <h2 className="text-2xl font-semibold text-foreground">
+                    Ready when you are
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Your AI tutor for{" "}
+                    <span className="font-medium text-foreground">
+                      {currentSection?.section_title ?? moduleTitle}
+                    </span>
                   </p>
+                  {currentSection && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Tap <span className="font-medium text-foreground">Start Lesson</span>{" "}
+                      to begin, or type a question below.
+                    </p>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {/* date/session divider shown once above first message */}
-            {messages.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  margin: "8px 0 12px",
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    height: 1,
-                    background: "var(--border-subtle)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontFamily: "monospace",
-                    letterSpacing: "0.12em",
-                    color: "var(--text-tertiary)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  SESSION ·{" "}
-                  {new Date().toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-                <div
-                  style={{
-                    flex: 1,
-                    height: 1,
-                    background: "var(--border-subtle)",
-                  }}
-                />
+                <Button size="lg" className="gap-2" onClick={startLesson}>
+                  <Brain size={16} /> Start Lesson
+                </Button>
+
+                {currentProgress?.status === "completed" && (
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleRelearn}>
+                    <RotateCcw size={13} /> Relearn this section
+                  </Button>
+                )}
               </div>
             )}
 
             {messages.map((msg, i) => {
+              const isUser = msg.role === "user";
               const isLastAss =
                 msg.role === "assistant" && i === messages.length - 1;
-              const isUser = msg.role === "user";
-              const prevSameRole = i > 0 && messages[i - 1].role === msg.role;
-              const nextSameRole =
-                i < messages.length - 1 && messages[i + 1].role === msg.role;
-
-              let radius: string;
-              if (isUser) {
-                radius = prevSameRole
-                  ? nextSameRole
-                    ? "14px 4px 4px 14px"
-                    : "14px 4px 14px 14px"
-                  : nextSameRole
-                    ? "14px 14px 4px 14px"
-                    : "14px 14px 4px 14px";
-              } else {
-                radius = prevSameRole
-                  ? nextSameRole
-                    ? "4px 14px 14px 4px"
-                    : "4px 14px 14px 14px"
-                  : nextSameRole
-                    ? "14px 14px 14px 4px"
-                    : "16px 16px 16px 4px";
-              }
 
               return (
                 <div
                   key={i}
-                  className="message-enter"
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-end",
-                    gap: 8,
-                    flexDirection: isUser ? "row-reverse" : "row",
-                    marginBottom: nextSameRole ? 2 : 10,
-                  }}
-                >
-                  {/* Avatar — only on last of a group */}
-                  {!isUser && (
-                    <div
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: "50%",
-                        flexShrink: 0,
-                        visibility: nextSameRole ? "hidden" : "visible",
-                        background:
-                          "linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))",
-                        border: "1.5px solid rgba(78,205,196,0.32)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "var(--ac-cyan)",
-                        boxShadow:
-                          isSpeaking && isLastAss
-                            ? "0 0 14px rgba(78,205,196,0.4)"
-                            : "0 0 8px rgba(78,205,196,0.12)",
-                        transition: "box-shadow 0.4s ease",
-                      }}
-                    >
-                      A
-                    </div>
+                  className={cn(
+                    "flex w-full animate-msg-in",
+                    isUser ? "justify-end" : "justify-start",
                   )}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: isUser ? "flex-end" : "flex-start",
-                      gap: 2,
-                      maxWidth: isUser ? "74%" : "88%",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: isUser ? "9px 14px" : "10px 15px",
-                        fontSize: 13,
-                        lineHeight: 1.75,
-                        borderRadius: radius,
-                        background: isUser
-                          ? "linear-gradient(135deg, rgba(91,110,175,0.28), rgba(155,111,208,0.20))"
-                          : "rgba(10,14,28,0.82)",
-                        border: isUser
-                          ? "1px solid rgba(155,111,208,0.30)"
-                          : "1px solid rgba(78,205,196,0.10)",
-                        borderLeft: !isUser
-                          ? "2px solid rgba(78,205,196,0.28)"
-                          : undefined,
-                        color: "var(--text-primary)",
-                        backdropFilter: "blur(16px)",
-                        boxShadow: isUser
-                          ? "0 2px 12px rgba(155,111,208,0.15)"
-                          : isSpeaking && isLastAss
-                            ? "0 2px 12px rgba(78,205,196,0.12), inset 0 1px 0 rgba(255,255,255,0.04)"
-                            : "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)",
-                        transition: "box-shadow 0.4s ease",
-                      }}
-                    >
-                      {isUser ? (
-                        msg.content || null
-                      ) : msg.content ? (
+                >
+                  {isUser ? (
+                    <div className="max-w-[80%] whitespace-pre-wrap rounded-lg bg-muted px-4 py-2 text-sm leading-relaxed text-foreground">
+                      {msg.content || null}
+                    </div>
+                  ) : (
+                    <div className="w-full max-w-[92%] text-sm leading-relaxed text-foreground">
+                      {msg.content ? (
                         <AssistantMessage
                           content={msg.content}
                           svg={msg.visual}
@@ -1688,38 +872,10 @@ export default function CourseModulePage() {
                           }}
                         />
                       ) : (
-                        <span
-                          style={{
-                            color: "var(--text-tertiary)",
-                            fontStyle: "italic",
-                            fontSize: 12,
-                          }}
-                        >
-                          …
-                        </span>
+                        <span className="italic text-muted-foreground">…</span>
                       )}
                     </div>
-
-                    {/* Timestamp — only on last of a group */}
-                    {!nextSameRole && (
-                      <span
-                        style={{
-                          fontSize: 9,
-                          color: "var(--text-tertiary)",
-                          fontFamily: "monospace",
-                          letterSpacing: "0.06em",
-                          paddingLeft: isUser ? 0 : 4,
-                          paddingRight: isUser ? 4 : 0,
-                          opacity: 0.6,
-                        }}
-                      >
-                        {new Date(msg.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               );
             })}
@@ -1728,197 +884,82 @@ export default function CourseModulePage() {
               messages[messages.length - 1]?.role !== "assistant" && (
                 <TypingIndicator />
               )}
-            <div ref={chatEndRef} style={{ height: 8 }} />
+            <div ref={chatEndRef} className="h-2" />
           </div>
 
-          {/* ── INPUT BAR ── */}
-          <div
-            style={{
-              padding: "10px 14px 12px",
-              flexShrink: 0,
-              background: "var(--glass-lg)",
-              borderTop: "1px solid var(--border-subtle)",
-              backdropFilter: "blur(24px) saturate(150%)",
-              boxShadow: "0 -1px 0 rgba(255,255,255,0.03)",
-            }}
-          >
+          {/* INPUT BAR */}
+          <div className="shrink-0 border-t p-3">
             <div
-              style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: 8,
-                background: "rgba(8,11,22,0.7)",
-                border: `1px solid ${micActive ? "rgba(232,80,122,0.35)" : streaming ? "rgba(78,205,196,0.18)" : "rgba(78,205,196,0.12)"}`,
-                borderRadius: 14,
-                padding: "8px 8px 8px 14px",
-                boxShadow: "inset 0 2px 8px rgba(0,0,0,0.4)",
-                transition: "border-color 0.22s",
-              }}
+              className={cn(
+                "flex items-end gap-2 rounded-lg border bg-muted/30 p-2 transition-colors",
+                micActive && "border-foreground/40",
+              )}
             >
-              <textarea
+              <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    const t = input.trim();
-                    if (!t || streamRef.current) return;
-                    setInput("");
-                    void doSend(t, false);
+                    sendInput();
                   }
                 }}
                 disabled={streaming}
                 rows={1}
                 placeholder={
                   micActive
-                    ? "🎤  Listening…"
+                    ? "Listening…"
                     : streaming
                       ? "Alex is responding…"
-                      : `Message Alex…`
+                      : "Message Alex…"
                 }
-                className="aurora-input"
-                style={{
-                  flex: 1,
-                  resize: "none",
-                  background: "transparent",
-                  border: "none",
-                  padding: "4px 0",
-                  fontSize: 13,
-                  color: micActive ? "var(--ac-rose)" : "var(--text-primary)",
-                  outline: "none",
-                  maxHeight: 110,
-                  lineHeight: 1.6,
-                  fontFamily: "inherit",
-                  transition: "color 0.2s",
-                  boxShadow: "none",
-                }}
+                className="max-h-28 min-h-0 resize-none border-0 bg-transparent px-1 py-1.5 text-sm shadow-none focus-visible:ring-0"
               />
 
               {/* mic */}
-              <button
+              <Button
+                type="button"
+                size="icon"
+                variant={micActive ? "default" : "ghost"}
+                className="h-9 w-9 shrink-0"
                 onClick={toggleMic}
                 disabled={streaming}
                 title={micActive ? "Stop mic" : "Use mic"}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 9,
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: micActive
-                    ? "rgba(232,80,122,0.14)"
-                    : "transparent",
-                  border: `1px solid ${micActive ? "rgba(232,80,122,0.35)" : "transparent"}`,
-                  color: micActive ? "var(--ac-rose)" : "var(--text-tertiary)",
-                  animation: micActive
-                    ? "tapPulse 1s ease-in-out infinite"
-                    : "none",
-                  transition: "all 0.2s",
-                }}
               >
-                {micActive ? <MicOff size={15} /> : <Mic size={15} />}
-              </button>
+                {micActive ? <MicOff size={16} /> : <Mic size={16} />}
+              </Button>
 
-              {/* stop (visible while streaming or speaking) */}
+              {/* stop / send */}
               {streaming || isSpeaking ? (
-                <button
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className="h-9 w-9 shrink-0"
                   onClick={stopAll}
                   title="Stop"
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 9,
-                    flexShrink: 0,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "rgba(232,80,122,0.14)",
-                    border: "1px solid rgba(232,80,122,0.35)",
-                    color: "var(--ac-rose)",
-                    boxShadow: "0 0 10px rgba(232,80,122,0.15)",
-                    transition: "all 0.18s",
-                  }}
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    fill="currentColor"
-                  >
-                    <rect x="1" y="1" width="10" height="10" rx="2" />
-                  </svg>
-                </button>
+                  <Square size={14} className="fill-current" />
+                </Button>
               ) : (
-                /* send */
-                <button
-                  onClick={() => {
-                    const t = input.trim();
-                    if (!t || streamRef.current) return;
-                    setInput("");
-                    void doSend(t, false);
-                  }}
+                <Button
+                  type="button"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={sendInput}
                   disabled={!input.trim()}
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 9,
-                    flexShrink: 0,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: !input.trim()
-                      ? "rgba(255,255,255,0.04)"
-                      : "linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.20))",
-                    border: `1px solid ${!input.trim() ? "transparent" : "rgba(78,205,196,0.30)"}`,
-                    color: !input.trim()
-                      ? "var(--text-tertiary)"
-                      : "var(--ac-cyan)",
-                    boxShadow: !input.trim()
-                      ? "none"
-                      : "0 0 10px rgba(78,205,196,0.15)",
-                    transition: "all 0.18s",
-                  }}
+                  title="Send"
                 >
-                  <Send size={15} />
-                </button>
+                  <Send size={16} />
+                </Button>
               )}
             </div>
 
             {micActive && (
-              <div
-                style={{
-                  marginTop: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  paddingLeft: 2,
-                }}
-              >
-                <span
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: "50%",
-                    background: "var(--ac-rose)",
-                    animation: "tapPulse 0.9s ease-in-out infinite",
-                    boxShadow: "0 0 6px var(--ac-rose)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 10,
-                    color: "var(--ac-rose)",
-                    fontFamily: "monospace",
-                    letterSpacing: "0.1em",
-                    opacity: 0.85,
-                  }}
-                >
-                  LISTENING…
+              <div className="mt-1.5 flex items-center gap-2 pl-1">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Listening…
                 </span>
               </div>
             )}
@@ -1980,14 +1021,6 @@ export default function CourseModulePage() {
           }}
         />
       )}
-
-      <style>{`
-        @keyframes tapPulse { 0%,100%{opacity:0.45} 50%{opacity:1} }
-        @keyframes onlinePulse {
-          0%,100%{transform:scale(1); box-shadow:0 0 5px rgba(126,207,206,0.4)}
-          50%{transform:scale(1.4); box-shadow:0 0 12px rgba(126,207,206,0.7)}
-        }
-      `}</style>
     </div>
   );
 }

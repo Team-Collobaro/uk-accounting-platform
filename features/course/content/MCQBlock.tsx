@@ -1,7 +1,7 @@
 import React from 'react'
+import { Check, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { MCQData } from '@/types/course'
-
-const COLORS: Record<string, string> = { A: '#4ECDC4', B: '#9B6FD0', C: '#52D98B', D: '#E8B84B' }
 
 export function MCQBlock({ data, onAnswer, answered }: {
   data: MCQData
@@ -9,43 +9,45 @@ export function MCQBlock({ data, onAnswer, answered }: {
   answered: string | null
 }) {
   return (
-    <div className="visual-card-enter" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(78,205,196,0.18)', background: 'rgba(5,8,16,0.75)' }}>
-      <div style={{ padding: '10px 14px 9px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 18, height: 18, borderRadius: 5, background: 'rgba(78,205,196,0.12)', border: '1px solid rgba(78,205,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }}>?</span>
+    <div className="mt-3 overflow-hidden rounded-lg border bg-card animate-msg-in">
+      <div className="flex items-center gap-2 border-b px-3.5 py-2.5">
+        <div className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border text-[10px] font-bold text-foreground">
+          ?
         </div>
-        <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.5, margin: 0, fontWeight: 500 }}>{data.question}</p>
+        <p className="m-0 text-sm font-medium leading-snug text-foreground">{data.question}</p>
       </div>
 
-      <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div className="flex flex-col gap-1.5 px-3 pb-3 pt-2.5">
         {data.options.map((opt) => {
-          const isSelected = answered === opt.letter
-          const isCorrect  = answered !== null && opt.letter === data.correct
-          const isWrong    = answered === opt.letter && opt.letter !== data.correct
-          const color = COLORS[opt.letter] ?? '#4ECDC4'
-
-          let bg = 'rgba(255,255,255,0.02)'
-          let border = 'rgba(255,255,255,0.08)'
-          let textColor = '#8EA8CC'
-          if (isCorrect && answered !== null) { bg = 'rgba(82,217,139,0.1)'; border = 'rgba(82,217,139,0.35)'; textColor = '#52D98B' }
-          else if (isWrong)                   { bg = 'rgba(232,123,111,0.1)'; border = 'rgba(232,123,111,0.35)'; textColor = '#E87B6F' }
-          else if (isSelected)                { bg = `${color}12`; border = `${color}40`; textColor = color }
+          const isCorrect = answered !== null && opt.letter === data.correct
+          const isWrong = answered === opt.letter && opt.letter !== data.correct
 
           return (
             <button
               key={opt.letter}
               disabled={answered !== null}
               onClick={() => onAnswer(opt.letter, `${opt.letter}. ${opt.text}`)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, background: bg, border: `1px solid ${border}`, cursor: answered !== null ? 'default' : 'pointer', textAlign: 'left', width: '100%', transition: 'all 0.18s' }}
-              onMouseEnter={(e) => { if (answered === null) (e.currentTarget as HTMLElement).style.background = `${color}10` }}
-              onMouseLeave={(e) => { if (answered === null) (e.currentTarget as HTMLElement).style.background = bg }}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-left transition-colors',
+                answered === null && 'hover:bg-accent',
+                isCorrect && 'border-foreground bg-accent',
+                isWrong && 'opacity-60',
+              )}
             >
-              <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, fontFamily: 'monospace', background: `${color}18`, border: `1px solid ${color}35`, color }}>
+              <div className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold',
+                isCorrect ? 'border-foreground bg-foreground text-background' : 'text-muted-foreground',
+              )}>
                 {opt.letter}
               </div>
-              <span style={{ fontSize: 12, lineHeight: 1.5, color: textColor, flex: 1 }}>{opt.text}</span>
-              {isCorrect && answered !== null && <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>}
-              {isWrong                          && <span style={{ fontSize: 14, flexShrink: 0 }}>✗</span>}
+              <span className={cn(
+                'flex-1 text-sm leading-snug',
+                isCorrect ? 'text-foreground' : isWrong ? 'text-muted-foreground line-through' : 'text-muted-foreground',
+              )}>
+                {opt.text}
+              </span>
+              {isCorrect && <Check size={15} className="shrink-0 text-foreground" />}
+              {isWrong && <X size={15} className="shrink-0 text-muted-foreground" />}
             </button>
           )
         })}

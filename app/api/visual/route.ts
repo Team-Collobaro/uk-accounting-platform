@@ -8,28 +8,33 @@ export const maxDuration = 30;
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = process.env.CLAUDE_MODEL ?? "claude-haiku-4-5-20251001";
 
-// svg background, gradients, filters — height changes per template
-function defs(h: number) {
-  return `<defs>
-  <linearGradient id="gC" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ECDC4"/><stop offset="100%" stop-color="#2BA8A0"/></linearGradient>
-  <linearGradient id="gV" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#9B6FD0"/><stop offset="100%" stop-color="#7040B0"/></linearGradient>
-  <linearGradient id="gM" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#52D98B"/><stop offset="100%" stop-color="#2BA85A"/></linearGradient>
-  <linearGradient id="gG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E8B84B"/><stop offset="100%" stop-color="#B88820"/></linearGradient>
-  <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <filter id="blob"><feGaussianBlur stdDeviation="28"/></filter>
-  <pattern id="dots" patternUnits="userSpaceOnUse" width="18" height="18"><circle cx="9" cy="9" r="0.55" fill="#8EA8CC" opacity="0.08"/></pattern>
-</defs>
-<rect width="520" height="${h}" rx="12" fill="#07091280"/>
-<ellipse cx="90" cy="${h * 0.3}" rx="140" ry="80" fill="#4ECDC4" opacity="0.03" filter="url(#blob)"/>
-<ellipse cx="440" cy="${h * 0.7}" rx="140" ry="70" fill="#9B6FD0" opacity="0.03" filter="url(#blob)"/>
-<rect width="520" height="${h}" fill="url(#dots)" rx="12"/>
-<rect width="520" height="${h}" rx="12" fill="none" stroke="rgba(78,205,196,0.1)" stroke-width="1"/>`;
-}
+/* ──────────────────────────────────────────────────────────────────────────
+   Monochrome diagram system — matches the app's neutral black & white theme.
+   No gradients or glows: hairline borders, translucent cards, and a single
+   accent of inverted white chips (white fill / black digit). The SVG is
+   transparent; the chat's <VisualCard> supplies the frame & background.
+   ──────────────────────────────────────────────────────────────────────── */
+const W = 520;
+const FONT = "Inter,system-ui,sans-serif";
+const INK = "#FAFAFA"; // primary text / accents (foreground)
+const SUB = "#A1A1AA"; // secondary text (muted-foreground)
+const FAINT = "#71717A"; // tertiary text
+const LINE = "rgba(255,255,255,0.10)"; // hairline border
+const LINE2 = "rgba(255,255,255,0.18)"; // stronger hairline / connectors
+const CARD = "rgba(255,255,255,0.025)"; // card fill
+const CARD2 = "rgba(255,255,255,0.05)"; // elevated fill
+const CHIP_TXT = "#0A0A0A"; // digit colour inside white chips
+
+const esc = (s: string) =>
+  (s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
 function svg(title: string, body: string, h: number): string {
-  return `<svg viewBox="0 0 520 ${h}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
-${defs(h)}
-<text x="16" y="19" font-family="Inter,system-ui,sans-serif" font-size="8.5" fill="rgba(78,205,196,0.55)" letter-spacing="0.16em" font-weight="700">${title.toUpperCase().slice(0, 42)}</text>
+  return `<svg viewBox="0 0 ${W} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">
+<line x1="20" y1="21" x2="27" y2="21" stroke="${INK}" stroke-width="2" stroke-linecap="round"/>
+<text x="33" y="24.5" font-family="${FONT}" font-size="9" fill="${SUB}" letter-spacing="0.18em" font-weight="700">${esc(title.toUpperCase().slice(0, 42))}</text>
 ${body}
 </svg>`;
 }
@@ -39,62 +44,44 @@ function wrap(s: string, n: number): [string, string] {
   const t = (s ?? "").trim();
   if (t.length <= n) return [t, ""];
   const idx = t.lastIndexOf(" ", n);
-  const cut = idx > n * 0.5 ? idx : n;
-  return [
-    t.slice(0, cut).trim(),
-    t
-      .slice(cut)
-      .trim()
-      .slice(0, n + 4),
-  ];
+  const cut = idx > 0 ? idx : n;
+  const l1 = t.slice(0, cut).trim();
+  const rem = t.slice(cut).trim();
+  const lim = n + 10;
+  if (rem.length <= lim) return [l1, rem];
+  const idx2 = rem.lastIndexOf(" ", lim);
+  return [l1, idx2 > 0 ? rem.slice(0, idx2) : rem.slice(0, lim)];
 }
+
+// white chip with a black digit — the one recurring accent
+const chip = (cx: number, cy: number, r: number, n: number | string, fs: number) =>
+  `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${INK}"/>
+<text x="${cx}" y="${cy + fs * 0.35}" text-anchor="middle" font-family="${FONT}" font-size="${fs}" fill="${CHIP_TXT}" font-weight="800">${n}</text>`;
 
 // 3 stacked authority rows
 const HIERARCHY = (_t: string, tiers: [string, string][]) => {
-  const pal = [
-    {
-      g: "gC",
-      c: "#4ECDC4",
-      border: "rgba(78,205,196,0.22)",
-      bg: "rgba(78,205,196,0.05)",
-    },
-    {
-      g: "gV",
-      c: "#9B6FD0",
-      border: "rgba(155,111,208,0.22)",
-      bg: "rgba(155,111,208,0.05)",
-    },
-    {
-      g: "gM",
-      c: "#52D98B",
-      border: "rgba(82,217,139,0.18)",
-      bg: "rgba(82,217,139,0.05)",
-    },
-  ];
-  const rowH = 52,
-    gap = 8,
-    startY = 30;
-  const totalH = startY + 3 * rowH + 2 * gap + 14;
+  const rowH = 54,
+    gap = 10,
+    startY = 36;
+  const totalH = startY + 3 * rowH + 2 * gap + 16;
   let body = "";
   for (let i = 0; i < 3; i++) {
     const y = startY + i * (rowH + gap);
-    const p = pal[i];
     const [head, note] = tiers[i] ?? ["", ""];
-    const [n1, n2] = wrap(note, 58);
+    const [n1, n2] = wrap(note, 60);
     const hasTwo = n2.length > 0;
-    const titleY = hasTwo ? y + 18 : y + rowH / 2 - 2;
+    const titleY = hasTwo ? y + 19 : y + rowH / 2 - 2;
     const d1Y = titleY + 15;
     const d2Y = d1Y + 13;
-    body += `<rect x="14" y="${y}" width="492" height="${rowH}" rx="8" fill="${p.bg}" stroke="${p.border}" stroke-width="1"/>
-<rect x="14" y="${y}" width="3" height="${rowH}" rx="1.5" fill="url(#${p.g})"/>
-<circle cx="487" cy="${y + rowH / 2}" r="11" fill="rgba(0,0,0,0.35)" stroke="${p.border}" stroke-width="1"/>
-<text x="487" y="${y + rowH / 2 + 3.5}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9.5" fill="${p.c}" font-weight="800">${i + 1}</text>
-<text x="26" y="${titleY + 4}" font-family="Inter,system-ui,sans-serif" font-size="12" fill="#E8F0FC" font-weight="700">${head.slice(0, 38)}</text>
-<text x="26" y="${d1Y + 4}" font-family="Inter,system-ui,sans-serif" font-size="9.5" fill="#6A88AA">${n1}</text>
-${hasTwo ? `<text x="26" y="${d2Y + 4}" font-family="Inter,system-ui,sans-serif" font-size="9.5" fill="#6A88AA">${n2}</text>` : ""}`;
+    body += `<rect x="14" y="${y}" width="492" height="${rowH}" rx="10" fill="${CARD}" stroke="${LINE}"/>
+<rect x="14" y="${y}" width="2.5" height="${rowH}" rx="1.25" fill="${INK}"/>
+${chip(486, y + rowH / 2, 11, i + 1, 10)}
+<text x="28" y="${titleY + 4}" font-family="${FONT}" font-size="12.5" fill="${INK}" font-weight="700">${esc(head.slice(0, 38))}</text>
+<text x="28" y="${d1Y + 4}" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(n1)}</text>
+${hasTwo ? `<text x="28" y="${d2Y + 4}" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(n2)}</text>` : ""}`;
     if (i < 2) {
       const arY = y + rowH + 1;
-      body += `<line x1="260" y1="${arY}" x2="260" y2="${arY + gap - 1}" stroke="rgba(78,205,196,0.2)" stroke-width="1"/>`;
+      body += `<line x1="260" y1="${arY}" x2="260" y2="${arY + gap - 1}" stroke="${LINE2}" stroke-width="1"/>`;
     }
   }
   return { body, h: totalH };
@@ -102,47 +89,25 @@ ${hasTwo ? `<text x="26" y="${d2Y + 4}" font-family="Inter,system-ui,sans-serif"
 
 // 3 concept columns
 const PILLARS = (_t: string, items: [string, string][]) => {
-  const pal = [
-    {
-      g: "gC",
-      c: "#4ECDC4",
-      border: "rgba(78,205,196,0.25)",
-      bg: "rgba(78,205,196,0.05)",
-    },
-    {
-      g: "gV",
-      c: "#9B6FD0",
-      border: "rgba(155,111,208,0.25)",
-      bg: "rgba(155,111,208,0.05)",
-    },
-    {
-      g: "gM",
-      c: "#52D98B",
-      border: "rgba(82,217,139,0.22)",
-      bg: "rgba(82,217,139,0.05)",
-    },
-  ];
   const xs = [14, 185, 356],
     cw = 150,
-    startY = 28,
-    cardH = 168,
-    totalH = startY + cardH + 18;
+    startY = 36,
+    cardH = 170,
+    totalH = startY + cardH + 16;
   let body = "";
   for (let i = 0; i < 3; i++) {
-    const x = xs[i],
-      p = pal[i];
+    const x = xs[i];
     const [head, sub] = items[i] ?? ["", ""];
     const [s1, s2] = wrap(sub, 20);
     const [s3] = s2.length > 0 ? wrap(s2, 20) : ["", ""];
-    body += `<rect x="${x}" y="${startY}" width="${cw}" height="${cardH}" rx="9" fill="${p.bg}" stroke="${p.border}" stroke-width="1"/>
-<rect x="${x}" y="${startY}" width="${cw}" height="3" rx="1.5" fill="url(#${p.g})"/>
-<circle cx="${x + cw / 2}" cy="${startY + 44}" r="18" fill="rgba(0,0,0,0.4)" stroke="${p.border}" stroke-width="1.5"/>
-<circle cx="${x + cw / 2}" cy="${startY + 44}" r="8" fill="url(#${p.g})" opacity="0.85" filter="url(#glow)"/>
-<text x="${x + cw / 2}" y="${startY + 44 + 3.5}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9" fill="#050810" font-weight="800">${i + 1}</text>
-<text x="${x + cw / 2}" y="${startY + 83}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="11" fill="${p.c}" font-weight="700">${head.slice(0, 15)}</text>
-<line x1="${x + 18}" y1="${startY + 93}" x2="${x + cw - 18}" y2="${startY + 93}" stroke="${p.border}" stroke-width="0.8"/>
-<text x="${x + cw / 2}" y="${startY + 110}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9.5" fill="#6A88AA">${s1}</text>
-${s3 ? `<text x="${x + cw / 2}" y="${startY + 124}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9.5" fill="#6A88AA">${s3}</text>` : ""}`;
+    body += `<rect x="${x}" y="${startY}" width="${cw}" height="${cardH}" rx="12" fill="${CARD}" stroke="${LINE}"/>
+<rect x="${x}" y="${startY}" width="${cw}" height="2.5" rx="1.25" fill="${INK}"/>
+<circle cx="${x + cw / 2}" cy="${startY + 47}" r="17" fill="none" stroke="${LINE2}"/>
+${chip(x + cw / 2, startY + 47, 11, i + 1, 10)}
+<text x="${x + cw / 2}" y="${startY + 87}" text-anchor="middle" font-family="${FONT}" font-size="11.5" fill="${INK}" font-weight="700">${esc(head.slice(0, 15))}</text>
+<line x1="${x + 20}" y1="${startY + 98}" x2="${x + cw - 20}" y2="${startY + 98}" stroke="${LINE}"/>
+<text x="${x + cw / 2}" y="${startY + 115}" text-anchor="middle" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(s1)}</text>
+${s3 ? `<text x="${x + cw / 2}" y="${startY + 129}" text-anchor="middle" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(s3)}</text>` : ""}`;
   }
   return { body, h: totalH };
 };
@@ -151,29 +116,25 @@ ${s3 ? `<text x="${x + cw / 2}" y="${startY + 124}" text-anchor="middle" font-fa
 const FLOW = (_t: string, steps: string[]) => {
   const n = Math.min(steps.length, 4);
   const w = 104,
-    gap = 20,
-    startX = (520 - (n * w + (n - 1) * gap)) / 2;
-  const pal = ["gC", "gV", "gM", "gG"];
-  const cs = ["#4ECDC4", "#9B6FD0", "#52D98B", "#E8B84B"];
-  const startY = 28,
-    cardH = 110,
-    totalH = startY + cardH + 24;
+    gap = 22,
+    startX = (W - (n * w + (n - 1) * gap)) / 2;
+  const startY = 36,
+    cardH = 108,
+    totalH = startY + cardH + 22;
   let body = "";
   for (let i = 0; i < n; i++) {
-    const x = startX + i * (w + gap),
-      c = cs[i],
-      g = pal[i];
+    const x = startX + i * (w + gap);
     const [l1, l2] = wrap(steps[i], 13);
-    body += `<rect x="${x}" y="${startY}" width="${w}" height="${cardH}" rx="9" fill="rgba(0,0,0,0.3)" stroke="rgba(${c === "#4ECDC4" ? "78,205,196" : c === "#9B6FD0" ? "155,111,208" : c === "#52D98B" ? "82,217,139" : "232,184,75"},0.25)" stroke-width="1"/>
-<rect x="${x}" y="${startY}" width="${w}" height="3" rx="1.5" fill="url(#${g})"/>
-<circle cx="${x + w / 2}" cy="${startY + 36}" r="15" fill="rgba(0,0,0,0.4)" stroke="rgba(${c === "#4ECDC4" ? "78,205,196" : c === "#9B6FD0" ? "155,111,208" : c === "#52D98B" ? "82,217,139" : "232,184,75"},0.4)" stroke-width="1.5"/>
-<text x="${x + w / 2}" y="${startY + 40}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="13" fill="${c}" font-weight="800" filter="url(#glow)">${i + 1}</text>
-<text x="${x + w / 2}" y="${startY + (l2 ? 73 : 80)}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10.5" fill="#E8F0FC" font-weight="600">${l1}</text>
-${l2 ? `<text x="${x + w / 2}" y="${startY + 87}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10.5" fill="#C0D4EC">${l2}</text>` : ""}`;
+    body += `<rect x="${x}" y="${startY}" width="${w}" height="${cardH}" rx="11" fill="${CARD}" stroke="${LINE}"/>
+<rect x="${x}" y="${startY}" width="${w}" height="2.5" rx="1.25" fill="${INK}"/>
+${chip(x + w / 2, startY + 38, 14, i + 1, 12)}
+<text x="${x + w / 2}" y="${startY + (l2 ? 75 : 81)}" text-anchor="middle" font-family="${FONT}" font-size="10.5" fill="${INK}" font-weight="600">${esc(l1)}</text>
+${l2 ? `<text x="${x + w / 2}" y="${startY + 89}" text-anchor="middle" font-family="${FONT}" font-size="10.5" fill="${SUB}">${esc(l2)}</text>` : ""}`;
     if (i < n - 1) {
-      const ax = x + w + 3;
-      body += `<line x1="${ax}" y1="${startY + cardH / 2}" x2="${ax + gap - 5}" y2="${startY + cardH / 2}" stroke="rgba(78,205,196,0.3)" stroke-width="1.5"/>
-<polygon points="${ax + gap - 5},${startY + cardH / 2 - 3} ${ax + gap + 1},${startY + cardH / 2} ${ax + gap - 5},${startY + cardH / 2 + 3}" fill="rgba(78,205,196,0.5)"/>`;
+      const ax = x + w + 4;
+      const my = startY + cardH / 2;
+      body += `<line x1="${ax}" y1="${my}" x2="${ax + gap - 8}" y2="${my}" stroke="${LINE2}" stroke-width="1.5"/>
+<polygon points="${ax + gap - 8},${my - 3.5} ${ax + gap - 2},${my} ${ax + gap - 8},${my + 3.5}" fill="${SUB}"/>`;
     }
   }
   return { body, h: totalH };
@@ -184,27 +145,20 @@ const STATS = (_t: string, stats: [string, string, string][]) => {
   const n = Math.min(stats.length, 4);
   const w = n === 2 ? 218 : n === 3 ? 142 : 108;
   const gap = n === 2 ? 44 : n === 3 ? 22 : 16;
-  const startX = (520 - (n * w + (n - 1) * gap)) / 2;
-  const pal = [
-    { g: "gC", c: "#4ECDC4", b: "rgba(78,205,196,0.25)" },
-    { g: "gV", c: "#9B6FD0", b: "rgba(155,111,208,0.25)" },
-    { g: "gM", c: "#52D98B", b: "rgba(82,217,139,0.22)" },
-    { g: "gG", c: "#E8B84B", b: "rgba(232,184,75,0.22)" },
-  ];
-  const startY = 28,
-    cardH = 148,
-    totalH = startY + cardH + 18;
+  const startX = (W - (n * w + (n - 1) * gap)) / 2;
+  const startY = 36,
+    cardH = 150,
+    totalH = startY + cardH + 16;
   let body = "";
   for (let i = 0; i < n; i++) {
-    const x = startX + i * (w + gap),
-      p = pal[i];
+    const x = startX + i * (w + gap);
     const [val, label, desc] = stats[i];
-    body += `<rect x="${x}" y="${startY}" width="${w}" height="${cardH}" rx="9" fill="rgba(0,0,0,0.3)" stroke="${p.b}" stroke-width="1"/>
-<rect x="${x}" y="${startY}" width="${w}" height="3" rx="1.5" fill="url(#${p.g})"/>
-<text x="${x + w / 2}" y="${startY + 73}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="30" fill="${p.c}" font-weight="800" filter="url(#glow)">${val.slice(0, 10)}</text>
-<text x="${x + w / 2}" y="${startY + 91}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9" fill="#8EA8CC" letter-spacing="0.07em">${label.slice(0, 20).toUpperCase()}</text>
-<line x1="${x + w * 0.18}" y1="${startY + 102}" x2="${x + w * 0.82}" y2="${startY + 102}" stroke="${p.b}" stroke-width="1"/>
-<text x="${x + w / 2}" y="${startY + 118}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9" fill="#4A6285">${desc.slice(0, 24)}</text>`;
+    body += `<rect x="${x}" y="${startY}" width="${w}" height="${cardH}" rx="12" fill="${CARD}" stroke="${LINE}"/>
+<rect x="${x}" y="${startY}" width="${w}" height="2.5" rx="1.25" fill="${INK}"/>
+<text x="${x + w / 2}" y="${startY + 76}" text-anchor="middle" font-family="${FONT}" font-size="30" fill="${INK}" font-weight="800" letter-spacing="-0.02em">${esc(val.slice(0, 10))}</text>
+<text x="${x + w / 2}" y="${startY + 94}" text-anchor="middle" font-family="${FONT}" font-size="9" fill="${SUB}" letter-spacing="0.08em">${esc(label.slice(0, 20).toUpperCase())}</text>
+<line x1="${x + w * 0.2}" y1="${startY + 105}" x2="${x + w * 0.8}" y2="${startY + 105}" stroke="${LINE}"/>
+<text x="${x + w / 2}" y="${startY + 121}" text-anchor="middle" font-family="${FONT}" font-size="9" fill="${FAINT}">${esc(desc.slice(0, 24))}</text>`;
   }
   return { body, h: totalH };
 };
@@ -213,34 +167,27 @@ const STATS = (_t: string, stats: [string, string, string][]) => {
 const CONCEPT = (_t: string, centre: string, satellites: string[]) => {
   const n = Math.min(satellites.length, 4);
   const pos: [number, number][] = [
-    [110, 72],
-    [410, 72],
-    [110, 188],
-    [410, 188],
-  ];
-  const pal = [
-    { g: "gC", b: "rgba(78,205,196,0.28)" },
-    { g: "gV", b: "rgba(155,111,208,0.28)" },
-    { g: "gM", b: "rgba(82,217,139,0.25)" },
-    { g: "gG", b: "rgba(232,184,75,0.25)" },
+    [110, 78],
+    [410, 78],
+    [110, 192],
+    [410, 192],
   ];
   const [c1, c2] = wrap(centre, 14);
-  const totalH = 262;
-  let body = `<ellipse cx="260" cy="130" rx="72" ry="44" fill="rgba(78,205,196,0.06)" stroke="rgba(78,205,196,0.35)" stroke-width="1.5" filter="url(#glow)"/>
-<text x="260" y="${c2 ? "125" : "134"}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="12" fill="#4ECDC4" font-weight="700">${c1}</text>
-${c2 ? `<text x="260" y="141" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#4ECDC4">${c2}</text>` : ""}`;
+  const totalH = 268;
+  let body = `<ellipse cx="260" cy="135" rx="72" ry="44" fill="${CARD2}" stroke="${LINE2}" stroke-width="1.5"/>
+<text x="260" y="${c2 ? "130" : "139"}" text-anchor="middle" font-family="${FONT}" font-size="12.5" fill="${INK}" font-weight="700">${esc(c1)}</text>
+${c2 ? `<text x="260" y="146" text-anchor="middle" font-family="${FONT}" font-size="11" fill="${INK}">${esc(c2)}</text>` : ""}`;
   for (let i = 0; i < n; i++) {
-    const [sx, sy] = pos[i],
-      p = pal[i];
-    const [l1, l2] = wrap(satellites[i], 15);
+    const [sx, sy] = pos[i];
+    const [l1, l2] = wrap(satellites[i], 18);
     const cardH = l2 ? 46 : 34;
     const lx = sx < 260 ? sx + 56 : sx - 56;
-    const ly = sy < 130 ? 106 : 154;
-    body += `<line x1="${lx}" y1="${ly}" x2="${sx < 260 ? 188 : 332}" y2="130" stroke="${p.b}" stroke-width="1" stroke-dasharray="3 3"/>
-<rect x="${sx - 58}" y="${sy - cardH / 2}" width="116" height="${cardH}" rx="8" fill="rgba(8,12,24,0.85)" stroke="${p.b}" stroke-width="1"/>
-<rect x="${sx - 58}" y="${sy - cardH / 2}" width="116" height="3" rx="1.5" fill="url(#${p.g})"/>
-<text x="${sx}" y="${sy + (l2 ? -4 : 4)}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="10.5" fill="#E8F0FC" font-weight="600">${l1}</text>
-${l2 ? `<text x="${sx}" y="${sy + 11}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="9.5" fill="#7A98BE">${l2}</text>` : ""}`;
+    const ly = sy < 135 ? 110 : 160;
+    body += `<line x1="${lx}" y1="${ly}" x2="${sx < 260 ? 190 : 330}" y2="135" stroke="${LINE2}" stroke-width="1" stroke-dasharray="3 4"/>
+<rect x="${sx - 58}" y="${sy - cardH / 2}" width="116" height="${cardH}" rx="10" fill="${CARD}" stroke="${LINE}"/>
+<rect x="${sx - 58}" y="${sy - cardH / 2}" width="116" height="2.5" rx="1.25" fill="${INK}"/>
+<text x="${sx}" y="${sy + (l2 ? -4 : 4)}" text-anchor="middle" font-family="${FONT}" font-size="10.5" fill="${INK}" font-weight="600">${esc(l1)}</text>
+${l2 ? `<text x="${sx}" y="${sy + 11}" text-anchor="middle" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(l2)}</text>` : ""}`;
   }
   return { body, h: totalH };
 };

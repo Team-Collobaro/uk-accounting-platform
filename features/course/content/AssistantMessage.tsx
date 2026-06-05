@@ -17,7 +17,7 @@ export function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStream
   const segments = parseContent(displayContent)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div className="flex flex-col gap-2.5">
       {segments.map((seg, i) => {
         if (seg.kind === 'text')    return <FormattedText key={i} text={seg.text} />
         if (seg.kind === 'pillars') return <PillarsBlock  key={i} title={seg.title} items={seg.items} />

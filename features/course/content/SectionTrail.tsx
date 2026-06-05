@@ -9,6 +9,7 @@ import {
   ChevronUp,
   ChevronRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Section, SectionProgress } from "@/types/course";
 
 function isSubSection(id: string) {
@@ -103,22 +104,12 @@ export function SectionTrail({
   const isUnlocked = (idx: number) => isSectionUnlocked(sections[idx].section_id);
 
   return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "6px 8px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-      }}
-    >
+    <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
       {groups.map(({ parent, parentIdx, children }) => {
         const isCurParent = currentIdx === parentIdx;
         const parentLocked = !isUnlocked(parentIdx);
         const isExp = expanded.has(parent.section_id);
         const hasChildren = children.length > 0;
-        // Exclude the stub parent from the counter — only count real sub-sections
         const groupIds = hasChildren
           ? children.map((c) => c.section.section_id)
           : [parent.section_id];
@@ -126,7 +117,6 @@ export function SectionTrail({
           (id) =>
             progress.find((p) => p.section_id === id)?.status === "completed",
         ).length;
-        // For groups with children, only show ✓ when ALL children are done
         const parentDone = hasChildren
           ? groupDone === groupIds.length && groupIds.length > 0
           : progress.find((p) => p.section_id === parent.section_id)?.status === "completed";
@@ -145,67 +135,26 @@ export function SectionTrail({
                         : n.add(parent.section_id);
                       return n;
                     });
-                    // Skip the thin parent stub — go straight to first child
                     onSelect(children[0].idx);
                   } else {
                     onSelect(parentIdx);
                   }
                 }
               }}
-              className={isCurParent ? "trail-active" : ""}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 10px",
-                borderRadius: 9,
-                textAlign: "left",
-                cursor: parentLocked ? "default" : "pointer",
-                opacity: parentLocked ? 0.3 : 1,
-                border: isCurParent
-                  ? "1px solid var(--border-medium)"
-                  : parentDone
-                    ? "1px solid rgba(82,217,139,0.15)"
-                    : "1px solid transparent",
-                background: isCurParent
-                  ? undefined
-                  : parentDone
-                    ? "rgba(82,217,139,0.04)"
-                    : "transparent",
-                boxShadow: isCurParent ? "var(--shadow-sm)" : "none",
-                transition: "all 0.18s",
-              }}
+              disabled={parentLocked}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-2.5 py-2 text-left transition-colors",
+                parentLocked && "cursor-default opacity-40",
+                isCurParent ? "border-l-foreground bg-accent" : "hover:bg-accent/50",
+              )}
             >
               <span
-                style={{
-                  minWidth: 32,
-                  height: 20,
-                  borderRadius: 6,
-                  padding: "0 4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  fontFamily: "monospace",
-                  flexShrink: 0,
-                  background: isCurParent
-                    ? "rgba(78,205,196,0.14)"
-                    : parentDone
-                      ? "rgba(82,217,139,0.12)"
-                      : "rgba(255,255,255,0.05)",
-                  border: isCurParent
-                    ? "1px solid rgba(78,205,196,0.4)"
-                    : parentDone
-                      ? "1px solid rgba(82,217,139,0.3)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                  color: isCurParent
-                    ? "var(--ac-cyan)"
-                    : parentDone
-                      ? "var(--ac-mint)"
-                      : "var(--text-tertiary)",
-                }}
+                className={cn(
+                  "flex h-5 min-w-[32px] shrink-0 items-center justify-center rounded border px-1 font-mono text-[9px] font-bold",
+                  isCurParent
+                    ? "border-foreground text-foreground"
+                    : "bg-muted text-muted-foreground",
+                )}
               >
                 {parentLocked ? (
                   <Lock size={8} />
@@ -216,46 +165,26 @@ export function SectionTrail({
                 )}
               </span>
               <span
-                style={{
-                  flex: 1,
-                  fontSize: 11,
-                  fontWeight: isCurParent ? 600 : 400,
-                  lineHeight: 1.35,
-                  color: isCurParent
-                    ? "var(--text-primary)"
+                className={cn(
+                  "flex-1 truncate text-[11px] leading-snug",
+                  isCurParent
+                    ? "font-semibold text-foreground"
                     : parentDone
-                      ? "var(--ac-mint)"
-                      : "var(--text-secondary)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+                      ? "text-muted-foreground line-through"
+                      : "text-foreground/80",
+                )}
               >
                 {parent.section_title}
               </span>
               {!parentLocked && hasChildren && (
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 3,
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 8,
-                      fontFamily: "monospace",
-                      color: "var(--text-tertiary)",
-                      opacity: 0.5,
-                    }}
-                  >
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="font-mono text-[8px] text-muted-foreground">
                     {groupDone}/{groupIds.length}
                   </span>
                   {isExp ? (
-                    <ChevronUp size={9} color="var(--text-tertiary)" />
+                    <ChevronUp size={9} className="text-muted-foreground" />
                   ) : (
-                    <ChevronDown size={9} color="var(--text-tertiary)" />
+                    <ChevronDown size={9} className="text-muted-foreground" />
                   )}
                 </span>
               )}
@@ -263,17 +192,7 @@ export function SectionTrail({
 
             {/* H3 sub-sections */}
             {isExp && hasChildren && (
-              <div
-                style={{
-                  marginLeft: 14,
-                  paddingLeft: 8,
-                  borderLeft: "1px solid rgba(78,205,196,0.1)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 1,
-                  marginBottom: 2,
-                }}
-              >
+              <div className="mb-0.5 ml-3.5 flex flex-col gap-px border-l pl-2">
                 {children.map(({ section: child, idx: childIdx }) => {
                   const childDone =
                     progress.find((p) => p.section_id === child.section_id)
@@ -284,59 +203,20 @@ export function SectionTrail({
                     <button
                       key={child.section_id}
                       onClick={() => !childLocked && onSelect(childIdx)}
-                      className={isCurChild ? "trail-active" : ""}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        padding: "5px 8px",
-                        borderRadius: 7,
-                        textAlign: "left",
-                        cursor: childLocked ? "default" : "pointer",
-                        opacity: childLocked ? 0.3 : 1,
-                        border: isCurChild
-                          ? "1px solid rgba(155,111,208,0.3)"
-                          : childDone
-                            ? "1px solid rgba(82,217,139,0.1)"
-                            : "1px solid transparent",
-                        background: isCurChild
-                          ? "rgba(155,111,208,0.07)"
-                          : childDone
-                            ? "rgba(82,217,139,0.03)"
-                            : "transparent",
-                        transition: "all 0.15s",
-                      }}
+                      disabled={childLocked}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-2 py-1.5 text-left transition-colors",
+                        childLocked && "cursor-default opacity-40",
+                        isCurChild ? "border-l-foreground bg-accent" : "hover:bg-accent/50",
+                      )}
                     >
                       <span
-                        style={{
-                          minWidth: 30,
-                          height: 17,
-                          borderRadius: 5,
-                          padding: "0 3px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 8,
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          flexShrink: 0,
-                          background: isCurChild
-                            ? "rgba(155,111,208,0.18)"
-                            : childDone
-                              ? "rgba(82,217,139,0.1)"
-                              : "rgba(255,255,255,0.04)",
-                          border: isCurChild
-                            ? "1px solid rgba(155,111,208,0.4)"
-                            : childDone
-                              ? "1px solid rgba(82,217,139,0.25)"
-                              : "1px solid rgba(255,255,255,0.06)",
-                          color: isCurChild
-                            ? "var(--ac-violet)"
-                            : childDone
-                              ? "var(--ac-mint)"
-                              : "var(--text-tertiary)",
-                        }}
+                        className={cn(
+                          "flex h-[17px] min-w-[30px] shrink-0 items-center justify-center rounded border px-1 font-mono text-[8px] font-bold",
+                          isCurChild
+                            ? "border-foreground text-foreground"
+                            : "bg-muted text-muted-foreground",
+                        )}
                       >
                         {childLocked ? (
                           <Lock size={7} />
@@ -347,19 +227,14 @@ export function SectionTrail({
                         )}
                       </span>
                       <span
-                        style={{
-                          flex: 1,
-                          fontSize: 10,
-                          lineHeight: 1.35,
-                          color: isCurChild
-                            ? "#C4A8F0"
+                        className={cn(
+                          "flex-1 truncate text-[10px] leading-snug",
+                          isCurChild
+                            ? "font-medium text-foreground"
                             : childDone
-                              ? "var(--ac-mint)"
-                              : "var(--text-tertiary)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
+                              ? "text-muted-foreground line-through"
+                              : "text-muted-foreground",
+                        )}
                       >
                         {child.section_title}
                       </span>
@@ -373,88 +248,29 @@ export function SectionTrail({
       })}
 
       {/* Module Quiz — unlocks after all sections done */}
-      <div
-        style={{
-          marginTop: 4,
-          paddingTop: 6,
-          borderTop: "1px solid var(--border-subtle)",
-        }}
-      >
+      <div className="mt-1 border-t pt-1.5">
         <button
           onClick={() => quizUnlocked && onStartFinalQuiz()}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 10px",
-            borderRadius: 9,
-            textAlign: "left",
-            cursor: quizUnlocked ? "pointer" : "default",
-            opacity: quizUnlocked ? 1 : 0.3,
-            border: quizUnlocked
-              ? "1px solid rgba(232,184,75,0.3)"
-              : "1px solid rgba(255,255,255,0.06)",
-            background: quizUnlocked ? "rgba(232,184,75,0.05)" : "transparent",
-            transition: "all 0.18s",
-          }}
+          disabled={!quizUnlocked}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
+            quizUnlocked ? "border-border hover:bg-accent" : "cursor-default border-transparent opacity-40",
+          )}
         >
-          <span
-            style={{
-              width: 32,
-              height: 20,
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: quizUnlocked
-                ? "rgba(232,184,75,0.15)"
-                : "rgba(255,255,255,0.04)",
-              border: quizUnlocked
-                ? "1px solid rgba(232,184,75,0.35)"
-                : "1px solid rgba(255,255,255,0.07)",
-              flexShrink: 0,
-            }}
-          >
-            <Brain
-              size={10}
-              color={quizUnlocked ? "#E8B84B" : "var(--text-tertiary)"}
-            />
+          <span className="flex h-5 w-8 shrink-0 items-center justify-center rounded border bg-muted">
+            <Brain size={10} className="text-foreground" />
           </span>
-          <span
-            style={{
-              flex: 1,
-              fontSize: 11,
-              fontWeight: 600,
-              color: quizUnlocked ? "#E8B84B" : "var(--text-tertiary)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
+          <span className="flex-1 truncate text-[11px] font-semibold text-foreground">
             Module Quiz · 10 Questions
           </span>
           {quizUnlocked ? (
-            <ChevronRight size={10} color="#E8B84B" style={{ flexShrink: 0 }} />
+            <ChevronRight size={10} className="shrink-0 text-muted-foreground" />
           ) : (
-            <Lock
-              size={9}
-              color="var(--text-tertiary)"
-              style={{ flexShrink: 0 }}
-            />
+            <Lock size={9} className="shrink-0 text-muted-foreground" />
           )}
         </button>
         {!quizUnlocked && (
-          <p
-            style={{
-              fontSize: 9,
-              color: "var(--text-tertiary)",
-              fontFamily: "monospace",
-              textAlign: "center",
-              marginTop: 3,
-              opacity: 0.4,
-            }}
-          >
+          <p className="mt-1 text-center font-mono text-[9px] text-muted-foreground opacity-60">
             Complete all topics to unlock
           </p>
         )}
