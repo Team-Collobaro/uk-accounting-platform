@@ -10,34 +10,38 @@ import { useTeachingPoints } from "@/features/course/hooks/useTeachingPoints";
 import { useMic } from "@/features/course/hooks/useMic";
 import { useChat } from "@/features/course/hooks/useChat";
 import { SectionTrail } from "@/features/course/content/SectionTrail";
+import { SpeakingOrb } from "@/features/course/content/SpeakingOrb";
 import { QuizModal } from "@/features/course/content/QuizModal";
 import { PageSkeleton } from "@/features/course/content/PageSkeleton";
 import { AssistantMessage } from "@/features/course/content/AssistantMessage";
 import { TypingIndicator } from "@/features/course/content/TypingIndicator";
 import {
-  Send,
-  Loader2,
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   Brain,
   CheckCircle2,
-  Mic,
   MicOff,
   Volume2,
   VolumeX,
   Check,
   Lock,
-  Keyboard,
   Square,
   RotateCcw,
+  Search,
+  PanelLeft,
+  BookOpen,
+  CircleHelp,
+  Sparkles,
+  Plus,
+  AudioLines,
+  ArrowUp,
 } from "lucide-react";
-import type { SectionProgress, Message } from "@/types/course";
+import type { SectionProgress } from "@/types/course";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -45,6 +49,29 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
+
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_DEFAULT_WIDTH = 280;
+const SIDEBAR_MAX_WIDTH = 380;
+const CHAT_MIN_WIDTH = 360;
+const SIDEBAR_KEYBOARD_STEP = 20;
+const SIDEBAR_WIDTH_STORAGE_KEY = "course_topics_sidebar_width";
+
+function getSidebarMaxWidth() {
+  if (typeof window === "undefined") return SIDEBAR_MAX_WIDTH;
+  return Math.max(
+    SIDEBAR_MIN_WIDTH,
+    Math.min(SIDEBAR_MAX_WIDTH, window.innerWidth - CHAT_MIN_WIDTH),
+  );
+}
+
+function clampSidebarWidth(width: number) {
+  if (!Number.isFinite(width)) return SIDEBAR_DEFAULT_WIDTH;
+  return Math.min(
+    Math.max(Math.round(width), SIDEBAR_MIN_WIDTH),
+    getSidebarMaxWidth(),
+  );
+}
 
 export default function CourseModulePage() {
   const params = useParams();
@@ -64,9 +91,22 @@ export default function CourseModulePage() {
   // Set once the student submits the quiz, so closing the results advances
   // them (score doesn't gate progress). Cancelling leaves them in place.
   const quizCompletedRef = useRef(false);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [sectionCompleted, setSectionCompleted] = useState(false);
+  const [isRelearning, setIsRelearning] = useState(false);
   const [showAdvancePrompt, setShowAdvancePrompt] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [sidebarWidthLoaded, setSidebarWidthLoaded] = useState(false);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [sidebarSearchOpen, setSidebarSearchOpen] = useState(false);
+  const [sidebarQuery, setSidebarQuery] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Speaking-orb visibility: the AI avatar pulses as an orb while its reply is
+  // spoken. Stays up across the brief silent gaps between streamed sentence
+  // utterances, and only reverts to the static avatar once speech has ended.
+  const [orbActive, setOrbActive] = useState(false);
+  const orbHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Shared refs that bridge hook boundaries
   const streamRef = useRef(false);
@@ -129,6 +169,98 @@ export default function CourseModulePage() {
     doSendRef.current = chat.doSend;
   }, [chat.doSend]);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+      const parsed = saved ? Number(saved) : NaN;
+      if (Number.isFinite(parsed)) {
+        setSidebarWidth(clampSidebarWidth(parsed));
+      }
+    } catch { /* ignore */ }
+    setSidebarWidthLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setSidebarWidth((current) => clampSidebarWidth(current));
+    };
+    window.addEventListener("resize", handleWindowResize);
+    return () => window.removeEventListener("resize", handleWindowResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+
+    const originalCursor = document.body.style.cursor;
+    const originalUserSelect = document.body.style.userSelect;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      setSidebarWidth(clampSidebarWidth(event.clientX));
+    };
+    const handlePointerEnd = () => {
+      setIsResizingSidebar(false);
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerEnd);
+    window.addEventListener("pointercancel", handlePointerEnd);
+
+    return () => {
+      document.body.style.cursor = originalCursor;
+      document.body.style.userSelect = originalUserSelect;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerEnd);
+      window.removeEventListener("pointercancel", handlePointerEnd);
+    };
+  }, [isResizingSidebar]);
+
+  useEffect(() => {
+    if (!sidebarWidthLoaded || isResizingSidebar) return;
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_WIDTH_STORAGE_KEY,
+        String(sidebarWidth),
+      );
+    } catch { /* ignore */ }
+  }, [isResizingSidebar, sidebarWidth, sidebarWidthLoaded]);
+
+  useEffect(
+    () => () => {
+      if (advanceTimerRef.current) {
+        clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const handleSidebarResizeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const key = event.key;
+      const handlesKey =
+        key === "ArrowLeft" ||
+        key === "ArrowRight" ||
+        key === "Home" ||
+        key === "End";
+
+      if (!handlesKey) return;
+      event.preventDefault();
+
+      setSidebarWidth((current) => {
+        if (key === "Home") return SIDEBAR_MIN_WIDTH;
+        if (key === "End") return getSidebarMaxWidth();
+        const delta =
+          key === "ArrowLeft"
+            ? -SIDEBAR_KEYBOARD_STEP
+            : SIDEBAR_KEYBOARD_STEP;
+        return clampSidebarWidth(current + delta);
+      });
+    },
+    [],
+  );
+
   // Keep last_section in sync with wherever the user currently is,
   // including auto-resume jumps that bypass switchSection
   useEffect(() => {
@@ -161,7 +293,35 @@ export default function CourseModulePage() {
     availableVoices,
     voiceRef,
     cancelSpeech,
+    energyRef,
+    speakText,
+    audioRef,
   } = audio;
+
+  // The per-utterance `isSpeaking` flag flickers off during the silent gaps
+  // between streamed sentence utterances. So we treat speech as "ongoing" for
+  // the whole reply: while audio is on AND the reply is still streaming (more
+  // sentences are coming), OR while a sentence is actively being spoken. Once
+  // both are false we wait out a short grace period, then hide.
+  const speechOngoing = isSpeaking || (chat.streaming && audioEnabled);
+  useEffect(() => {
+    if (speechOngoing) {
+      if (orbHideTimer.current) {
+        clearTimeout(orbHideTimer.current);
+        orbHideTimer.current = null;
+      }
+      setOrbActive(true);
+    } else {
+      if (orbHideTimer.current) clearTimeout(orbHideTimer.current);
+      orbHideTimer.current = setTimeout(() => setOrbActive(false), 900);
+    }
+    return () => {
+      if (orbHideTimer.current) {
+        clearTimeout(orbHideTimer.current);
+        orbHideTimer.current = null;
+      }
+    };
+  }, [speechOngoing]);
 
   const { moduleTitle, partNumber, partTitle, nextModule, moduleAlreadyCompleted } =
     moduleData;
@@ -181,6 +341,10 @@ export default function CourseModulePage() {
   const currentProgress =
     sectionProgress.find((p) => p.section_id === currentSection?.section_id) ??
     null;
+  const currentSectionDone =
+    !!currentSection &&
+    !isRelearning &&
+    (currentProgress?.status === "completed" || sectionCompleted);
 
   const {
     teachingPoints,
@@ -201,6 +365,7 @@ export default function CourseModulePage() {
     chatEndRef,
     hasStarted,
     doSend,
+    restoreChatForSection,
     advanceTopic,
     stopAll,
     resetSection,
@@ -228,6 +393,26 @@ export default function CourseModulePage() {
       .map((s) => s.section_id),
   );
   const realSections = sections.filter((s) => !stubSectionIds.has(s.section_id));
+  const completedTopicCount = realSections.filter(
+    (s) =>
+      sectionProgress.find((p) => p.section_id === s.section_id)?.status ===
+      "completed",
+  ).length;
+  const topicProgressPct =
+    realSections.length > 0
+      ? Math.round((completedTopicCount / realSections.length) * 100)
+      : 0;
+  const currentTopicIdx = currentSection
+    ? realSections.findIndex((s) => s.section_id === currentSection.section_id)
+    : -1;
+  const currentTopicNumber =
+    currentTopicIdx >= 0
+      ? currentTopicIdx + 1
+      : Math.min(currentSectionIdx + 1, realSections.length || totalSections);
+  const titleProgressPct =
+    realSections.length > 0
+      ? Math.round((currentTopicNumber / realSections.length) * 100)
+      : progressPct;
   const quizUnlockedNow =
     realSections.length > 0 &&
     realSections.every(
@@ -235,6 +420,9 @@ export default function CourseModulePage() {
         sectionProgress.find((p) => p.section_id === s.section_id)?.status ===
         "completed",
     );
+  const currentVoiceName = voiceName ?? voiceRef.current?.name;
+  const shortVoice = (name?: string) =>
+    name ? name.replace(/Microsoft |Google /, "").slice(0, 16) : "Voice";
 
   // Restore "this module is already cleared" from localStorage so the next
   // module stays unlocked after a reload. Score doesn't gate progress, so the
@@ -258,6 +446,17 @@ export default function CourseModulePage() {
       const newSection = sections[idx];
       if (!newSection) return;
 
+      if (advanceTimerRef.current) {
+        clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
+      setShowAdvancePrompt(false);
+      setSectionCompleted(false);
+      let nextRelearning = false;
+      try { nextRelearning = localStorage.getItem(`relearn_${moduleId}_${newSection.section_id}`) === "1"; } catch { /* ignore */ }
+      setIsRelearning(nextRelearning);
+      stopAll();
+
       // save last visited section for dashboard "Continue" widget
       try {
         localStorage.setItem(
@@ -266,34 +465,25 @@ export default function CourseModulePage() {
         );
       } catch { /* ignore */ }
 
-      // load new section's chat from its own key
-      let saved: Message[] = [];
-      try {
-        const raw = localStorage.getItem(`chat_history_${moduleId}_${newSection.section_id}`);
-        if (raw) saved = JSON.parse(raw) as Message[];
-      } catch { /* ignore */ }
+      restoreChatForSection(newSection.section_id);
 
       setCurrentSectionIdx(idx);
-      setMessages(saved);
       setSessionKP([]);
       setTeachingPoints([]);
       setCurrentPtIdx(0);
       setTPhase("PRE_NOTES");
-      hasStarted.current = saved.length > 0;
-      cancelSpeech();
     },
     [
       currentSectionIdx,
       sections,
       moduleId,
-      cancelSpeech,
+      stopAll,
+      restoreChatForSection,
       setCurrentSectionIdx,
-      setMessages,
       setSessionKP,
       setTeachingPoints,
       setCurrentPtIdx,
       setTPhase,
-      hasStarted,
     ],
   );
 
@@ -329,12 +519,18 @@ export default function CourseModulePage() {
         : [...prev, upd];
     });
     setSectionCompleted(true);
+    setIsRelearning(false);
+    if (currentSection) {
+      try { localStorage.removeItem(`relearn_${moduleId}_${currentSection.section_id}`); } catch { /* ignore */ }
+    }
     if (currentSectionIdx < sections.length - 1) {
       setShowAdvancePrompt(true);
-      setTimeout(() => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = setTimeout(() => {
         setShowAdvancePrompt(false);
         setSectionCompleted(false);
         switchSection(currentSectionIdx + 1);
+        advanceTimerRef.current = null;
       }, 2800);
     } else {
       // Last subtopic finished → clear the module so the next one unlocks and
@@ -357,37 +553,28 @@ export default function CourseModulePage() {
 
   // ── relearn (reset) current section ──
   const handleRelearn = useCallback(() => {
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    setShowAdvancePrompt(false);
+    setSectionCompleted(false);
+    // Don't touch sectionProgress — keeping the section "completed" in state
+    // ensures downstream sections stay unlocked while the student re-engages.
+    setIsRelearning(true);
+    if (currentSection) {
+      try { localStorage.setItem(`relearn_${moduleId}_${currentSection.section_id}`, "1"); } catch { /* ignore */ }
+    }
     resetSection();
     setTeachingPoints([]);
     setCurrentPtIdx(0);
     setTPhase("PRE_NOTES");
-    if (currentSection) {
-      setSectionProgress((prev) =>
-        prev.map((p) =>
-          p.section_id === currentSection.section_id
-            ? { ...p, status: "in_progress", key_points: [] }
-            : p,
-        ),
-      );
-      void fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          moduleId,
-          sectionId: currentSection.section_id,
-          sectionTitle: currentSection.section_title,
-          status: "in_progress",
-          keyPoints: [],
-        }),
-      });
-    }
   }, [
     resetSection,
     setTeachingPoints,
     setCurrentPtIdx,
     setTPhase,
     currentSection,
-    setSectionProgress,
     moduleId,
   ]);
 
@@ -400,10 +587,42 @@ export default function CourseModulePage() {
 
   const sendInput = useCallback(() => {
     const t = input.trim();
-    if (!t || streamRef.current) return;
+    if (!t || streamRef.current || currentSectionDone) return;
     setInput("");
     void doSend(t, false);
-  }, [input, doSend]);
+  }, [currentSectionDone, input, doSend]);
+
+  // Read the latest AI message aloud (and drive the voice wave). Clicking
+  // again while speaking stops it.
+  const handleReadAloud = useCallback(() => {
+    if (isSpeaking || streamRef.current) {
+      stopAll();
+      return;
+    }
+    const last = [...messages]
+      .reverse()
+      .find((m) => m.role === "assistant" && m.content);
+    if (!last?.content) return;
+    const text = last.content
+      .replace(/:::VISUAL\n?/g, "")
+      .replace(/\n?:::[A-Z]+\n[\s\S]*?:::/g, "")
+      .replace(/[*_`#>]/g, "")
+      .trim();
+    if (!text) return;
+    // Force audio on for an explicit read-aloud, even if muted.
+    audioRef.current = true;
+    setAudioEnabled(true);
+    setUserActivated(true);
+    speakText(text);
+  }, [
+    isSpeaking,
+    messages,
+    stopAll,
+    audioRef,
+    setAudioEnabled,
+    setUserActivated,
+    speakText,
+  ]);
 
   // ── Keyboard shortcuts ──
   useEffect(() => {
@@ -442,10 +661,6 @@ export default function CourseModulePage() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [stopAll, completeSection, currentSectionIdx, sections.length, toggleMic, setAudioEnabled]);
-
-  const currentVoiceName = voiceName ?? voiceRef.current?.name;
-  const shortVoice = (name?: string) =>
-    name ? name.replace(/Microsoft |Google /, "").slice(0, 16) : "Voice";
 
   /* ══ RENDER ══ */
   if (!sectionsLoaded) return <PageSkeleton />;
@@ -514,180 +729,107 @@ export default function CourseModulePage() {
         )}
       </AnimatePresence>
 
-      {/* ── HEADER ── */}
-      <header className="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b px-4">
-        {/* left */}
-        <div className="flex min-w-0 items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/dashboard")}
-            className="gap-1.5"
-          >
-            <ChevronLeft size={15} /> Back
-          </Button>
-          <Separator orientation="vertical" className="h-5" />
-          <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Part {partNumber} · {moduleId.toUpperCase()}
-            </p>
-            <p className="max-w-[280px] truncate text-sm font-semibold text-foreground">
-              {moduleTitle}
-            </p>
-          </div>
-        </div>
-
-        {/* centre — progress */}
-        <div className="flex items-center gap-3">
-          <div className="hidden lg:block">
-            <p className="mb-1 text-right font-mono text-[10px] text-muted-foreground">
-              {completedCount}/{totalSections} sections
-            </p>
-            <Progress value={progressPct} className="h-1.5 w-40" />
-          </div>
-          {currentSection && (
-            <Badge variant="outline" className="font-mono text-[10px]">
-              § {currentSection.section_id}
-            </Badge>
-          )}
-        </div>
-
-        {/* right controls */}
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant={audioEnabled ? "secondary" : "ghost"}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => {
-              setAudioEnabled((v) => !v);
-              if (audioEnabled) cancelSpeech();
-            }}
-          >
-            {audioEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-            <span className="hidden font-mono text-[11px] sm:inline">
-              {audioEnabled ? "Audio" : "Muted"}
-            </span>
-          </Button>
-
-          {availableVoices.length > 1 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="font-mono text-[11px]">
-                  {shortVoice(currentVoiceName)}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                <DropdownMenuRadioGroup
-                  value={currentVoiceName ?? ""}
-                  onValueChange={(name) => {
-                    const v = availableVoices.find((vv) => vv.name === name);
-                    if (v) {
-                      voiceRef.current = v;
-                      setVoiceName(v.name);
-                    }
-                  }}
-                >
-                  {availableVoices.map((v) => (
-                    <DropdownMenuRadioItem
-                      key={v.name}
-                      value={v.name}
-                      className="text-xs"
-                    >
-                      {v.name.replace(/Microsoft |Google /, "").slice(0, 22)} ({v.lang})
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {messages.length > 0 && !streaming && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleRelearn}
-              title="Clear this section and start over"
-            >
-              <RotateCcw size={13} /> Relearn
-            </Button>
-          )}
-
-          {currentSection && currentProgress?.status !== "completed" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => {
-                setQuizTrigger("section");
-                setShowQuiz(true);
-              }}
-            >
-              <Check size={13} /> Mark Done
-            </Button>
-          )}
-          {currentSection && currentProgress?.status === "completed" && (
-            <div className="flex items-center gap-1.5 px-2 text-xs text-muted-foreground">
-              <CheckCircle2 size={13} /> Done
-            </div>
-          )}
-
-          {exchangeCount >= 4 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => {
-                setQuizTrigger("final");
-                setShowQuiz(true);
-              }}
-            >
-              <Brain size={13} /> Quiz
-            </Button>
-          )}
-
-          {canGoNext && nextModule && (
-            <Button
-              size="sm"
-              className="gap-1.5"
-              onClick={() => router.push(`/course/${nextModule}`)}
-            >
-              Next <ChevronRight size={13} />
-            </Button>
-          )}
-          {!canGoNext && nextModule && exchangeCount > 0 && (
-            <div
-              title="Pass the quiz to unlock"
-              className="flex items-center gap-1.5 px-2 text-xs text-muted-foreground opacity-50"
-            >
-              <Lock size={11} /> Next
-            </div>
-          )}
-
-          <Separator orientation="vertical" className="h-5" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setShowKeyboardHelp((v) => !v)}
-            title="Keyboard shortcuts (Alt+K)"
-          >
-            <Keyboard size={14} />
-          </Button>
-        </div>
-      </header>
-
       {/* ── MAIN ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div
+        className={cn(
+          "flex flex-1 overflow-hidden",
+          isResizingSidebar && "cursor-col-resize select-none",
+        )}
+      >
         {/* SIDEBAR */}
-        <aside className="flex w-[260px] shrink-0 flex-col border-r bg-card/30">
-          <div className="shrink-0 border-b px-3 py-2.5">
-            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {moduleLabel} · Topics
-            </p>
-            <p className="truncate text-xs font-medium text-foreground">
-              {moduleTitle}
-            </p>
+        {!sidebarCollapsed && (
+        <aside
+          className="relative flex shrink-0 flex-col border-r border-border/70 bg-[#0d0d0d]"
+          style={{ width: sidebarWidth }}
+        >
+          <div
+            role="separator"
+            aria-label="Resize topics sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={SIDEBAR_MIN_WIDTH}
+            aria-valuemax={SIDEBAR_MAX_WIDTH}
+            aria-valuenow={sidebarWidth}
+            aria-valuetext={`${sidebarWidth}px`}
+            tabIndex={0}
+            title="Drag to resize topics sidebar"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              setIsResizingSidebar(true);
+            }}
+            onDoubleClick={() => setSidebarWidth(SIDEBAR_DEFAULT_WIDTH)}
+            onKeyDown={handleSidebarResizeKeyDown}
+            className={cn(
+              "absolute -right-1 top-0 z-20 h-full w-2 cursor-col-resize touch-none outline-none",
+              "after:absolute after:left-1/2 after:top-2 after:h-[calc(100%-1rem)] after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors",
+              "hover:after:bg-foreground/25 focus-visible:after:bg-foreground/50",
+              isResizingSidebar && "after:bg-foreground/50",
+            )}
+          />
+          <div className="flex shrink-0 flex-col gap-4 px-4 pb-1 pt-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand text-brand-foreground shadow-[0_4px_14px_-2px_hsl(var(--brand)/0.55)]">
+                <Sparkles size={18} className="fill-current" />
+              </div>
+              <p className="min-w-0 flex-1 truncate text-[17px] font-bold tracking-tight text-foreground">
+                Account Academy
+              </p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "size-8 shrink-0 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                  sidebarSearchOpen && "bg-white/[0.06] text-foreground",
+                )}
+                onClick={() => {
+                  setSidebarSearchOpen((open) => {
+                    if (open) setSidebarQuery("");
+                    return !open;
+                  });
+                }}
+                title="Search topics"
+              >
+                <Search size={16} />
+              </Button>
+            </div>
+
+            {sidebarSearchOpen && (
+              <Input
+                value={sidebarQuery}
+                onChange={(event) => setSidebarQuery(event.target.value)}
+                placeholder="Search topics"
+                autoFocus
+                className="h-9 rounded-lg border-border/70 bg-white/[0.03] text-xs"
+              />
+            )}
+
+            <div className="flex flex-col gap-2.5">
+              <p className="px-0.5 text-[12px] font-medium text-muted-foreground">
+                Current module
+              </p>
+              <div className="rounded-xl border border-border/70 bg-white/[0.025] p-3.5">
+                <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-brand">
+                  <BookOpen size={12} />
+                  Part {partNumber} · {moduleLabel}
+                </div>
+                <h2 className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-foreground">
+                  {moduleTitle}
+                </h2>
+                <div className="mt-3.5 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Module progress</span>
+                  <span className="font-mono font-medium text-foreground">
+                    {completedTopicCount}/{realSections.length || 0}
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+                  <motion.div
+                    className="h-full rounded-full bg-brand"
+                    initial={false}
+                    animate={{ width: `${topicProgressPct}%` }}
+                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {sections.length > 0 ? (
@@ -695,12 +837,8 @@ export default function CourseModulePage() {
               sections={sections}
               currentIdx={currentSectionIdx}
               progress={sectionProgress}
-              quizUnlocked={quizUnlockedNow}
+              query={sidebarQuery}
               onSelect={switchSection}
-              onStartFinalQuiz={() => {
-                setQuizTrigger("final");
-                setShowQuiz(true);
-              }}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
@@ -711,50 +849,60 @@ export default function CourseModulePage() {
           )}
 
           {/* module-end items */}
-          <div className="shrink-0 space-y-1 border-t px-2 py-2">
-            {[
-              { label: `Module ${moduleNum} — Summary`, done: moduleAlreadyCompleted },
-              {
-                label: `Module ${moduleNum} — End-of-Section MCQ (10 questions)`,
-                done: quizPassed || moduleAlreadyCompleted,
-              },
-            ].map((item, i) => (
-              <div
-                key={i}
+          <div className="shrink-0 px-4 pb-3 pt-2">
+            <button
+              type="button"
+              disabled={!quizUnlockedNow}
+              onClick={() => {
+                setQuizTrigger("final");
+                setShowQuiz(true);
+              }}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl border border-border/70 bg-white/[0.025] px-3 py-3 text-left transition-colors",
+                quizUnlockedNow
+                  ? "hover:border-brand/40 hover:bg-brand/[0.06]"
+                  : "cursor-default opacity-70",
+              )}
+            >
+              <span
                 className={cn(
-                  "flex items-center gap-2 rounded-md border px-2 py-1.5",
-                  item.done ? "border-border" : "border-transparent",
+                  "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                  quizUnlockedNow
+                    ? "bg-brand/15 text-brand"
+                    : "bg-white/[0.05] text-muted-foreground",
                 )}
               >
-                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border bg-muted">
-                  {item.done ? (
-                    <Check size={9} className="text-foreground" />
-                  ) : (
-                    <span className="text-[7px] font-bold text-muted-foreground">
-                      {i === 0 ? "★" : "?"}
-                    </span>
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    "flex-1 text-[10px] leading-snug",
-                    item.done
-                      ? "text-muted-foreground line-through"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {item.label}
+                <CircleHelp size={16} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-semibold text-foreground">
+                  Module Quiz
                 </span>
-              </div>
-            ))}
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  10 Questions
+                </span>
+              </span>
+              {quizUnlockedNow ? (
+                <ChevronRight size={16} className="shrink-0 text-brand" />
+              ) : (
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/[0.05] px-2 py-1 font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <Lock size={9} /> Locked
+                </span>
+              )}
+            </button>
+            {!quizUnlockedNow && (
+              <p className="mt-1.5 px-1 text-center text-[10px] text-muted-foreground">
+                Complete all topics to unlock
+              </p>
+            )}
           </div>
 
           {/* section nav */}
-          <div className="flex shrink-0 items-center justify-between border-t px-2 py-2">
+          <div className="flex shrink-0 items-center gap-2 border-t border-border/70 px-4 py-3">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="gap-1 font-mono text-[10px] uppercase tracking-wide"
+              className="h-10 flex-1 gap-1.5 rounded-xl border-border/70 bg-transparent text-[13px] font-medium text-muted-foreground hover:bg-white/[0.05] hover:text-foreground disabled:opacity-40"
               onClick={() => {
                 if (currentSectionIdx > 0) {
                   switchSection(currentSectionIdx - 1);
@@ -764,74 +912,239 @@ export default function CourseModulePage() {
               }}
               disabled={currentSectionIdx === 0 && moduleNum <= 1}
             >
-              <ChevronLeft size={12} /> Prev
+              <ChevronLeft size={15} /> Prev
             </Button>
 
             {currentSectionIdx < sections.length - 1 ? (
               <Button
-                variant="ghost"
                 size="sm"
-                className="gap-1 font-mono text-[10px] uppercase tracking-wide"
+                className="h-10 flex-1 gap-1.5 rounded-xl bg-brand text-[13px] font-semibold text-brand-foreground shadow-[0_4px_14px_-3px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
                 onClick={() => switchSection(currentSectionIdx + 1)}
               >
-                Next <ChevronRight size={12} />
+                Next <ChevronRight size={15} />
+              </Button>
+            ) : nextModule && canGoNext ? (
+              <Button
+                size="sm"
+                className="h-10 flex-1 gap-1.5 rounded-xl bg-brand text-[13px] font-semibold text-brand-foreground shadow-[0_4px_14px_-3px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                onClick={() => router.push(`/course/${nextModule}`)}
+              >
+                Next <ChevronRight size={15} />
               </Button>
             ) : nextModule ? (
-              canGoNext ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1 font-mono text-[10px] uppercase tracking-wide"
-                  onClick={() => router.push(`/course/${nextModule}`)}
-                >
-                  Next <ChevronRight size={12} />
-                </Button>
-              ) : (
-                <span className="flex items-center gap-1 px-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground opacity-50">
-                  <Lock size={9} /> Next
-                </span>
-              )
-            ) : null}
+              <Button
+                size="sm"
+                disabled
+                className="h-10 flex-1 gap-1.5 rounded-xl bg-white/[0.05] text-[13px] font-medium text-muted-foreground disabled:opacity-60"
+              >
+                <Lock size={13} /> Next
+              </Button>
+            ) : (
+              <div className="flex-1" />
+            )}
           </div>
         </aside>
+        )}
 
         {/* CHAT COLUMN */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="course-canvas relative flex min-w-0 flex-1 flex-col">
+          {/* ── HEADER ── */}
+          <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border/50 px-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarCollapsed((v) => !v)}
+                className="size-8 shrink-0 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              >
+                <PanelLeft size={16} />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dashboard")}
+                className="shrink-0 gap-2 rounded-lg border-border/70 bg-white/[0.03] px-3.5 text-sm font-medium text-muted-foreground shadow-none hover:bg-white/[0.07] hover:text-foreground"
+              >
+                <ChevronLeft size={14} />
+                Dashboard
+              </Button>
+              <span className="hidden shrink-0 items-center rounded-md bg-white/[0.06] px-2 py-1 font-mono text-[11px] font-medium text-muted-foreground sm:inline-flex">
+                {moduleLabel}
+              </span>
+              {currentSection && (
+                <span className="hidden shrink-0 items-center rounded-md border border-brand/40 bg-brand/10 px-2 py-1 font-mono text-[11px] font-semibold text-brand sm:inline-flex">
+                  § {currentSection.section_id}
+                </span>
+              )}
+              {currentSection && (
+                <>
+                  <span className="hidden text-muted-foreground/60 sm:inline">/</span>
+                  <p className="min-w-0 truncate text-sm font-semibold text-foreground">
+                    {currentSection.section_title}
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="hidden items-center gap-2.5 rounded-lg bg-white/[0.05] px-3 py-1.5 lg:flex">
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  {currentTopicNumber} <span className="text-muted-foreground/50">/</span> {realSections.length || totalSections}
+                </span>
+                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.08]">
+                  <motion.div
+                    className="h-full rounded-full bg-brand"
+                    initial={false}
+                    animate={{ width: `${titleProgressPct}%` }}
+                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                  />
+                </div>
+              </div>
+              {availableVoices.length > 1 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="hidden h-8 max-w-[150px] gap-1.5 rounded-lg px-3 font-mono text-[11px] text-muted-foreground sm:inline-flex"
+                      title="Choose voice"
+                    >
+                      <span className="truncate">{shortVoice(currentVoiceName)}</span>
+                      <ChevronDown size={12} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-72 min-w-64 overflow-y-auto">
+                    <DropdownMenuRadioGroup
+                      value={currentVoiceName ?? ""}
+                      onValueChange={(name) => {
+                        const v = availableVoices.find((vv) => vv.name === name);
+                        if (v) {
+                          voiceRef.current = v;
+                          setVoiceName(v.name);
+                        }
+                      }}
+                    >
+                      {availableVoices.map((v) => (
+                        <DropdownMenuRadioItem
+                          key={v.name}
+                          value={v.name}
+                          className="text-xs"
+                        >
+                          {v.name.replace(/Microsoft |Google /, "").slice(0, 24)} ({v.lang})
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "size-8 rounded-lg transition-colors",
+                  isSpeaking
+                    ? "bg-brand/15 text-brand hover:bg-brand/25"
+                    : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                )}
+                onClick={handleReadAloud}
+                title={isSpeaking ? "Stop reading" : "Read latest aloud"}
+              >
+                <AudioLines size={15} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                onClick={() => {
+                  setAudioEnabled((v) => !v);
+                  if (audioEnabled) cancelSpeech();
+                }}
+                title={audioEnabled ? "Mute audio" : "Enable audio"}
+              >
+                {audioEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              </Button>
+              {currentSection && !currentSectionDone && (
+                <Button
+                  size="sm"
+                  className="gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-[0_4px_14px_-3px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                  onClick={() => {
+                    setQuizTrigger("section");
+                    setShowQuiz(true);
+                  }}
+                >
+                  <Check size={14} strokeWidth={3} /> Mark done
+                </Button>
+              )}
+              {currentSectionDone && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2 rounded-lg bg-white/[0.06] px-4"
+                  disabled
+                >
+                  <CheckCircle2 size={14} /> Done
+                </Button>
+              )}
+            </div>
+          </header>
+
           {/* MESSAGES */}
-          <div className="chat-messages flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
-            {messages.length === 0 && !streaming && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
-                <div className="max-w-sm">
-                  <h2 className="text-2xl font-semibold text-foreground">
+          <div className="chat-messages flex flex-1 flex-col overflow-y-auto">
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-4">
+            {currentSectionDone && !streaming ? (
+              <div className="flex flex-1 items-center justify-center px-6 pb-24 text-center">
+                <div className="flex max-w-sm flex-col items-center">
+                  <div className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <CheckCircle2 size={17} />
+                  </div>
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+                    Section complete
+                  </h2>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
+                    Relearn this section anytime.
+                  </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="mt-5 h-10 gap-2 rounded-xl bg-foreground px-4 text-sm font-semibold text-background shadow-none hover:bg-foreground/90"
+                    onClick={handleRelearn}
+                  >
+                    <RotateCcw size={15} /> Relearn this
+                  </Button>
+                </div>
+              </div>
+            ) : messages.length === 0 && !streaming ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-6 pb-20 text-center">
+                <div className="flex max-w-2xl flex-col items-center">
+                  <h2 className="text-4xl font-bold tracking-tight text-foreground">
                     Ready when you are
                   </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-8 max-w-2xl text-lg leading-8 text-muted-foreground">
                     Your AI tutor for{" "}
-                    <span className="font-medium text-foreground">
+                    <span className="font-bold text-foreground">
                       {currentSection?.section_title ?? moduleTitle}
                     </span>
                   </p>
                   {currentSection && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Tap <span className="font-medium text-foreground">Start Lesson</span>{" "}
+                    <p className="mt-6 text-base text-muted-foreground">
+                      Tap <span className="font-semibold text-foreground">Start Lesson</span>{" "}
                       to begin, or type a question below.
                     </p>
                   )}
-                </div>
 
-                <Button size="lg" className="gap-2" onClick={startLesson}>
-                  <Brain size={16} /> Start Lesson
-                </Button>
-
-                {currentProgress?.status === "completed" && (
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleRelearn}>
-                    <RotateCcw size={13} /> Relearn this section
+                  <Button
+                    size="sm"
+                    className="mt-8 h-10 gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-brand-foreground shadow-[0_6px_20px_-4px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                    onClick={startLesson}
+                  >
+                    <Brain size={15} /> Start Lesson
                   </Button>
-                )}
+                </div>
               </div>
-            )}
+            ) : null}
 
-            {messages.map((msg, i) => {
+            {!currentSectionDone && messages.map((msg, i) => {
               const isUser = msg.role === "user";
               const isLastAss =
                 msg.role === "assistant" && i === messages.length - 1;
@@ -841,15 +1154,37 @@ export default function CourseModulePage() {
                   key={i}
                   className={cn(
                     "flex w-full animate-msg-in",
-                    isUser ? "justify-end" : "justify-start",
+                    isUser ? "justify-end" : "justify-start gap-3",
                   )}
                 >
                   {isUser ? (
-                    <div className="max-w-[80%] whitespace-pre-wrap rounded-lg bg-muted px-4 py-2 text-sm leading-relaxed text-foreground">
+                    <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl bg-white/[0.07] px-4 py-2.5 text-sm leading-relaxed text-foreground">
                       {msg.content || null}
                     </div>
                   ) : (
-                    <div className="w-full max-w-[92%] text-sm leading-relaxed text-foreground">
+                    <>
+                    {/* Avatar — transforms into a voice-reactive orb while this
+                        message is being spoken aloud. The orb overlays the
+                        static avatar; reduced-motion/print hide it via CSS. */}
+                    <div className="relative mt-1 size-7 shrink-0">
+                      <div className="flex size-7 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-[0_3px_10px_-3px_hsl(var(--brand)/0.6)]">
+                        <Sparkles size={13} className="fill-current" />
+                      </div>
+                      {isLastAss && orbActive && (
+                        <SpeakingOrb
+                          energyRef={energyRef}
+                          onStop={() => {
+                            if (orbHideTimer.current) {
+                              clearTimeout(orbHideTimer.current);
+                              orbHideTimer.current = null;
+                            }
+                            setOrbActive(false);
+                            stopAll();
+                          }}
+                        />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground">
                       {msg.content ? (
                         <AssistantMessage
                           content={msg.content}
@@ -875,6 +1210,7 @@ export default function CourseModulePage() {
                         <span className="italic text-muted-foreground">…</span>
                       )}
                     </div>
+                    </>
                   )}
                 </div>
               );
@@ -886,13 +1222,14 @@ export default function CourseModulePage() {
               )}
             <div ref={chatEndRef} className="h-2" />
           </div>
+          </div>
 
           {/* INPUT BAR */}
-          <div className="shrink-0 border-t p-3">
+          <div className="shrink-0 px-4 pb-5 pt-2">
             <div
               className={cn(
-                "flex items-end gap-2 rounded-lg border bg-muted/30 p-2 transition-colors",
-                micActive && "border-foreground/40",
+                "mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border border-border/70 bg-[#151311]/85 px-3.5 py-3 shadow-xl backdrop-blur transition-colors focus-within:border-brand/35",
+                micActive && "border-brand/45",
               )}
             >
               <Textarea
@@ -904,60 +1241,82 @@ export default function CourseModulePage() {
                     sendInput();
                   }
                 }}
-                disabled={streaming}
+                disabled={streaming || currentSectionDone}
                 rows={1}
                 placeholder={
-                  micActive
+                  currentSectionDone
+                    ? "Relearn this section to chat again"
+                    : micActive
                     ? "Listening…"
                     : streaming
                       ? "Alex is responding…"
-                      : "Message Alex…"
+                      : "Ask anything…"
                 }
-                className="max-h-28 min-h-0 resize-none border-0 bg-transparent px-1 py-1.5 text-sm shadow-none focus-visible:ring-0"
+                className="max-h-32 min-h-[24px] resize-none border-0 bg-transparent px-1 py-0.5 text-sm shadow-none focus-visible:ring-0"
               />
 
-              {/* mic */}
-              <Button
-                type="button"
-                size="icon"
-                variant={micActive ? "default" : "ghost"}
-                className="h-9 w-9 shrink-0"
-                onClick={toggleMic}
-                disabled={streaming}
-                title={micActive ? "Stop mic" : "Use mic"}
-              >
-                {micActive ? <MicOff size={16} /> : <Mic size={16} />}
-              </Button>
+              <div className="flex items-center justify-between">
+                {/* attach (placeholder) */}
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-9 shrink-0 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                  disabled={streaming || currentSectionDone}
+                  title="Add"
+                >
+                  <Plus size={18} />
+                </Button>
 
-              {/* stop / send */}
-              {streaming || isSpeaking ? (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="secondary"
-                  className="h-9 w-9 shrink-0"
-                  onClick={stopAll}
-                  title="Stop"
-                >
-                  <Square size={14} className="fill-current" />
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  onClick={sendInput}
-                  disabled={!input.trim()}
-                  title="Send"
-                >
-                  <Send size={16} />
-                </Button>
-              )}
+                <div className="flex items-center gap-1.5">
+                  {/* mic */}
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "size-9 shrink-0 rounded-lg",
+                      micActive
+                        ? "bg-brand/15 text-brand hover:bg-brand/20"
+                        : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                    )}
+                    onClick={toggleMic}
+                    disabled={streaming || currentSectionDone}
+                    title={micActive ? "Stop mic" : "Use mic"}
+                  >
+                    {micActive ? <MicOff size={17} /> : <AudioLines size={17} />}
+                  </Button>
+
+                  {/* stop / send */}
+                  {streaming || isSpeaking ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="size-9 shrink-0 rounded-lg bg-brand text-brand-foreground shadow-none hover:bg-brand/90"
+                      onClick={stopAll}
+                      title="Stop"
+                    >
+                      <Square size={13} className="fill-current" />
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="size-9 shrink-0 rounded-lg bg-brand text-brand-foreground shadow-none hover:bg-brand/90 disabled:bg-white/[0.06] disabled:text-muted-foreground"
+                      onClick={sendInput}
+                      disabled={!input.trim() || currentSectionDone}
+                      title="Send"
+                    >
+                      <ArrowUp size={17} strokeWidth={2.5} />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {micActive && (
               <div className="mt-1.5 flex items-center gap-2 pl-1">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-foreground" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                   Listening…
                 </span>

@@ -1,14 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
-  Brain,
   Check,
+  Circle,
   Lock,
-  ChevronDown,
-  ChevronUp,
-  ChevronRight,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { Section, SectionProgress } from "@/types/course";
 
@@ -38,28 +35,15 @@ export function SectionTrail({
   sections,
   currentIdx,
   progress,
-  quizUnlocked,
+  query = "",
   onSelect,
-  onStartFinalQuiz,
 }: {
   sections: Section[];
   currentIdx: number;
   progress: SectionProgress[];
-  quizUnlocked: boolean;
+  query?: string;
   onSelect: (i: number) => void;
-  onStartFinalQuiz: () => void;
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const cur = sections[currentIdx];
-    if (!cur) return;
-    const parentId = isSubSection(cur.section_id)
-      ? cur.section_id.split(".").slice(0, 2).join(".")
-      : cur.section_id;
-    setExpanded((prev) => new Set(prev).add(parentId));
-  }, [currentIdx, sections]);
-
   const groups = groupSections(sections);
 
   // Parent stubs (h2 sections that have children) are containers, not
@@ -78,13 +62,14 @@ export function SectionTrail({
   const isCompleted = (sectionId: string) =>
     progress.find((p) => p.section_id === sectionId)?.status === "completed";
 
-  // The gate: index of the first not-yet-completed unit. Everything up to and
-  // including it is reachable; anything past it stays locked even if older,
-  // out-of-order progress rows happen to mark a later unit complete.
-  const firstIncomplete = completable.findIndex(
-    (s) => !isCompleted(s.section_id),
-  );
-  const gateIdx = firstIncomplete === -1 ? completable.length : firstIncomplete;
+  // The gate: the index after the last completed unit (high-water mark). This
+  // way re-learning an earlier section (which sets it back to "in_progress")
+  // never re-locks sections the student already unlocked further ahead.
+  let lastCompletedIdx = -1;
+  for (let i = 0; i < completable.length; i++) {
+    if (isCompleted(completable[i].section_id)) lastCompletedIdx = i;
+  }
+  const gateIdx = lastCompletedIdx + 1;
 
   const isSectionUnlocked = (sectionId: string): boolean => {
     // A stub unlocks exactly when its first child does.
@@ -102,179 +87,160 @@ export function SectionTrail({
   };
 
   const isUnlocked = (idx: number) => isSectionUnlocked(sections[idx].section_id);
+  const normalizedQuery = query.trim().toLowerCase();
+  const currentSectionId = sections[currentIdx]?.section_id;
+  type TrailItem = {
+    section: Section;
+    idx: number;
+    targetIdx: number;
+    depth: 0 | 1;
+    isStubParent: boolean;
+    childIds: string[];
+    searchText: string;
+  };
+  const topicItems = groups.flatMap<TrailItem>((group) => {
+    const parentSearchText =
+      `${group.parent.section_id} ${group.parent.section_title}`.toLowerCase();
+
+    if (group.children.length === 0) {
+      return [
+        {
+          section: group.parent,
+          idx: group.parentIdx,
+          targetIdx: group.parentIdx,
+          depth: 0,
+          isStubParent: false,
+          childIds: [group.parent.section_id],
+          searchText: parentSearchText,
+        },
+      ];
+    }
+
+    return [
+      {
+        section: group.parent,
+        idx: group.parentIdx,
+        targetIdx: group.children[0].idx,
+        depth: 0,
+        isStubParent: true,
+        childIds: group.children.map(({ section }) => section.section_id),
+        searchText: parentSearchText,
+      },
+      ...group.children.map(({ section, idx }) => ({
+        section,
+        idx,
+        targetIdx: idx,
+        depth: 1 as const,
+        isStubParent: false,
+        childIds: [section.section_id],
+        searchText:
+          `${parentSearchText} ${section.section_id} ${section.section_title}`.toLowerCase(),
+      })),
+    ];
+  });
+  const visibleTopicItems = normalizedQuery
+    ? topicItems.filter((item) => item.searchText.includes(normalizedQuery))
+    : topicItems;
+  const lessonCount = completable.length;
 
   return (
-    <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-      {groups.map(({ parent, parentIdx, children }) => {
-        const isCurParent = currentIdx === parentIdx;
-        const parentLocked = !isUnlocked(parentIdx);
-        const isExp = expanded.has(parent.section_id);
-        const hasChildren = children.length > 0;
-        const groupIds = hasChildren
-          ? children.map((c) => c.section.section_id)
-          : [parent.section_id];
-        const groupDone = groupIds.filter(
-          (id) =>
-            progress.find((p) => p.section_id === id)?.status === "completed",
-        ).length;
-        const parentDone = hasChildren
-          ? groupDone === groupIds.length && groupIds.length > 0
-          : progress.find((p) => p.section_id === parent.section_id)?.status === "completed";
+    <div className="flex flex-1 flex-col overflow-y-auto px-3 pb-3">
+      <div className="flex shrink-0 items-center justify-between px-1 pb-2.5 pt-4">
+        <p className="text-[13px] font-medium text-muted-foreground">Topics</p>
+        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+          {lessonCount}
+        </span>
+      </div>
 
-        return (
-          <div key={parent.section_id}>
-            {/* H2 topic row */}
-            <button
-              onClick={() => {
-                if (!parentLocked) {
-                  if (hasChildren) {
-                    setExpanded((prev) => {
-                      const n = new Set(prev);
-                      n.has(parent.section_id)
-                        ? n.delete(parent.section_id)
-                        : n.add(parent.section_id);
-                      return n;
-                    });
-                    onSelect(children[0].idx);
-                  } else {
-                    onSelect(parentIdx);
-                  }
-                }
+      <div className="flex flex-col gap-0.5">
+        {visibleTopicItems.map((item, i) => {
+          const { section } = item;
+          const sectionDone = item.isStubParent
+            ? item.childIds.every(isCompleted)
+            : isCompleted(section.section_id);
+          const targetSection = sections[item.targetIdx];
+          const sectionLocked =
+            !targetSection || !isUnlocked(item.targetIdx);
+          const isCurrent = currentIdx === item.idx;
+          const isGroupActive =
+            item.isStubParent && !!currentSectionId && item.childIds.includes(currentSectionId);
+          const active = isCurrent || isGroupActive;
+
+          return (
+            <motion.button
+              key={section.section_id}
+              type="button"
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{
+                duration: 0.22,
+                delay: Math.min(i * 0.018, 0.32),
+                ease: [0.22, 1, 0.36, 1],
               }}
-              disabled={parentLocked}
+              onClick={() => !sectionLocked && onSelect(item.targetIdx)}
+              disabled={sectionLocked}
+              title={section.section_title}
               className={cn(
-                "flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-2.5 py-2 text-left transition-colors",
-                parentLocked && "cursor-default opacity-40",
-                isCurParent ? "border-l-foreground bg-accent" : "hover:bg-accent/50",
+                "group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                item.depth === 1 && "pl-7",
+                active && "bg-white/[0.05]",
+                sectionLocked && "cursor-default opacity-40 hover:bg-transparent hover:text-muted-foreground",
               )}
             >
-              <span
-                className={cn(
-                  "flex h-5 min-w-[32px] shrink-0 items-center justify-center rounded border px-1 font-mono text-[9px] font-bold",
-                  isCurParent
-                    ? "border-foreground text-foreground"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {parentLocked ? (
-                  <Lock size={8} />
-                ) : parentDone ? (
-                  <Check size={9} />
-                ) : (
-                  parent.section_id
-                )}
-              </span>
-              <span
-                className={cn(
-                  "flex-1 truncate text-[11px] leading-snug",
-                  isCurParent
-                    ? "font-semibold text-foreground"
-                    : parentDone
-                      ? "text-muted-foreground line-through"
-                      : "text-foreground/80",
-                )}
-              >
-                {parent.section_title}
-              </span>
-              {!parentLocked && hasChildren && (
-                <span className="flex shrink-0 items-center gap-1">
-                  <span className="font-mono text-[8px] text-muted-foreground">
-                    {groupDone}/{groupIds.length}
-                  </span>
-                  {isExp ? (
-                    <ChevronUp size={9} className="text-muted-foreground" />
-                  ) : (
-                    <ChevronDown size={9} className="text-muted-foreground" />
-                  )}
-                </span>
+              {/* active orange rail */}
+              {isCurrent && (
+                <motion.span
+                  layoutId="trail-active-rail"
+                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand"
+                  transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                />
               )}
-            </button>
 
-            {/* H3 sub-sections */}
-            {isExp && hasChildren && (
-              <div className="mb-0.5 ml-3.5 flex flex-col gap-px border-l pl-2">
-                {children.map(({ section: child, idx: childIdx }) => {
-                  const childDone =
-                    progress.find((p) => p.section_id === child.section_id)
-                      ?.status === "completed";
-                  const isCurChild = currentIdx === childIdx;
-                  const childLocked = !isUnlocked(childIdx);
-                  return (
-                    <button
-                      key={child.section_id}
-                      onClick={() => !childLocked && onSelect(childIdx)}
-                      disabled={childLocked}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-md border-l-2 border-transparent px-2 py-1.5 text-left transition-colors",
-                        childLocked && "cursor-default opacity-40",
-                        isCurChild ? "border-l-foreground bg-accent" : "hover:bg-accent/50",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex h-[17px] min-w-[30px] shrink-0 items-center justify-center rounded border px-1 font-mono text-[8px] font-bold",
-                          isCurChild
-                            ? "border-foreground text-foreground"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {childLocked ? (
-                          <Lock size={7} />
-                        ) : childDone ? (
-                          <Check size={8} />
-                        ) : (
-                          child.section_id
-                        )}
-                      </span>
-                      <span
-                        className={cn(
-                          "flex-1 truncate text-[10px] leading-snug",
-                          isCurChild
-                            ? "font-medium text-foreground"
-                            : childDone
-                              ? "text-muted-foreground line-through"
-                              : "text-muted-foreground",
-                        )}
-                      >
-                        {child.section_title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
+              <span className="flex w-4 shrink-0 justify-center">
+                {sectionLocked ? (
+                  <Lock size={13} className="opacity-80" />
+                ) : sectionDone ? (
+                  <span className="flex size-[18px] items-center justify-center rounded-full bg-brand/15 text-brand">
+                    <Check size={12} strokeWidth={3} />
+                  </span>
+                ) : (
+                  <Circle
+                    size={13}
+                    className={cn(active && "fill-brand/20 text-brand")}
+                  />
+                )}
+              </span>
 
-      {/* Module Quiz — unlocks after all sections done */}
-      <div className="mt-1 border-t pt-1.5">
-        <button
-          onClick={() => quizUnlocked && onStartFinalQuiz()}
-          disabled={!quizUnlocked}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
-            quizUnlocked ? "border-border hover:bg-accent" : "cursor-default border-transparent opacity-40",
-          )}
-        >
-          <span className="flex h-5 w-8 shrink-0 items-center justify-center rounded border bg-muted">
-            <Brain size={10} className="text-foreground" />
-          </span>
-          <span className="flex-1 truncate text-[11px] font-semibold text-foreground">
-            Module Quiz · 10 Questions
-          </span>
-          {quizUnlocked ? (
-            <ChevronRight size={10} className="shrink-0 text-muted-foreground" />
-          ) : (
-            <Lock size={9} className="shrink-0 text-muted-foreground" />
-          )}
-        </button>
-        {!quizUnlocked && (
-          <p className="mt-1 text-center font-mono text-[9px] text-muted-foreground opacity-60">
-            Complete all topics to unlock
-          </p>
-        )}
+              <span
+                className={cn(
+                  "shrink-0 font-mono text-[11px] tabular-nums",
+                  item.isStubParent ? "font-semibold" : "font-medium",
+                  active ? "text-brand" : "text-muted-foreground/70",
+                )}
+              >
+                {section.section_id}
+              </span>
+
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-[12.5px] leading-snug",
+                  item.isStubParent ? "font-medium text-foreground/85" : "font-normal",
+                  active && "font-medium text-foreground",
+                )}
+              >
+                {section.section_title}
+              </span>
+            </motion.button>
+          );
+        })}
       </div>
+
+      {visibleTopicItems.length === 0 && (
+        <div className="flex flex-1 items-center justify-center px-3 py-8 text-center">
+          <p className="text-xs text-muted-foreground">No matching topics</p>
+        </div>
+      )}
     </div>
   );
 }

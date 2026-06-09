@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/Button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import type { QuizQuestion } from "@/types";
@@ -86,7 +86,7 @@ export function QuizModal({
         partTitle,
         sectionId,
         sectionTitle,
-        count: 10,
+        count: 2,
       }),
     })
       .then((r) => r.json() as Promise<{ questions: QuizQuestion[] }>)

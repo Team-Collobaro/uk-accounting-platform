@@ -46,6 +46,36 @@ interface UseChatParams {
   pTitleRef: React.MutableRefObject<string>
 }
 
+function getChatStorageKeys(moduleId: string, sectionId?: string) {
+  const suffix = sectionId ? `${moduleId}_${sectionId}` : moduleId
+  return {
+    chatKey: `chat_history_${suffix}`,
+    sessionKey: `chat_session_${suffix}`,
+  }
+}
+
+function readSavedMessages(chatKey: string): Message[] {
+  try {
+    const saved = localStorage.getItem(chatKey)
+    const parsed = saved ? (JSON.parse(saved) as unknown) : []
+    return Array.isArray(parsed) ? (parsed as Message[]) : []
+  } catch {
+    return []
+  }
+}
+
+function readSavedSessionId(sessionKey: string): string | undefined {
+  try {
+    return localStorage.getItem(sessionKey) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+function countUserExchanges(messages: Message[]) {
+  return messages.filter((message) => message.role === "user").length
+}
+
 export function useChat({
   moduleId,
   sectionId,
@@ -76,32 +106,56 @@ export function useChat({
   pNumRef,
   pTitleRef,
 }: UseChatParams) {
-  const chatKey = sectionId
-    ? `chat_history_${moduleId}_${sectionId}`
-    : `chat_history_${moduleId}`
+  const { chatKey, sessionKey } = getChatStorageKeys(moduleId, sectionId)
 
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = localStorage.getItem(chatKey)
-      return saved ? (JSON.parse(saved) as Message[]) : []
-    } catch {
-      return []
-    }
-  })
+  const [messages, setMessages] = useState<Message[]>(() =>
+    readSavedMessages(chatKey),
+  )
   const [streaming, setStreaming] = useState(false)
-  const [sessionId, setSessionId] = useState<string | undefined>()
-  const [exchangeCount, setExchangeCount] = useState(0)
+  const [sessionId, setSessionId] = useState<string | undefined>(() =>
+    readSavedSessionId(sessionKey),
+  )
+  const [exchangeCount, setExchangeCount] = useState(() =>
+    countUserExchanges(readSavedMessages(chatKey)),
+  )
+  const [activeChatKey, setActiveChatKey] = useState(chatKey)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const msgsRef = useRef<Message[]>([])
   const abortRef = useRef<AbortController | null>(null)
   const sidRef = useRef<string | undefined>()
-  const hasStarted = useRef(false)
+  const hasStarted = useRef(messages.length > 0)
 
   // Forwarding ref so useMic can call doSend without a stale closure
   const doSendRef = useRef<
     ((text: string, silent: boolean) => Promise<void>) | undefined
   >()
+
+  const restoreChatForSection = useCallback(
+    (nextSectionId?: string) => {
+      const nextKeys = getChatStorageKeys(moduleId, nextSectionId)
+
+      abortRef.current?.abort()
+      abortRef.current = null
+      cancelSpeech()
+      setStreaming(false)
+      streamRef.current = false
+      bufRef.current = ""
+
+      const savedMessages = readSavedMessages(nextKeys.chatKey)
+      const savedSessionId = readSavedSessionId(nextKeys.sessionKey)
+      setMessages(savedMessages)
+      msgsRef.current = savedMessages
+      setSessionId(savedSessionId)
+      sidRef.current = savedSessionId
+      setExchangeCount(countUserExchanges(savedMessages))
+      hasStarted.current = savedMessages.length > 0
+      setActiveChatKey(nextKeys.chatKey)
+
+      return savedMessages
+    },
+    [moduleId, cancelSpeech, streamRef, bufRef],
+  )
 
   useEffect(() => {
     msgsRef.current = messages
@@ -113,15 +167,35 @@ export function useChat({
     sidRef.current = sessionId
   }, [sessionId])
 
-  // persist chat per section
+  // Persist chat per section. The active-key guard prevents old section
+  // messages from being copied into a newly selected/restored section.
   useEffect(() => {
+    if (activeChatKey !== chatKey) return
     if (messages.length === 0) return
     try {
       localStorage.setItem(chatKey, JSON.stringify(messages))
     } catch {
       /* quota exceeded */
     }
-  }, [messages, chatKey])
+  }, [activeChatKey, messages, chatKey])
+
+  useEffect(() => {
+    if (activeChatKey !== chatKey) return
+    try {
+      if (sessionId) localStorage.setItem(sessionKey, sessionId)
+      else localStorage.removeItem(sessionKey)
+    } catch {
+      /* ignore */
+    }
+  }, [activeChatKey, chatKey, sessionId, sessionKey])
+
+  // When sections load, auto-resume changes, or the user switches topics,
+  // reload the correct per-section chat instead of keeping the initial empty
+  // module-level state.
+  useEffect(() => {
+    if (activeChatKey === chatKey) return
+    restoreChatForSection(sectionId)
+  }, [activeChatKey, chatKey, sectionId, restoreChatForSection])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -466,6 +540,7 @@ export function useChat({
   const resetSection = useCallback(() => {
     try {
       localStorage.removeItem(chatKey)
+      localStorage.removeItem(sessionKey)
       if (sectionId) localStorage.removeItem(`tp_progress_${moduleId}_${sectionId}`)
     } catch { /* ignore */ }
     setMessages([])
@@ -473,7 +548,7 @@ export function useChat({
     setExchangeCount(0)
     hasStarted.current = false
     cancelSpeech()
-  }, [chatKey, moduleId, sectionId, cancelSpeech])
+  }, [chatKey, sessionKey, moduleId, sectionId, cancelSpeech])
 
   return {
     messages,
@@ -490,6 +565,7 @@ export function useChat({
     hasStarted,
     doSendRef,
     doSend,
+    restoreChatForSection,
     advanceTopic,
     stopAll,
     resetSection,

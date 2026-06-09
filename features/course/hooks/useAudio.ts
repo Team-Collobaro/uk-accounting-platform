@@ -10,6 +10,74 @@ export function useAudio() {
 
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null)
   const playingRef = useRef(false)
+  // Live "loudness" signal (0..1) the speaking orb reads each frame. Word
+  // boundaries spike it; the orb's rAF loop decays it back down so the orb
+  // throbs in time with the spoken words.
+  const energyRef = useRef(0)
+  const bumpEnergy = useCallback((amount = 0.85) => {
+    energyRef.current = Math.min(1, energyRef.current + amount)
+  }, [])
+
+  // A reply is spoken as a QUEUE of one-utterance-per-sentence. We ref-count
+  // the in-flight utterances so `isSpeaking` stays true for the whole reply and
+  // doesn't flicker in the brief gaps between queued utterances (which would
+  // otherwise make the voice wave blink out mid-speech).
+  const speakingCountRef = useRef(0)
+
+  // Chromium silently kills speechSynthesis after ~15s of continuous output.
+  // While we're speaking we tick a heartbeat that calls resume() (a no-op when
+  // not paused, but it resets Chrome's internal watchdog) so long replies keep
+  // going. The same tick also recovers state if the engine drops the queue
+  // without firing onend (which would otherwise leave us stuck "speaking").
+  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const staleTicksRef = useRef(0)
+  const stopKeepAlive = useCallback(() => {
+    if (keepAliveRef.current) {
+      clearInterval(keepAliveRef.current)
+      keepAliveRef.current = null
+    }
+    staleTicksRef.current = 0
+  }, [])
+  const startKeepAlive = useCallback(() => {
+    if (keepAliveRef.current) return
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return
+    staleTicksRef.current = 0
+    keepAliveRef.current = setInterval(() => {
+      const synth = window.speechSynthesis
+      // Reset Chrome's 15s cutoff timer.
+      synth.resume()
+      // Recovery: if we think we're speaking but the engine is actually idle,
+      // it dropped the queue — force our state back to "done" after two idle
+      // ticks (~10s) so the wave can never get permanently stuck on.
+      if (speakingCountRef.current > 0 && !synth.speaking && !synth.pending) {
+        staleTicksRef.current += 1
+        if (staleTicksRef.current >= 2) {
+          speakingCountRef.current = 0
+          playingRef.current = false
+          setIsSpeaking(false)
+          stopKeepAlive()
+        }
+      } else {
+        staleTicksRef.current = 0
+      }
+    }, 5000)
+  }, [stopKeepAlive])
+
+  const beginUtterance = useCallback(() => {
+    speakingCountRef.current += 1
+    playingRef.current = true
+    setIsSpeaking(true)
+    startKeepAlive()
+  }, [startKeepAlive])
+  const endUtterance = useCallback(() => {
+    speakingCountRef.current = Math.max(0, speakingCountRef.current - 1)
+    if (speakingCountRef.current === 0) {
+      playingRef.current = false
+      setIsSpeaking(false)
+      stopKeepAlive()
+    }
+  }, [stopKeepAlive])
+
   const analyserRef = useRef<AnalyserNode | null>(null)
   const bufRef = useRef("")
   const audioRef = useRef(true)
@@ -42,9 +110,10 @@ export function useAudio() {
     return () => window.speechSynthesis.removeEventListener("voiceschanged", pick)
   }, [])
 
-  // Cancel speech on unmount
+  // Cancel speech + clear the keep-alive timer on unmount
   useEffect(
     () => () => {
+      if (keepAliveRef.current) clearInterval(keepAliveRef.current)
       if (typeof window !== "undefined" && "speechSynthesis" in window)
         window.speechSynthesis.cancel()
     },
@@ -55,36 +124,33 @@ export function useAudio() {
     if (!audioRef.current) return
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return
     stopMicRef.current()
-    playingRef.current = true
-    setIsSpeaking(true)
     const u = new SpeechSynthesisUtterance(text)
     u.lang = "en-GB"
     u.rate = 1.05
     if (voiceRef.current) u.voice = voiceRef.current
+    u.onstart = () => bumpEnergy(1)
+    u.onboundary = () => bumpEnergy()
     u.onend = () => {
-      if (!window.speechSynthesis.speaking) {
-        playingRef.current = false
-        setIsSpeaking(false)
-      }
+      endUtterance()
       onFinished?.()
     }
     u.onerror = () => {
-      if (!window.speechSynthesis.speaking) {
-        playingRef.current = false
-        setIsSpeaking(false)
-      }
+      endUtterance()
       onFinished?.()
     }
+    beginUtterance()
     window.speechSynthesis.speak(u)
-  }, [])
+  }, [bumpEnergy, beginUtterance, endUtterance])
 
   const cancelSpeech = useCallback(() => {
+    speakingCountRef.current = 0
     playingRef.current = false
     setIsSpeaking(false)
+    stopKeepAlive()
     if (typeof window !== "undefined" && "speechSynthesis" in window)
       window.speechSynthesis.cancel()
     bufRef.current = ""
-  }, [])
+  }, [stopKeepAlive])
 
   const speakFinal = useCallback((text: string, onFinished?: () => void) => {
     if (!audioRef.current) {
@@ -103,18 +169,19 @@ export function useAudio() {
     u.lang = "en-GB"
     u.rate = 1.05
     if (voiceRef.current) u.voice = voiceRef.current
+    u.onstart = () => bumpEnergy(1)
+    u.onboundary = () => bumpEnergy()
     u.onend = () => {
-      playingRef.current = false
-      setIsSpeaking(false)
+      endUtterance()
       onFinished?.()
     }
     u.onerror = () => {
-      playingRef.current = false
-      setIsSpeaking(false)
+      endUtterance()
       onFinished?.()
     }
+    beginUtterance()
     window.speechSynthesis.speak(u)
-  }, [])
+  }, [bumpEnergy, beginUtterance, endUtterance])
 
   const feedToken = useCallback(
     (tok: string) => {
@@ -162,6 +229,7 @@ export function useAudio() {
       const wait = () => {
         if (window.speechSynthesis.speaking) setTimeout(wait, 200)
         else {
+          speakingCountRef.current = 0
           playingRef.current = false
           setIsSpeaking(false)
           maybeRestartMic()
@@ -188,6 +256,7 @@ export function useAudio() {
     availableVoices,
     voiceRef,
     playingRef,
+    energyRef,
     analyserRef,
     bufRef,
     audioRef,

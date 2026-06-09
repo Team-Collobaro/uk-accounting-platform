@@ -53,6 +53,22 @@
   --ring: 0 0% 83.1%;
 }
 
+/* ── Brand accent (course sidebar) — warm orange, theme-independent ── */
+:root,
+.dark {
+  --brand: 16 100% 58%;
+  --brand-foreground: 0 0% 100%;
+  --brand-soft: 18 90% 52%;
+}
+
+/* ── Course chat canvas — warm near-black with a soft amber bloom up top ── */
+.course-canvas {
+  background-color: #0b0a09;
+  background-image:
+    radial-gradient(88% 52% at 72% -10%, hsl(var(--brand) / 0.15), transparent 60%),
+    radial-gradient(55% 38% at 55% -4%, hsl(28 70% 34% / 0.18), transparent 68%);
+}
+
 @layer base {
   * {
     border-color: hsl(var(--border));
@@ -317,6 +333,40 @@ body {
 }
 .orb-ring:nth-child(2) { animation-delay: 0.66s; border-color: rgba(155,111,208, 0.45); }
 .orb-ring:nth-child(3) { animation-delay: 1.32s; border-color: rgba(68,138,255,  0.35); }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SPEAKING ORB — the AI avatar becomes a voice-reactive orb while talking
+   Driven by --orb-scale (≈1.0–1.2) and --orb-glow (0–1) written each rAF frame
+   by <SpeakingOrb>. Sits absolutely over the static avatar; reduced-motion and
+   print hide it so the plain avatar shows through (never a frozen frame).
+   ══════════════════════════════════════════════════════════════════════════════ */
+/* The canvas visualizer overlays the small avatar, centred on it and allowed
+   to bloom outward past the slot. */
+.speaking-orb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+.speaking-orb canvas {
+  display: block;
+  pointer-events: none;
+}
+
+/* Reduced-motion & print: hide the orb entirely so the static avatar shows. */
+@media (prefers-reduced-motion: reduce) {
+  .speaking-orb { display: none; }
+}
+@media print {
+  .speaking-orb { display: none; }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    AUDIO BAR wrapper
