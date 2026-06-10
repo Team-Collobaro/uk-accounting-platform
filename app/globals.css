@@ -335,37 +335,58 @@ body {
 .orb-ring:nth-child(3) { animation-delay: 1.32s; border-color: rgba(68,138,255,  0.35); }
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   SPEAKING ORB — the AI avatar becomes a voice-reactive orb while talking
-   Driven by --orb-scale (≈1.0–1.2) and --orb-glow (0–1) written each rAF frame
-   by <SpeakingOrb>. Sits absolutely over the static avatar; reduced-motion and
-   print hide it so the plain avatar shows through (never a frozen frame).
+   SPEAKING WAVE — a voice-reactive gradient waveform shown above the input
+   while the AI talks. A full-width <canvas> drawn by <SpeakingWave> ripples in
+   time with the speech; clicking the band stops it. Reduced-motion / print hide
+   it so nothing animates.
    ══════════════════════════════════════════════════════════════════════════════ */
-/* The canvas visualizer overlays the small avatar, centred on it and allowed
-   to bloom outward past the slot. */
-.speaking-orb {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  display: inline-flex;
+.speaking-wave {
+  display: block;
+  width: 100%;
   padding: 0;
+  margin: 0;
   border: none;
   background: transparent;
   cursor: pointer;
   line-height: 0;
+  /* Re-enable clicks (the wrapping band is pointer-events:none). */
+  pointer-events: auto;
+  /* Soft alpha fade at the left/right edges so the waveform melts into the
+     background instead of ending on a hard vertical cut. */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+  /* Fade in as the band mounts so it doesn't pop. */
+  animation: wave-in 260ms ease-out both;
 }
-.speaking-orb canvas {
+.speaking-wave canvas {
   display: block;
+  width: 100%;
   pointer-events: none;
 }
 
-/* Reduced-motion & print: hide the orb entirely so the static avatar shows. */
+@keyframes wave-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced-motion & print: hide the wave entirely. */
 @media (prefers-reduced-motion: reduce) {
-  .speaking-orb { display: none; }
+  .speaking-wave { display: none; }
 }
 @media print {
-  .speaking-orb { display: none; }
+  .speaking-wave { display: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════

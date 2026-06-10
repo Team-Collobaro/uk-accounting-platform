@@ -10,7 +10,7 @@ import { useTeachingPoints } from "@/features/course/hooks/useTeachingPoints";
 import { useMic } from "@/features/course/hooks/useMic";
 import { useChat } from "@/features/course/hooks/useChat";
 import { SectionTrail } from "@/features/course/content/SectionTrail";
-import { SpeakingOrb } from "@/features/course/content/SpeakingOrb";
+import { SpeakingWave } from "@/features/course/content/SpeakingWave";
 import { QuizModal } from "@/features/course/content/QuizModal";
 import { PageSkeleton } from "@/features/course/content/PageSkeleton";
 import { AssistantMessage } from "@/features/course/content/AssistantMessage";
@@ -1089,6 +1089,26 @@ export default function CourseModulePage() {
             </div>
           </header>
 
+          {/* Voice-reactive wave — a gradient waveform that ripples in time with
+              the spoken audio. Sits in flow just below the header so it never
+              overlaps the chat; click to stop. Hidden via CSS for
+              reduced-motion / print. */}
+          {orbActive && (
+            <div className="shrink-0 border-b border-border/50">
+              <SpeakingWave
+                energyRef={energyRef}
+                onStop={() => {
+                  if (orbHideTimer.current) {
+                    clearTimeout(orbHideTimer.current);
+                    orbHideTimer.current = null;
+                  }
+                  setOrbActive(false);
+                  stopAll();
+                }}
+              />
+            </div>
+          )}
+
           {/* MESSAGES */}
           <div className="chat-messages flex flex-1 flex-col overflow-y-auto">
           <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-4">
@@ -1163,26 +1183,10 @@ export default function CourseModulePage() {
                     </div>
                   ) : (
                     <>
-                    {/* Avatar — transforms into a voice-reactive orb while this
-                        message is being spoken aloud. The orb overlays the
-                        static avatar; reduced-motion/print hide it via CSS. */}
-                    <div className="relative mt-1 size-7 shrink-0">
-                      <div className="flex size-7 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-[0_3px_10px_-3px_hsl(var(--brand)/0.6)]">
-                        <Sparkles size={13} className="fill-current" />
-                      </div>
-                      {isLastAss && orbActive && (
-                        <SpeakingOrb
-                          energyRef={energyRef}
-                          onStop={() => {
-                            if (orbHideTimer.current) {
-                              clearTimeout(orbHideTimer.current);
-                              orbHideTimer.current = null;
-                            }
-                            setOrbActive(false);
-                            stopAll();
-                          }}
-                        />
-                      )}
+                    {/* Static avatar — the voice-reactive visualizer now lives
+                        as a wave band above the input bar (see SpeakingWave). */}
+                    <div className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-[0_3px_10px_-3px_hsl(var(--brand)/0.6)]">
+                      <Sparkles size={13} className="fill-current" />
                     </div>
                     <div className="min-w-0 flex-1 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground">
                       {msg.content ? (
