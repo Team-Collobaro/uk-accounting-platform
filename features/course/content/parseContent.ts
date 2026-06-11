@@ -39,7 +39,7 @@ export function parseContent(raw: string): ContentSegment[] {
       segments.push({ kind: 'mcq', data: { question, options, correct } })
     } else {
       const title = lines[0] ?? ''
-      const items = lines.slice(1).map(splitLabelDesc)
+      const items = lines.slice(1).map(splitLabelDesc).filter((it) => it.label)
       const kind = type === 'PILLARS' ? 'pillars' : type === 'STEPS' ? 'steps' : 'terms'
       segments.push({ kind, title, items } as ContentSegment)
     }

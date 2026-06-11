@@ -42,7 +42,7 @@ async function main() {
   const start = Date.now()
   console.log('Indexing UK Master Course by section…')
 
-  const htmlPath = path.resolve(process.cwd(), 'UK_Master_Course 1-1 (1).html')
+  const htmlPath = path.resolve(process.cwd(), 'UK_Master_Course 3.html')
   const html = fs.readFileSync(htmlPath, 'utf-8')
   const $ = cheerio.load(html)
 

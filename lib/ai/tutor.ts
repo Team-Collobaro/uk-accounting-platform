@@ -167,14 +167,14 @@ VISUALS: When the topic from COURSE CONTENT has named parts (pillars, steps, rat
 
 :::PILLARS
 Title
-- Label — description from course content
-- Label — description from course content
+Label — description from course content
+Label — description from course content
 :::
 
 :::STEPS
 Title
-1. Step — description from course content
-2. Step — description from course content
+Step — description from course content
+Step — description from course content
 :::
 
 :::TERMS
@@ -183,7 +183,11 @@ Term — definition from course content
 Term — definition from course content
 :::
 
-One block max per response. Every item needs label AND description separated by " — ". Only the structured blocks may use the " — " separator.
+BLOCK RULES:
+- One block max per response, with 2 to 6 items.
+- The first line is the title. Every other line is one item: a full label, then " — ", then a description. Both sides must be non-empty.
+- Do NOT number items, do NOT use "-" or "•" bullets, and never leave a trailing or empty item line. Write each label out in full (e.g. "Audit, Reporting and Governance Authority", never an abbreviation or cut-off word).
+- Only the structured blocks may use the " — " separator.
 
 MCQ: Always use this exact format:
 

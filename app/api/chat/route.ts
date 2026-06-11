@@ -88,26 +88,55 @@ export async function POST(req: NextRequest) {
     // RAG — HTML course file is the single source of truth
     // Teaching point content (exact block from HTML) is used when available — it IS the content to teach
     const isAutoStart = message === "__AUTO_START__";
-    let ragContext = "";
     const { getModuleSections, getSectionContent } =
       await import("@/lib/courseHtml");
 
-    if (teachingPointContent && teachingPointContent.trim().length > 20) {
-      // Pass raw section context only — tutor.ts handles combining with teachingPointContent
-      ragContext = currentSection?.sectionId
-        ? getSectionContent(moduleId, currentSection.sectionId).slice(0, 500)
-        : "";
-    } else if (currentSection?.sectionId) {
-      ragContext = getSectionContent(moduleId, currentSection.sectionId);
-    } else if (isAutoStart) {
+    // Resolve which section the tutor should teach. The client sometimes fires a
+    // message before the section/teaching-points finish loading; in that case
+    // currentSection is missing, so derive the next-to-learn section from the
+    // student's completed list rather than silently defaulting to section 1.1.
+    let effectiveSection = currentSection ?? null;
+    if (!effectiveSection?.sectionId) {
       const sections = getModuleSections(moduleId);
       if (sections.length > 0) {
-        ragContext = getSectionContent(moduleId, sections[0].section_id);
+        const done = new Set(completedSections ?? []);
+        // Advance past the furthest completed section (sections come back
+        // interleaved with sub-sections like 1.2.1, so go by order, not first-gap).
+        const lastDoneOrder = sections.reduce(
+          (max, s) => (done.has(s.section_id) ? Math.max(max, s.section_order) : max),
+          0,
+        );
+        const next =
+          sections.find((s) => s.section_order > lastDoneOrder && !done.has(s.section_id)) ??
+          sections.find((s) => !done.has(s.section_id)) ??
+          sections[0];
+        effectiveSection = {
+          sectionId: next.section_id,
+          sectionTitle: next.section_title,
+          sectionOrder: next.section_order,
+        };
       }
-    } else {
-      if (currentSection?.sectionId) {
-        ragContext = getSectionContent(moduleId, currentSection.sectionId);
-      }
+    }
+
+    const hasTeachingPoint =
+      !!teachingPointContent && teachingPointContent.trim().length > 20;
+
+    // Build the material to teach from. When a scripted teaching point is present
+    // it IS the content (tutor.ts combines it with this section context); otherwise
+    // the whole section is the context. Either way the tutor always gets real content.
+    let ragContext = "";
+    if (effectiveSection?.sectionId) {
+      const sectionContent = getSectionContent(
+        moduleId,
+        effectiveSection.sectionId,
+      );
+      ragContext = hasTeachingPoint
+        ? sectionContent.slice(0, 500)
+        : sectionContent;
+    }
+
+    // Free-form question (not the scripted lesson flow): enrich with vector search.
+    if (!isAutoStart && !hasTeachingPoint) {
       try {
         const searchChunks = await searchSimilar(message, moduleId, 2);
         if (searchChunks.length > 0) {
@@ -119,12 +148,6 @@ export async function POST(req: NextRequest) {
       } catch {
         /* DB unavailable */
       }
-    }
-
-    if (!ragContext) {
-      const sections = getModuleSections(moduleId);
-      if (sections.length > 0)
-        ragContext = getSectionContent(moduleId, sections[0].section_id);
     }
 
     // Get or create session, load history
@@ -168,7 +191,7 @@ export async function POST(req: NextRequest) {
             history,
             message,
             ragContext,
-            currentSection,
+            currentSection: effectiveSection ?? undefined,
             completedSections,
             teachingPointIdx,
             teachingPointTitle,

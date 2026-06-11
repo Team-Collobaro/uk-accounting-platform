@@ -58,16 +58,18 @@ const chip = (cx: number, cy: number, r: number, n: number | string, fs: number)
   `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${INK}"/>
 <text x="${cx}" y="${cy + fs * 0.35}" text-anchor="middle" font-family="${FONT}" font-size="${fs}" fill="${CHIP_TXT}" font-weight="800">${n}</text>`;
 
-// 3 stacked authority rows
+// up to 3 stacked authority rows — only render the tiers that have real content
 const HIERARCHY = (_t: string, tiers: [string, string][]) => {
+  const rows = (tiers ?? []).filter((t) => t && t[0] && t[0].trim());
+  const n = Math.min(rows.length, 3);
   const rowH = 54,
     gap = 10,
     startY = 36;
-  const totalH = startY + 3 * rowH + 2 * gap + 16;
+  const totalH = startY + n * rowH + Math.max(0, n - 1) * gap + 16;
   let body = "";
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < n; i++) {
     const y = startY + i * (rowH + gap);
-    const [head, note] = tiers[i] ?? ["", ""];
+    const [head, note] = rows[i];
     const [n1, n2] = wrap(note, 60);
     const hasTwo = n2.length > 0;
     const titleY = hasTwo ? y + 19 : y + rowH / 2 - 2;
@@ -79,7 +81,7 @@ ${chip(486, y + rowH / 2, 11, i + 1, 10)}
 <text x="28" y="${titleY + 4}" font-family="${FONT}" font-size="12.5" fill="${INK}" font-weight="700">${esc(head.slice(0, 38))}</text>
 <text x="28" y="${d1Y + 4}" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(n1)}</text>
 ${hasTwo ? `<text x="28" y="${d2Y + 4}" font-family="${FONT}" font-size="9.5" fill="${SUB}">${esc(n2)}</text>` : ""}`;
-    if (i < 2) {
+    if (i < n - 1) {
       const arY = y + rowH + 1;
       body += `<line x1="260" y1="${arY}" x2="260" y2="${arY + gap - 1}" stroke="${LINE2}" stroke-width="1"/>`;
     }
@@ -87,17 +89,20 @@ ${hasTwo ? `<text x="28" y="${d2Y + 4}" font-family="${FONT}" font-size="9.5" fi
   return { body, h: totalH };
 };
 
-// 3 concept columns
+// up to 3 concept columns — only render the items that have real content
 const PILLARS = (_t: string, items: [string, string][]) => {
-  const xs = [14, 185, 356],
-    cw = 150,
+  const cols = (items ?? []).filter((it) => it && it[0] && it[0].trim());
+  const n = Math.min(cols.length, 3);
+  const cw = 150,
+    gap = 21,
     startY = 36,
     cardH = 170,
     totalH = startY + cardH + 16;
+  const startX = (W - (n * cw + Math.max(0, n - 1) * gap)) / 2;
   let body = "";
-  for (let i = 0; i < 3; i++) {
-    const x = xs[i];
-    const [head, sub] = items[i] ?? ["", ""];
+  for (let i = 0; i < n; i++) {
+    const x = startX + i * (cw + gap);
+    const [head, sub] = cols[i];
     const [s1, s2] = wrap(sub, 20);
     const [s3] = s2.length > 0 ? wrap(s2, 20) : ["", ""];
     body += `<rect x="${x}" y="${startY}" width="${cw}" height="${cardH}" rx="12" fill="${CARD}" stroke="${LINE}"/>
@@ -277,6 +282,9 @@ export async function POST(req: NextRequest) {
       default:
         return NextResponse.json({ svg: null });
     }
+
+    // No real content extracted → don't render an empty frame
+    if (!result.body.trim()) return NextResponse.json({ svg: null });
 
     return NextResponse.json({ svg: svg(data.title, result.body, result.h) });
   } catch {

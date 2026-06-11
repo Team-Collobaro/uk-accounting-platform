@@ -82,7 +82,6 @@ export default function CourseModulePage() {
   const [input, setInput] = useState("");
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizPassed, setQuizPassed] = useState(false);
-  const [voiceName, setVoiceName] = useState<string | undefined>(undefined);
   // How the quiz was opened:
   //  "section" = AI quiz on a subtopic's Mark Done → completing advances to
   //              the next topic.
@@ -139,7 +138,7 @@ export default function CourseModulePage() {
     cancelSpeech: audio.cancelSpeech,
     feedToken: audio.feedToken,
     flushSpeech: audio.flushSpeech,
-    voiceRef: audio.voiceRef,
+    speak: audio.speakFinal,
     bufRef: audio.bufRef,
     audioRef: audio.audioRef,
     streamRef,
@@ -290,8 +289,9 @@ export default function CourseModulePage() {
     setAudioEnabled,
     isSpeaking,
     setUserActivated,
-    availableVoices,
-    voiceRef,
+    ttsVoices,
+    voiceId,
+    setVoiceId,
     cancelSpeech,
     energyRef,
     speakText,
@@ -420,9 +420,8 @@ export default function CourseModulePage() {
         sectionProgress.find((p) => p.section_id === s.section_id)?.status ===
         "completed",
     );
-  const currentVoiceName = voiceName ?? voiceRef.current?.name;
-  const shortVoice = (name?: string) =>
-    name ? name.replace(/Microsoft |Google /, "").slice(0, 16) : "Voice";
+  const currentVoiceLabel =
+    ttsVoices.find((v) => v.id === voiceId)?.label ?? "Voice";
 
   // Restore "this module is already cleared" from localStorage so the next
   // module stays unlocked after a reload. Score doesn't gate progress, so the
@@ -1001,43 +1000,35 @@ export default function CourseModulePage() {
                   />
                 </div>
               </div>
-              {availableVoices.length > 1 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="hidden h-8 max-w-[150px] gap-1.5 rounded-lg px-3 font-mono text-[11px] text-muted-foreground sm:inline-flex"
-                      title="Choose voice"
-                    >
-                      <span className="truncate">{shortVoice(currentVoiceName)}</span>
-                      <ChevronDown size={12} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="max-h-72 min-w-64 overflow-y-auto">
-                    <DropdownMenuRadioGroup
-                      value={currentVoiceName ?? ""}
-                      onValueChange={(name) => {
-                        const v = availableVoices.find((vv) => vv.name === name);
-                        if (v) {
-                          voiceRef.current = v;
-                          setVoiceName(v.name);
-                        }
-                      }}
-                    >
-                      {availableVoices.map((v) => (
-                        <DropdownMenuRadioItem
-                          key={v.name}
-                          value={v.name}
-                          className="text-xs"
-                        >
-                          {v.name.replace(/Microsoft |Google /, "").slice(0, 24)} ({v.lang})
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden h-8 max-w-[150px] gap-1.5 rounded-lg px-3 font-mono text-[11px] text-muted-foreground sm:inline-flex"
+                    title="Choose voice"
+                  >
+                    <span className="truncate">{currentVoiceLabel}</span>
+                    <ChevronDown size={12} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-48">
+                  <DropdownMenuRadioGroup
+                    value={voiceId}
+                    onValueChange={(id) => setVoiceId(id)}
+                  >
+                    {ttsVoices.map((v) => (
+                      <DropdownMenuRadioItem
+                        key={v.id}
+                        value={v.id}
+                        className="text-xs"
+                      >
+                        {v.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="ghost"
                 size="icon"

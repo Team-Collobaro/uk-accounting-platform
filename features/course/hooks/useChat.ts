@@ -16,7 +16,7 @@ interface UseChatParams {
   cancelSpeech: () => void
   feedToken: (tok: string) => void
   flushSpeech: () => void
-  voiceRef: React.MutableRefObject<SpeechSynthesisVoice | null>
+  speak: (text: string, onFinished?: () => void) => void
   bufRef: React.MutableRefObject<string>
   audioRef: React.MutableRefObject<boolean>
   // Mic refs (owned by useMic / useAudio, written here)
@@ -82,7 +82,7 @@ export function useChat({
   cancelSpeech,
   feedToken,
   flushSpeech,
-  voiceRef,
+  speak,
   bufRef,
   audioRef,
   streamRef,
@@ -254,7 +254,31 @@ export function useChat({
         { role: "assistant", content: "", timestamp: new Date().toISOString() },
       ])
       try {
-        const pts = tpRef.current
+        // Teaching points load asynchronously when a section opens. If a message
+        // fires before that resolves, fetch them now so the tutor gets the scripted
+        // content (and topic list) instead of an empty section.
+        let pts = tpRef.current
+        if (pts.length === 0 && secRef.current) {
+          try {
+            const r = await fetch(
+              `/api/teaching-points?moduleId=${moduleId}&sectionId=${secRef.current.section_id}`,
+              { signal: abort.signal },
+            )
+            const d = (await r.json()) as { points: string[]; pointContents: string[] }
+            if (d.points?.length) {
+              const loaded = d.points.map((t, i) => ({
+                title: t,
+                content: d.pointContents?.[i] ?? "",
+                done: false,
+              }))
+              pts = loaded
+              tpRef.current = loaded
+              setTeachingPoints(loaded)
+            }
+          } catch {
+            /* fall through — server derives section content as a fallback */
+          }
+        }
         const ptIdx = tpIdxRef.current
         const cp = pts[ptIdx] ?? null
         const res = await fetch("/api/chat", {
@@ -513,13 +537,7 @@ export function useChat({
         })
       }
       if (speakFeedback) {
-        const u = new SpeechSynthesisUtterance(speakFeedback)
-        u.lang = "en-GB"
-        u.rate = 1.05
-        if (voiceRef.current) u.voice = voiceRef.current
-        u.onend = () => { void doSend("__AUTO_START__", true) }
-        u.onerror = () => { void doSend("__AUTO_START__", true) }
-        window.speechSynthesis.speak(u)
+        speak(speakFeedback, () => { void doSend("__AUTO_START__", true) })
       } else {
         void doSend("__AUTO_START__", true)
       }
@@ -527,7 +545,7 @@ export function useChat({
     [
       moduleId,
       doSend,
-      voiceRef,
+      speak,
       tpRef,
       tpIdxRef,
       secRef,
