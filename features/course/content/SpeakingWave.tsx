@@ -4,70 +4,47 @@ import { useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 
 /**
- * Voice-reactive speaking wave — a horizontal gradient visualizer.
+ * Voice-reactive speaking wave — a compact vertical bar visualizer.
  *
- * Rendered as a band above the chat input while an AI message is spoken aloud.
- * A <canvas> draws several stacked, gradient-stroked sine waves whose amplitude
- * and glow are driven by the shared `energyRef` "loudness" signal — spiked on
- * every spoken word boundary in useAudio, decayed here each frame (floored so
- * the line keeps a gentle ripple between words). The result reads as a living,
- * voice-driven waveform rather than a canned loop.
- *
- * Clicking the band stops the speech. On unmount (speech ended/cancelled) the
- * rAF loop is cancelled and the energy reset. Reduced-motion / print hide the
- * canvas via CSS so nothing animates.
+ * The shared `energyRef` is bumped from word boundaries in useAudio. This
+ * component turns that signal into the "live tutor" bar language used in the
+ * course rail: short cyan bars at rest, taller brighter bars while speech is
+ * active. Clicking the visualizer stops the current speech.
  */
 
-const HEIGHT = 60; // css px
+const HEIGHT = 58; // css px
+const BAR_COUNT = 34;
+const BAR_GAP = 4;
 
-// Orange/amber/gold palette matching the brand (hsl 16 100% 58%)
-const LAYERS = [
-  {
-    colors: ["#ff4500", "#ff8c00"] as [string, string],
-    glow: "#ff5c00",
-    lineWidth: 3.0,
-    freq: 0.006,
-    speed: 0.8,
-    phase: 0,
-    ampScale: 1.0,
-  },
-  {
-    colors: ["#ff6200", "#ffb300"] as [string, string],
-    glow: "#ff8000",
-    lineWidth: 2.2,
-    freq: 0.010,
-    speed: 1.2,
-    phase: Math.PI * 0.4,
-    ampScale: 0.82,
-  },
-  {
-    colors: ["#ff3000", "#ff6500"] as [string, string],
-    glow: "#ff4500",
-    lineWidth: 1.8,
-    freq: 0.014,
-    speed: 1.7,
-    phase: Math.PI * 0.8,
-    ampScale: 0.65,
-  },
-  {
-    colors: ["#ff8c00", "#ffd000"] as [string, string],
-    glow: "#ffaa00",
-    lineWidth: 1.4,
-    freq: 0.018,
-    speed: 2.3,
-    phase: Math.PI * 1.2,
-    ampScale: 0.5,
-  },
-  {
-    colors: ["#ff5500", "#ff9400"] as [string, string],
-    glow: "#ff6a00",
-    lineWidth: 1.0,
-    freq: 0.024,
-    speed: 3.0,
-    phase: Math.PI * 1.6,
-    ampScale: 0.35,
-  },
+const BAR_COLORS = [
+  "#38bdf8",
+  "#22d3ee",
+  "#06b6d4",
+  "#60a5fa",
+  "#7dd3fc",
 ];
+
+function roundedBar(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
 
 export function SpeakingWave({
   energyRef,
@@ -116,50 +93,50 @@ export function SpeakingWave({
     let raf = 0;
 
     const draw = (now: number) => {
-      energyRef.current = Math.max(0.05, energyRef.current * 0.9);
+      energyRef.current = Math.max(0.08, energyRef.current * 0.91);
       const e = energyRef.current;
       const t = now / 1000;
 
       const w = canvas.width / dpr;
       const h = HEIGHT;
-      const cy = h / 2;
+      const baseline = h - 9;
 
       ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = "source-over";
 
-      for (const layer of LAYERS) {
-        const grad = ctx.createLinearGradient(0, 0, w, 0);
-        grad.addColorStop(0, layer.colors[0]);
-        grad.addColorStop(1, layer.colors[1]);
+      const usableWidth = Math.max(0, w - 8);
+      const barWidth = Math.max(
+        2,
+        Math.floor((usableWidth - BAR_GAP * (BAR_COUNT - 1)) / BAR_COUNT),
+      );
+      const totalWidth = BAR_COUNT * barWidth + (BAR_COUNT - 1) * BAR_GAP;
+      const startX = (w - totalWidth) / 2;
 
-        ctx.beginPath();
-        for (let x = 0; x <= w; x++) {
-          // Smoothstep envelope: amplitude tapers to zero toward both edges so
-          // the wave eases into the centre line instead of being clipped flat.
-          const norm = w > 0 ? x / w : 0;
-          const edge = 0.16; // fraction of width over which to fade in/out
-          let env = 1;
-          if (norm < edge) env = norm / edge;
-          else if (norm > 1 - edge) env = (1 - norm) / edge;
-          env = env * env * (3 - 2 * env);
+      for (let i = 0; i < BAR_COUNT; i++) {
+        const position = i / Math.max(1, BAR_COUNT - 1);
+        const centreLift = 1 - Math.abs(position - 0.5) * 0.55;
+        const pulse =
+          Math.sin(t * 5.2 + i * 0.72) * 0.5 +
+          Math.sin(t * 2.7 + i * 1.37) * 0.35 +
+          0.65;
+        const normalized = Math.max(0.18, Math.min(1, pulse));
+        const height = 8 + normalized * centreLift * (12 + e * 33);
+        const x = startX + i * (barWidth + BAR_GAP);
+        const y = baseline - height;
+        const grad = ctx.createLinearGradient(0, y, 0, baseline);
+        grad.addColorStop(0, BAR_COLORS[(i + 1) % BAR_COLORS.length]);
+        grad.addColorStop(1, BAR_COLORS[i % BAR_COLORS.length]);
 
-          const maxAmp = h * 0.38 * e * layer.ampScale * env;
-          const y =
-            cy +
-            Math.sin(x * layer.freq + t * layer.speed + layer.phase) * maxAmp;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = layer.lineWidth;
-        ctx.shadowColor = layer.glow;
-        ctx.shadowBlur = 8 + 20 * e;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.fillStyle = grad;
+        ctx.globalAlpha = 0.52 + e * 0.42;
+        ctx.shadowColor = "#22d3ee";
+        ctx.shadowBlur = 4 + e * 14;
+        roundedBar(ctx, x, y, barWidth, height, barWidth);
+        ctx.fill();
       }
 
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);

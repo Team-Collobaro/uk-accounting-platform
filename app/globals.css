@@ -53,20 +53,21 @@
   --ring: 0 0% 83.1%;
 }
 
-/* ── Brand accent (course sidebar) — warm orange, theme-independent ── */
+/* ── Brand accent (course workspace) — electric cyan, theme-independent ── */
 :root,
 .dark {
-  --brand: 16 100% 58%;
+  --brand: 189 94% 53%;
   --brand-foreground: 0 0% 100%;
-  --brand-soft: 18 90% 52%;
+  --brand-soft: 199 89% 48%;
 }
 
-/* ── Course chat canvas — warm near-black with a soft amber bloom up top ── */
+/* ── Course chat canvas — deep navy cockpit with a restrained cyan signal ── */
 .course-canvas {
-  background-color: #0b0a09;
+  background-color: #030811;
   background-image:
-    radial-gradient(88% 52% at 72% -10%, hsl(var(--brand) / 0.15), transparent 60%),
-    radial-gradient(55% 38% at 55% -4%, hsl(28 70% 34% / 0.18), transparent 68%);
+    linear-gradient(180deg, rgba(9, 18, 33, 0.96), rgba(2, 7, 14, 0.98) 54%, #02060d 100%),
+    radial-gradient(70% 48% at 72% -12%, hsl(var(--brand) / 0.16), transparent 62%),
+    radial-gradient(48% 35% at 18% 0%, rgba(96, 165, 250, 0.12), transparent 66%);
 }
 
 @layer base {
@@ -343,6 +344,7 @@ body {
 .speaking-wave {
   display: block;
   width: 100%;
+  height: 58px;
   padding: 0;
   margin: 0;
   border: none;
@@ -351,20 +353,19 @@ body {
   line-height: 0;
   /* Re-enable clicks (the wrapping band is pointer-events:none). */
   pointer-events: auto;
-  /* Soft alpha fade at the left/right edges so the waveform melts into the
-     background instead of ending on a hard vertical cut. */
+  /* Soft alpha fade at the left/right edges so the bars melt into the rail. */
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
-    #000 14%,
-    #000 86%,
+    #000 8%,
+    #000 92%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to right,
     transparent 0%,
-    #000 14%,
-    #000 86%,
+    #000 8%,
+    #000 92%,
     transparent 100%
   );
   /* Fade in as the band mounts so it doesn't pop. */
@@ -373,7 +374,26 @@ body {
 .speaking-wave canvas {
   display: block;
   width: 100%;
+  height: 58px;
   pointer-events: none;
+}
+
+.speaking-idle-bars {
+  display: flex;
+  height: 58px;
+  align-items: end;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0.34;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 8%, #000 92%, transparent 100%);
+}
+
+.speaking-idle-bars span {
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #7dd3fc 0%, #22d3ee 100%);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.28);
 }
 
 @keyframes wave-in {

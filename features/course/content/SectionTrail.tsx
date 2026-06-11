@@ -146,8 +146,8 @@ export function SectionTrail({
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-3 pb-3">
       <div className="flex shrink-0 items-center justify-between px-1 pb-2.5 pt-4">
-        <p className="text-[13px] font-medium text-muted-foreground">Topics</p>
-        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+        <p className="text-[13px] font-medium text-slate-500">Topics</p>
+        <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-slate-800/80 px-1.5 font-mono text-[10px] font-medium text-slate-500">
           {lessonCount}
         </span>
       </div>
@@ -182,32 +182,32 @@ export function SectionTrail({
               title={section.section_title}
               className={cn(
                 "group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                "text-slate-500 hover:bg-cyan-300/[0.05] hover:text-slate-200",
                 item.depth === 1 && "pl-7",
-                active && "bg-white/[0.05]",
-                sectionLocked && "cursor-default opacity-40 hover:bg-transparent hover:text-muted-foreground",
+                active && "bg-cyan-300/[0.06]",
+                sectionLocked && "cursor-default opacity-40 hover:bg-transparent hover:text-slate-500",
               )}
             >
-              {/* active orange rail */}
+              {/* active topic rail */}
               {isCurrent && (
                 <motion.span
                   layoutId="trail-active-rail"
-                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brand"
+                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.55)]"
                   transition={{ type: "spring", stiffness: 500, damping: 40 }}
                 />
               )}
 
               <span className="flex w-4 shrink-0 justify-center">
                 {sectionLocked ? (
-                  <Lock size={13} className="opacity-80" />
+                    <Lock size={13} className="opacity-80" />
                 ) : sectionDone ? (
-                  <span className="flex size-[18px] items-center justify-center rounded-full bg-brand/15 text-brand">
+                  <span className="flex size-[18px] items-center justify-center rounded-full bg-cyan-300/15 text-cyan-300">
                     <Check size={12} strokeWidth={3} />
                   </span>
                 ) : (
                   <Circle
                     size={13}
-                    className={cn(active && "fill-brand/20 text-brand")}
+                    className={cn(active && "fill-cyan-300/20 text-cyan-300")}
                   />
                 )}
               </span>
@@ -216,7 +216,7 @@ export function SectionTrail({
                 className={cn(
                   "shrink-0 font-mono text-[11px] tabular-nums",
                   item.isStubParent ? "font-semibold" : "font-medium",
-                  active ? "text-brand" : "text-muted-foreground/70",
+                  active ? "text-cyan-300" : "text-slate-600",
                 )}
               >
                 {section.section_id}
@@ -225,8 +225,8 @@ export function SectionTrail({
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-[12.5px] leading-snug",
-                  item.isStubParent ? "font-medium text-foreground/85" : "font-normal",
-                  active && "font-medium text-foreground",
+                  item.isStubParent ? "font-medium text-slate-300" : "font-normal",
+                  active && "font-medium text-slate-100",
                 )}
               >
                 {section.section_title}
@@ -238,7 +238,7 @@ export function SectionTrail({
 
       {visibleTopicItems.length === 0 && (
         <div className="flex flex-1 items-center justify-center px-3 py-8 text-center">
-          <p className="text-xs text-muted-foreground">No matching topics</p>
+          <p className="text-xs text-slate-500">No matching topics</p>
         </div>
       )}
     </div>

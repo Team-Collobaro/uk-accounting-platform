@@ -623,6 +623,15 @@ export default function CourseModulePage() {
     speakText,
   ]);
 
+  const handleStopSpeaking = useCallback(() => {
+    if (orbHideTimer.current) {
+      clearTimeout(orbHideTimer.current);
+      orbHideTimer.current = null;
+    }
+    setOrbActive(false);
+    stopAll();
+  }, [stopAll]);
+
   // ── Keyboard shortcuts ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -668,7 +677,7 @@ export default function CourseModulePage() {
   const moduleNum = parseInt(moduleId.replace("m", ""), 10);
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-background font-sans text-foreground">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#02060d] font-sans text-slate-100">
       {/* ── Section advance toast ── */}
       <AnimatePresence>
         {showAdvancePrompt && (
@@ -738,7 +747,7 @@ export default function CourseModulePage() {
         {/* SIDEBAR */}
         {!sidebarCollapsed && (
         <aside
-          className="relative flex shrink-0 flex-col border-r border-border/70 bg-[#0d0d0d]"
+          className="relative flex shrink-0 flex-col border-r border-[#172338] bg-[#07101d]"
           style={{ width: sidebarWidth }}
         >
           <div
@@ -766,18 +775,18 @@ export default function CourseModulePage() {
           />
           <div className="flex shrink-0 flex-col gap-4 px-4 pb-1 pt-4">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand text-brand-foreground shadow-[0_4px_14px_-2px_hsl(var(--brand)/0.55)]">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-400/10 text-cyan-300 shadow-[0_0_24px_rgba(34,211,238,0.12)]">
                 <Sparkles size={18} className="fill-current" />
               </div>
-              <p className="min-w-0 flex-1 truncate text-[17px] font-bold tracking-tight text-foreground">
+              <p className="min-w-0 flex-1 truncate text-[17px] font-bold tracking-tight text-slate-100">
                 Account Academy
               </p>
               <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "size-8 shrink-0 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
-                  sidebarSearchOpen && "bg-white/[0.06] text-foreground",
+                  "size-8 shrink-0 rounded-lg text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200",
+                  sidebarSearchOpen && "bg-cyan-300/[0.08] text-cyan-200",
                 )}
                 onClick={() => {
                   setSidebarSearchOpen((open) => {
@@ -797,31 +806,31 @@ export default function CourseModulePage() {
                 onChange={(event) => setSidebarQuery(event.target.value)}
                 placeholder="Search topics"
                 autoFocus
-                className="h-9 rounded-lg border-border/70 bg-white/[0.03] text-xs"
+                className="h-9 rounded-lg border-cyan-300/15 bg-[#0b1728] text-xs text-slate-200 placeholder:text-slate-600"
               />
             )}
 
             <div className="flex flex-col gap-2.5">
-              <p className="px-0.5 text-[12px] font-medium text-muted-foreground">
+              <p className="px-0.5 text-[12px] font-medium text-slate-500">
                 Current module
               </p>
-              <div className="rounded-xl border border-border/70 bg-white/[0.025] p-3.5">
+              <div className="rounded-xl border border-cyan-300/10 bg-[#0a1525]/85 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                 <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-brand">
                   <BookOpen size={12} />
                   Part {partNumber} · {moduleLabel}
                 </div>
-                <h2 className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-foreground">
+                <h2 className="mt-2 line-clamp-2 text-[15px] font-semibold leading-snug text-slate-100">
                   {moduleTitle}
                 </h2>
                 <div className="mt-3.5 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Module progress</span>
-                  <span className="font-mono font-medium text-foreground">
+                  <span className="text-slate-500">Module progress</span>
+                  <span className="font-mono font-medium text-slate-200">
                     {completedTopicCount}/{realSections.length || 0}
                   </span>
                 </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-800/80">
                   <motion.div
-                    className="h-full rounded-full bg-brand"
+                    className="h-full rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.55)]"
                     initial={false}
                     animate={{ width: `${topicProgressPct}%` }}
                     transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -829,6 +838,67 @@ export default function CourseModulePage() {
                 </div>
               </div>
             </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="rounded-xl border border-cyan-300/10 bg-[#081422]/90 px-4 pb-4 pt-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.03)]"
+            >
+              <div className="mb-4 flex items-center justify-center">
+                <span className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.18em]",
+                  orbActive
+                    ? "border-rose-400/30 bg-rose-500/10 text-rose-200"
+                    : "border-cyan-300/15 bg-cyan-300/[0.06] text-cyan-200/80",
+                )}>
+                  <span className={cn(
+                    "size-1.5 rounded-full",
+                    orbActive ? "animate-pulse bg-rose-400" : "bg-cyan-300/60",
+                  )} />
+                  {orbActive ? "Live session" : "Tutor ready"}
+                </span>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="relative flex size-[62px] items-center justify-center rounded-full border border-cyan-300/35 bg-cyan-300/[0.08] text-cyan-300 shadow-[0_0_34px_rgba(34,211,238,0.16)]">
+                  {orbActive && (
+                    <>
+                      <span className="absolute inset-[-8px] rounded-full border border-cyan-300/30 opacity-70" />
+                      <span className="absolute inset-[-15px] rounded-full border border-blue-400/15 opacity-50" />
+                    </>
+                  )}
+                  <Brain size={25} strokeWidth={1.5} />
+                </div>
+                <h3 className="mt-3 text-[15px] font-semibold text-slate-100">
+                  Alex
+                </h3>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  AI tutor · {partTitle}
+                </p>
+                <div className="mt-4 w-full">
+                  {orbActive ? (
+                    <SpeakingWave
+                      energyRef={energyRef}
+                      onStop={handleStopSpeaking}
+                    />
+                  ) : (
+                    <div className="speaking-idle-bars" aria-hidden>
+                      {Array.from({ length: 34 }).map((_, i) => (
+                        <span
+                          key={i}
+                          style={{
+                            height: `${8 + ((i * 7) % 27)}px`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1.5 font-mono text-[10px] font-semibold text-cyan-300">
+                  {orbActive ? "Explaining this section..." : "Ready to speak"}
+                </p>
+              </div>
+            </motion.div>
           </div>
 
           {sections.length > 0 ? (
@@ -857,9 +927,9 @@ export default function CourseModulePage() {
                 setShowQuiz(true);
               }}
               className={cn(
-                "flex w-full items-center gap-3 rounded-xl border border-border/70 bg-white/[0.025] px-3 py-3 text-left transition-colors",
+                "flex w-full items-center gap-3 rounded-xl border border-cyan-300/10 bg-[#081422]/80 px-3 py-3 text-left transition-colors",
                 quizUnlockedNow
-                  ? "hover:border-brand/40 hover:bg-brand/[0.06]"
+                  ? "hover:border-cyan-300/35 hover:bg-cyan-300/[0.06]"
                   : "cursor-default opacity-70",
               )}
             >
@@ -867,41 +937,41 @@ export default function CourseModulePage() {
                 className={cn(
                   "flex size-9 shrink-0 items-center justify-center rounded-lg",
                   quizUnlockedNow
-                    ? "bg-brand/15 text-brand"
-                    : "bg-white/[0.05] text-muted-foreground",
+                    ? "bg-cyan-300/15 text-cyan-300"
+                    : "bg-slate-800 text-slate-500",
                 )}
               >
                 <CircleHelp size={16} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-semibold text-foreground">
+                <span className="block truncate text-[13px] font-semibold text-slate-100">
                   Module Quiz
                 </span>
-                <span className="block truncate text-[11px] text-muted-foreground">
+                <span className="block truncate text-[11px] text-slate-500">
                   10 Questions
                 </span>
               </span>
               {quizUnlockedNow ? (
-                <ChevronRight size={16} className="shrink-0 text-brand" />
+                <ChevronRight size={16} className="shrink-0 text-cyan-300" />
               ) : (
-                <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/[0.05] px-2 py-1 font-mono text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-slate-800 px-2 py-1 font-mono text-[9px] font-medium uppercase tracking-wider text-slate-500">
                   <Lock size={9} /> Locked
                 </span>
               )}
             </button>
             {!quizUnlockedNow && (
-              <p className="mt-1.5 px-1 text-center text-[10px] text-muted-foreground">
+              <p className="mt-1.5 px-1 text-center text-[10px] text-slate-500">
                 Complete all topics to unlock
               </p>
             )}
           </div>
 
           {/* section nav */}
-          <div className="flex shrink-0 items-center gap-2 border-t border-border/70 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2 border-t border-cyan-300/10 px-4 py-3">
             <Button
               variant="outline"
               size="sm"
-              className="h-10 flex-1 gap-1.5 rounded-xl border-border/70 bg-transparent text-[13px] font-medium text-muted-foreground hover:bg-white/[0.05] hover:text-foreground disabled:opacity-40"
+              className="h-10 flex-1 gap-1.5 rounded-xl border-cyan-300/15 bg-transparent text-[13px] font-medium text-slate-500 hover:bg-cyan-300/[0.06] hover:text-cyan-200 disabled:opacity-40"
               onClick={() => {
                 if (currentSectionIdx > 0) {
                   switchSection(currentSectionIdx - 1);
@@ -917,7 +987,7 @@ export default function CourseModulePage() {
             {currentSectionIdx < sections.length - 1 ? (
               <Button
                 size="sm"
-                className="h-10 flex-1 gap-1.5 rounded-xl bg-brand text-[13px] font-semibold text-brand-foreground shadow-[0_4px_14px_-3px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                className="h-10 flex-1 gap-1.5 rounded-xl bg-cyan-400 text-[13px] font-semibold text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.18)] hover:bg-cyan-300"
                 onClick={() => switchSection(currentSectionIdx + 1)}
               >
                 Next <ChevronRight size={15} />
@@ -925,7 +995,7 @@ export default function CourseModulePage() {
             ) : nextModule && canGoNext ? (
               <Button
                 size="sm"
-                className="h-10 flex-1 gap-1.5 rounded-xl bg-brand text-[13px] font-semibold text-brand-foreground shadow-[0_4px_14px_-3px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                className="h-10 flex-1 gap-1.5 rounded-xl bg-cyan-400 text-[13px] font-semibold text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.18)] hover:bg-cyan-300"
                 onClick={() => router.push(`/course/${nextModule}`)}
               >
                 Next <ChevronRight size={15} />
@@ -934,7 +1004,7 @@ export default function CourseModulePage() {
               <Button
                 size="sm"
                 disabled
-                className="h-10 flex-1 gap-1.5 rounded-xl bg-white/[0.05] text-[13px] font-medium text-muted-foreground disabled:opacity-60"
+                className="h-10 flex-1 gap-1.5 rounded-xl bg-slate-800 text-[13px] font-medium text-slate-500 disabled:opacity-60"
               >
                 <Lock size={13} /> Next
               </Button>
@@ -948,13 +1018,13 @@ export default function CourseModulePage() {
         {/* CHAT COLUMN */}
         <div className="course-canvas relative flex min-w-0 flex-1 flex-col">
           {/* ── HEADER ── */}
-          <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border/50 px-3">
+          <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[#172338] bg-[#07101d]/95 px-3 shadow-[0_1px_0_rgba(255,255,255,0.02)]">
             <div className="flex min-w-0 items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarCollapsed((v) => !v)}
-                className="size-8 shrink-0 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                className="size-8 shrink-0 rounded-lg text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200"
                 title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
               >
                 <PanelLeft size={16} />
@@ -963,12 +1033,12 @@ export default function CourseModulePage() {
                 variant="outline"
                 size="sm"
                 onClick={() => router.push("/dashboard")}
-                className="shrink-0 gap-2 rounded-lg border-border/70 bg-white/[0.03] px-3.5 text-sm font-medium text-muted-foreground shadow-none hover:bg-white/[0.07] hover:text-foreground"
+                className="shrink-0 gap-2 rounded-lg border-cyan-300/15 bg-[#0b1728] px-3.5 text-sm font-medium text-slate-400 shadow-none hover:bg-cyan-300/[0.08] hover:text-cyan-200"
               >
                 <ChevronLeft size={14} />
                 Dashboard
               </Button>
-              <span className="hidden shrink-0 items-center rounded-md bg-white/[0.06] px-2 py-1 font-mono text-[11px] font-medium text-muted-foreground sm:inline-flex">
+              <span className="hidden shrink-0 items-center rounded-md bg-slate-800/70 px-2 py-1 font-mono text-[11px] font-medium text-slate-400 sm:inline-flex">
                 {moduleLabel}
               </span>
               {currentSection && (
@@ -978,8 +1048,8 @@ export default function CourseModulePage() {
               )}
               {currentSection && (
                 <>
-                  <span className="hidden text-muted-foreground/60 sm:inline">/</span>
-                  <p className="min-w-0 truncate text-sm font-semibold text-foreground">
+                  <span className="hidden text-slate-600 sm:inline">/</span>
+                  <p className="min-w-0 truncate text-sm font-semibold text-slate-100">
                     {currentSection.section_title}
                   </p>
                 </>
@@ -987,13 +1057,13 @@ export default function CourseModulePage() {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <div className="hidden items-center gap-2.5 rounded-lg bg-white/[0.05] px-3 py-1.5 lg:flex">
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {currentTopicNumber} <span className="text-muted-foreground/50">/</span> {realSections.length || totalSections}
+              <div className="hidden items-center gap-2.5 rounded-lg bg-[#0b1728] px-3 py-1.5 ring-1 ring-cyan-300/10 lg:flex">
+                <span className="font-mono text-[11px] text-slate-400">
+                  {currentTopicNumber} <span className="text-slate-600">/</span> {realSections.length || totalSections}
                 </span>
-                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.08]">
+                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-800">
                   <motion.div
-                    className="h-full rounded-full bg-brand"
+                    className="h-full rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.5)]"
                     initial={false}
                     animate={{ width: `${titleProgressPct}%` }}
                     transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -1005,7 +1075,7 @@ export default function CourseModulePage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="hidden h-8 max-w-[150px] gap-1.5 rounded-lg px-3 font-mono text-[11px] text-muted-foreground sm:inline-flex"
+                    className="hidden h-8 max-w-[150px] gap-1.5 rounded-lg px-3 font-mono text-[11px] text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200 sm:inline-flex"
                     title="Choose voice"
                   >
                     <span className="truncate">{currentVoiceLabel}</span>
@@ -1035,8 +1105,8 @@ export default function CourseModulePage() {
                 className={cn(
                   "size-8 rounded-lg transition-colors",
                   isSpeaking
-                    ? "bg-brand/15 text-brand hover:bg-brand/25"
-                    : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                    ? "bg-cyan-300/15 text-cyan-200 hover:bg-cyan-300/20"
+                    : "text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200",
                 )}
                 onClick={handleReadAloud}
                 title={isSpeaking ? "Stop reading" : "Read latest aloud"}
@@ -1046,7 +1116,7 @@ export default function CourseModulePage() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-8 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                className="size-8 rounded-lg text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200"
                 onClick={() => {
                   setAudioEnabled((v) => !v);
                   if (audioEnabled) cancelSpeech();
@@ -1058,7 +1128,7 @@ export default function CourseModulePage() {
               {currentSection && !currentSectionDone && (
                 <Button
                   size="sm"
-                  className="gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-[0_4px_14px_-3px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                  className="gap-2 rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.18)] hover:bg-cyan-300"
                   onClick={() => {
                     setQuizTrigger("section");
                     setShowQuiz(true);
@@ -1071,7 +1141,7 @@ export default function CourseModulePage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-2 rounded-lg bg-white/[0.06] px-4"
+                  className="gap-2 rounded-lg bg-slate-800/80 px-4 text-slate-300"
                   disabled
                 >
                   <CheckCircle2 size={14} /> Done
@@ -1080,45 +1150,36 @@ export default function CourseModulePage() {
             </div>
           </header>
 
-          {/* Voice-reactive wave — a gradient waveform that ripples in time with
-              the spoken audio. Sits in flow just below the header so it never
-              overlaps the chat; click to stop. Hidden via CSS for
-              reduced-motion / print. */}
-          {orbActive && (
-            <div className="shrink-0 border-b border-border/50">
+          {/* When the tutor rail is collapsed, keep the speech visualizer
+              available below the header so users can still stop playback. */}
+          {orbActive && sidebarCollapsed && (
+            <div className="shrink-0 border-b border-[#172338] bg-[#07101d]/80 px-8">
               <SpeakingWave
                 energyRef={energyRef}
-                onStop={() => {
-                  if (orbHideTimer.current) {
-                    clearTimeout(orbHideTimer.current);
-                    orbHideTimer.current = null;
-                  }
-                  setOrbActive(false);
-                  stopAll();
-                }}
+                onStop={handleStopSpeaking}
               />
             </div>
           )}
 
           {/* MESSAGES */}
           <div className="chat-messages flex flex-1 flex-col overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 px-6 py-4">
+          <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-3 px-6 py-5">
             {currentSectionDone && !streaming ? (
               <div className="flex flex-1 items-center justify-center px-6 pb-24 text-center">
                 <div className="flex max-w-sm flex-col items-center">
-                  <div className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <div className="flex size-9 items-center justify-center rounded-full bg-cyan-300/10 text-cyan-300">
                     <CheckCircle2 size={17} />
                   </div>
-                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-100">
                     Section complete
                   </h2>
-                  <p className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">
                     Relearn this section anytime.
                   </p>
                   <Button
                     variant="default"
                     size="sm"
-                    className="mt-5 h-10 gap-2 rounded-xl bg-foreground px-4 text-sm font-semibold text-background shadow-none hover:bg-foreground/90"
+                    className="mt-5 h-10 gap-2 rounded-xl bg-cyan-400 px-4 text-sm font-semibold text-slate-950 shadow-none hover:bg-cyan-300"
                     onClick={handleRelearn}
                   >
                     <RotateCcw size={15} /> Relearn this
@@ -1128,25 +1189,25 @@ export default function CourseModulePage() {
             ) : messages.length === 0 && !streaming ? (
               <div className="flex flex-1 flex-col items-center justify-center px-6 pb-20 text-center">
                 <div className="flex max-w-2xl flex-col items-center">
-                  <h2 className="text-4xl font-bold tracking-tight text-foreground">
+                  <h2 className="text-4xl font-bold tracking-tight text-slate-100">
                     Ready when you are
                   </h2>
-                  <p className="mt-8 max-w-2xl text-lg leading-8 text-muted-foreground">
+                  <p className="mt-8 max-w-2xl text-lg leading-8 text-slate-500">
                     Your AI tutor for{" "}
-                    <span className="font-bold text-foreground">
+                    <span className="font-bold text-slate-200">
                       {currentSection?.section_title ?? moduleTitle}
                     </span>
                   </p>
                   {currentSection && (
-                    <p className="mt-6 text-base text-muted-foreground">
-                      Tap <span className="font-semibold text-foreground">Start Lesson</span>{" "}
+                    <p className="mt-6 text-base text-slate-500">
+                      Tap <span className="font-semibold text-slate-200">Start Lesson</span>{" "}
                       to begin, or type a question below.
                     </p>
                   )}
 
                   <Button
                     size="sm"
-                    className="mt-8 h-10 gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-brand-foreground shadow-[0_6px_20px_-4px_hsl(var(--brand)/0.6)] hover:bg-brand/90"
+                    className="mt-8 h-10 gap-2 rounded-xl bg-cyan-400 px-5 text-sm font-semibold text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.2)] hover:bg-cyan-300"
                     onClick={startLesson}
                   >
                     <Brain size={15} /> Start Lesson
@@ -1169,17 +1230,17 @@ export default function CourseModulePage() {
                   )}
                 >
                   {isUser ? (
-                    <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl bg-white/[0.07] px-4 py-2.5 text-sm leading-relaxed text-foreground">
+                    <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.08] px-4 py-2.5 text-sm leading-relaxed text-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
                       {msg.content || null}
                     </div>
                   ) : (
                     <>
                     {/* Static avatar — the voice-reactive visualizer now lives
                         as a wave band above the input bar (see SpeakingWave). */}
-                    <div className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-[0_3px_10px_-3px_hsl(var(--brand)/0.6)]">
+                    <div className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.1)]">
                       <Sparkles size={13} className="fill-current" />
                     </div>
-                    <div className="min-w-0 flex-1 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground">
+                    <div className="min-w-0 flex-1 rounded-2xl border border-cyan-300/10 bg-[#081422]/76 px-4 py-3 text-sm leading-relaxed text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                       {msg.content ? (
                         <AssistantMessage
                           content={msg.content}
@@ -1223,8 +1284,8 @@ export default function CourseModulePage() {
           <div className="shrink-0 px-4 pb-5 pt-2">
             <div
               className={cn(
-                "mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border border-border/70 bg-[#151311]/85 px-3.5 py-3 shadow-xl backdrop-blur transition-colors focus-within:border-brand/35",
-                micActive && "border-brand/45",
+                "mx-auto flex max-w-4xl flex-col gap-2 rounded-2xl border border-cyan-300/15 bg-[#081422]/90 px-3.5 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur transition-colors focus-within:border-cyan-300/35",
+                micActive && "border-cyan-300/45",
               )}
             >
               <Textarea
@@ -1247,7 +1308,7 @@ export default function CourseModulePage() {
                       ? "Alex is responding…"
                       : "Ask anything…"
                 }
-                className="max-h-32 min-h-[24px] resize-none border-0 bg-transparent px-1 py-0.5 text-sm shadow-none focus-visible:ring-0"
+                className="max-h-32 min-h-[24px] resize-none border-0 bg-transparent px-1 py-0.5 text-sm text-slate-100 shadow-none placeholder:text-slate-600 focus-visible:ring-0"
               />
 
               <div className="flex items-center justify-between">
@@ -1256,7 +1317,7 @@ export default function CourseModulePage() {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-9 shrink-0 rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                  className="size-9 shrink-0 rounded-lg text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200"
                   disabled={streaming || currentSectionDone}
                   title="Add"
                 >
@@ -1272,8 +1333,8 @@ export default function CourseModulePage() {
                     className={cn(
                       "size-9 shrink-0 rounded-lg",
                       micActive
-                        ? "bg-brand/15 text-brand hover:bg-brand/20"
-                        : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                        ? "bg-cyan-300/15 text-cyan-200 hover:bg-cyan-300/20"
+                        : "text-slate-500 hover:bg-cyan-300/[0.08] hover:text-cyan-200",
                     )}
                     onClick={toggleMic}
                     disabled={streaming || currentSectionDone}
@@ -1287,7 +1348,7 @@ export default function CourseModulePage() {
                     <Button
                       type="button"
                       size="icon"
-                      className="size-9 shrink-0 rounded-lg bg-brand text-brand-foreground shadow-none hover:bg-brand/90"
+                      className="size-9 shrink-0 rounded-lg bg-cyan-400 text-slate-950 shadow-none hover:bg-cyan-300"
                       onClick={stopAll}
                       title="Stop"
                     >
@@ -1297,7 +1358,7 @@ export default function CourseModulePage() {
                     <Button
                       type="button"
                       size="icon"
-                      className="size-9 shrink-0 rounded-lg bg-brand text-brand-foreground shadow-none hover:bg-brand/90 disabled:bg-white/[0.06] disabled:text-muted-foreground"
+                      className="size-9 shrink-0 rounded-lg bg-cyan-400 text-slate-950 shadow-none hover:bg-cyan-300 disabled:bg-slate-800 disabled:text-slate-500"
                       onClick={sendInput}
                       disabled={!input.trim() || currentSectionDone}
                       title="Send"
@@ -1311,8 +1372,8 @@ export default function CourseModulePage() {
 
             {micActive && (
               <div className="mt-1.5 flex items-center gap-2 pl-1">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+                <span className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
                   Listening…
                 </span>
               </div>
