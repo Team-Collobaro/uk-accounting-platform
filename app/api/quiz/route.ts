@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       count?: number
     }
 
-    const { moduleId, moduleTitle, partNumber, partTitle, sectionId, sectionTitle, count = 10 } = body
+    const { moduleId, moduleTitle, partNumber, partTitle, sectionId, sectionTitle, count = 2 } = body
 
     if (!moduleId) {
       return NextResponse.json({ error: 'moduleId is required' }, { status: 400 })

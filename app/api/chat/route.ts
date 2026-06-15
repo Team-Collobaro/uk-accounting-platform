@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
     // RAG — HTML course file is the single source of truth
     // Teaching point content (exact block from HTML) is used when available — it IS the content to teach
     const isAutoStart = message === "__AUTO_START__";
+    const isAutoContinue = message === "__AUTO_CONTINUE__";
     const { getModuleSections, getSectionContent } =
       await import("@/lib/courseHtml");
 
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Free-form question (not the scripted lesson flow): enrich with vector search.
-    if (!isAutoStart && !hasTeachingPoint) {
+    if (!isAutoStart && !isAutoContinue && !hasTeachingPoint) {
       try {
         const searchChunks = await searchSimilar(message, moduleId, 2);
         if (searchChunks.length > 0) {
@@ -218,7 +219,7 @@ export async function POST(req: NextRequest) {
             timestamp: new Date().toISOString(),
             tokenCount: outputTokens,
           };
-          const updatedMessages = isAutoStart
+          const updatedMessages = isAutoStart || isAutoContinue
             ? [...history, assistantMsg]
             : [
                 ...history,

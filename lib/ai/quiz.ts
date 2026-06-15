@@ -68,7 +68,7 @@ export async function generateQuiz(params: {
   ragContext: string
   count?: number
 }): Promise<QuizQuestion[]> {
-  const { module: mod, ragContext, count = 5 } = params
+  const { module: mod, ragContext, count = 2 } = params
 
   const prompt = `You are a UK accounting examiner creating multiple choice questions for: ${mod.title}
 Generate exactly ${count} MCQ questions based ONLY on the provided content.

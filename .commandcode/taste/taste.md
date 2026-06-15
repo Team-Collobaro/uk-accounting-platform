@@ -1,4 +1,2 @@
-# Taste (Continuously Learned by [CommandCode][cmd])
-
-[cmd]: https://commandcode.ai/
-
+# Teaching Style
+See [teaching-style/taste.md](teaching-style/taste.md)

@@ -125,6 +125,8 @@ export function useChat({
   const abortRef = useRef<AbortController | null>(null)
   const sidRef = useRef<string | undefined>()
   const hasStarted = useRef(messages.length > 0)
+  const pendingAutoRef = useRef<string | null>(null)
+  const doSendRefLocal = useRef<(text: string, silent: boolean) => Promise<void>>()
 
   // Forwarding ref so useMic can call doSend without a stale closure
   const doSendRef = useRef<
@@ -230,6 +232,7 @@ export function useChat({
   const doSend = useCallback(
     async (text: string, silent: boolean) => {
       if (streamRef.current) return
+      pendingAutoRef.current = null
       if (autoMicTimer.current) {
         clearTimeout(autoMicTimer.current)
         autoMicTimer.current = null
@@ -433,23 +436,48 @@ export function useChat({
 
         if (full.trim()) {
           const ph = tPhaseRef.current
-          if (ph === "PRE_NOTES" || text === "__AUTO_START__")
-            setTPhase("EXPLAIN")
-          else if (ph === "EXPLAIN")
-            setTPhase("CONFIRM")
-          else if (ph === "CONFIRM")
-            setTPhase("POST_NOTES")
-          else if (ph === "POST_NOTES")
+          if (text === "__AUTO_START__") {
+            // First contact: OPENING included greeting + level question + topic 1 teaching + MCQ
+            // → wait for user to answer the MCQ
             setTPhase("CHECK")
-          else if (ph === "CHECK") {
+          } else if (text === "__AUTO_CONTINUE__" && ph === "PRE_NOTES") {
+            // Teach + MCQ delivered in one message → wait for user answer
+            setTPhase("CHECK")
+          } else if (text === "__AUTO_CONTINUE__" && ph === "POST_NOTES") {
+            // Auto-MCQ sent (legacy EXPLAIN/CONFIRM path) → wait for user answer
+            setTPhase("CHECK")
+          } else if (ph === "PRE_NOTES" && !silent) {
+            // User interrupted, server answered + taught + asked MCQ → wait for user answer
+            setTPhase("CHECK")
+          } else if (ph === "EXPLAIN") {
+            setTPhase("CONFIRM")
+          } else if (ph === "CONFIRM") {
+            setTPhase("POST_NOTES")
+            pendingAutoRef.current = "MCQ"
+          } else if (ph === "POST_NOTES") {
+            // Non-auto MCQ asked → wait for user answer
+            setTPhase("CHECK")
+          } else if (ph === "CHECK") {
+            // Wrong answer corrected → advance to next topic
             const pts3 = tpRef.current
             const idx = tpIdxRef.current
             const isLast = idx >= pts3.length - 1
             const updated = pts3.map((p, ii) => (ii === idx ? { ...p, done: true } : p))
-            setTeachingPoints(updated)
             const nextIdx = isLast ? idx : idx + 1
+            const nextPhase: TPhase = isLast ? "WRAP" : "PRE_NOTES"
+
+            tpRef.current = updated
+            tpIdxRef.current = nextIdx
+            tPhaseRef.current = nextPhase
+
+            setTeachingPoints(updated)
             setCurrentPtIdx(nextIdx)
-            setTPhase(isLast ? "WRAP" : "PRE_NOTES")
+            setTPhase(nextPhase)
+            if (!isLast) {
+              pendingAutoRef.current = "TEACH"
+            } else {
+              pendingAutoRef.current = "WRAP"
+            }
             if (secRef.current)
               void fetch("/api/notes", {
                 method: "POST",
@@ -463,6 +491,8 @@ export function useChat({
                   teachingPoints: updated,
                 }),
               })
+          } else if (ph === "WRAP" && text === "__AUTO_CONTINUE__") {
+            // WRAP message delivered via auto-continue — wait for user to answer final MCQ
           }
         }
       } catch (err) {
@@ -512,16 +542,45 @@ export function useChat({
     doSendRef.current = doSend
   }, [doSend])
 
+  // Sync the local ref for auto-continue
+  useEffect(() => {
+    doSendRefLocal.current = doSend
+  }, [doSend])
+
+  // Auto-continue: when streaming finishes and a phase is queued, trigger the next step
+  useEffect(() => {
+    if (!streaming && pendingAutoRef.current) {
+      const phase = pendingAutoRef.current
+      pendingAutoRef.current = null
+      setTimeout(() => { void doSendRefLocal.current?.('__AUTO_CONTINUE__', true) }, 200)
+    }
+  }, [streaming])
+
   const advanceTopic = useCallback(
     (speakFeedback: string) => {
       const pts = tpRef.current
       const idx = tpIdxRef.current
       const isLast = idx >= pts.length - 1
+      const alreadyDone = pts[idx]?.done
+
+      if (isLast && alreadyDone) {
+        // Already at wrap — don't loop
+        if (speakFeedback) speak(speakFeedback)
+        return
+      }
+
       const updated = pts.map((p, i) => (i === idx ? { ...p, done: true } : p))
-      setTeachingPoints(updated)
       const nextIdx = isLast ? idx : idx + 1
+      const nextPhase: TPhase = isLast ? "WRAP" : "PRE_NOTES"
+
+      // Sync refs immediately so doSend reads the new values
+      tpRef.current = updated
+      tpIdxRef.current = nextIdx
+      tPhaseRef.current = nextPhase
+
+      setTeachingPoints(updated)
       setCurrentPtIdx(nextIdx)
-      setTPhase(isLast ? "WRAP" : "PRE_NOTES")
+      setTPhase(nextPhase)
       if (secRef.current) {
         void fetch("/api/notes", {
           method: "POST",
@@ -537,9 +596,9 @@ export function useChat({
         })
       }
       if (speakFeedback) {
-        speak(speakFeedback, () => { void doSend("__AUTO_START__", true) })
+        speak(speakFeedback, () => { void doSend("__AUTO_CONTINUE__", true) })
       } else {
-        void doSend("__AUTO_START__", true)
+        void doSend("__AUTO_CONTINUE__", true)
       }
     },
     [
