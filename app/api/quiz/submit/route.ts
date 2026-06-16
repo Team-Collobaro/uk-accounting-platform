@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   createServerSupabaseClient,
+  getModuleProgress,
   getStudent,
   saveQuizResult,
   updateModuleProgress,
@@ -25,14 +26,19 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json() as {
       moduleId: string
+      quizType: 'section' | 'module'
       answers: Record<string, string>   // { q1: 'A', q2: 'C', ... }
       questions: QuizQuestion[]
     }
 
-    const { moduleId, answers, questions } = body
+    const { moduleId, quizType, answers, questions } = body
 
     if (!moduleId || !answers || !questions?.length) {
       return NextResponse.json({ error: 'moduleId, answers and questions are required' }, { status: 400 })
+    }
+
+    if (quizType !== 'section' && quizType !== 'module') {
+      return NextResponse.json({ error: 'quizType must be "section" or "module"' }, { status: 400 })
     }
 
     // Grade
@@ -70,18 +76,31 @@ export async function POST(req: NextRequest) {
       weakAreas,
     })
 
-    // Update module progress
-    if (passed) {
-      await updateModuleProgress(user.id, moduleId, {
-        status: 'completed',
-        quizScore: score,
-        completedAt: new Date().toISOString(),
-      })
-    } else {
-      await updateModuleProgress(user.id, moduleId, {
-        status: 'in_progress',
-        quizScore: score,
-      })
+    // Only the end-of-module 10-question quiz can complete a module — section
+    // (subtopic) quizzes must not flip module_progress or completed_modules,
+    // otherwise passing any subtopic would mark the whole module DONE.
+    if (quizType === 'module') {
+      const existing = await getModuleProgress(user.id)
+      const current = existing.find((m) => m.moduleId === moduleId)
+      const alreadyCompleted = current?.status === 'completed'
+
+      if (passed) {
+        await updateModuleProgress(user.id, moduleId, {
+          status: 'completed',
+          quizScore: score,
+          completedAt: current?.completedAt ?? new Date().toISOString(),
+        })
+      } else if (!alreadyCompleted) {
+        await updateModuleProgress(user.id, moduleId, {
+          status: 'in_progress',
+          quizScore: score,
+        })
+      } else if (current && score > (current.quizScore ?? -1)) {
+        await updateModuleProgress(user.id, moduleId, {
+          status: 'completed',
+          quizScore: score,
+        })
+      }
     }
 
     // Refresh student stats
@@ -100,7 +119,7 @@ export async function POST(req: NextRequest) {
     const updatedWeak = Array.from(
       new Set([...student.weakTopics, ...weakAreas])
     )
-    const completedModules = passed && !student.completedModules.includes(moduleId)
+    const completedModules = (passed && quizType === 'module' && !student.completedModules.includes(moduleId))
       ? [...student.completedModules, moduleId]
       : student.completedModules
 

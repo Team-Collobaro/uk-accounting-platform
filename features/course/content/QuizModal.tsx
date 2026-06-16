@@ -118,7 +118,12 @@ export function QuizModal({
     const res = await fetch("/api/quiz/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ moduleId, answers, questions }),
+      body: JSON.stringify({
+        moduleId,
+        quizType: sectionId ? "section" : "module",
+        answers,
+        questions,
+      }),
     });
     const data = (await res.json()) as QuizResult;
     setResult(data);
