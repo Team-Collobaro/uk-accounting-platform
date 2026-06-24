@@ -42,6 +42,7 @@ uniform float uColorSpeed;
 uniform vec2 uMouse;
 uniform float uMouseInfluence;
 uniform bool uEnableMouse;
+uniform float uPulse;
 
 #define TAU 6.28318
 
@@ -107,13 +108,14 @@ float perlin3D(float amplitude, float frequency, float px, float py, float pz) {
   return amplitude * mix(ly0, ly1, sz);
 }
 
-float auroraGlow(float t, vec2 shift) {
+float auroraGlow(float t, vec2 shift, vec2 normUv) {
   vec2 uv = gl_FragCoord.xy / uResolution.y;
   uv += shift;
 
+  float centerMask = pow(sin(normUv.x * 3.14159), 2.0);
   float noiseVal = 0.0;
   float freq = uNoiseFreq;
-  float amp = uNoiseAmp;
+  float amp = uNoiseAmp + (uPulse * centerMask * 1.5);
   vec2 samplePos = uv * uScale;
 
   for (float i = 0.0; i < 3.0; i += 1.0) {
@@ -123,11 +125,13 @@ float auroraGlow(float t, vec2 shift) {
   }
 
   float yBand = uv.y * 10.0 - uBandHeight * 10.0;
-  return 0.3 * max(exp(uBandSpread * (1.0 - 1.1 * abs(noiseVal + yBand))), 0.0);
+  float spread = uBandSpread + (uPulse * centerMask * 0.8);
+  return 0.3 * max(exp(spread * (1.0 - 1.1 * abs(noiseVal + yBand))), 0.0);
 }
 
 void main() {
-  vec2 uv = gl_FragCoord.xy / uResolution.xy;
+  vec2 normUv = gl_FragCoord.xy / uResolution.xy;
+  vec2 uv = gl_FragCoord.xy / uResolution.y;
   float t = uSpeed * 0.4 * uTime;
 
   vec2 shift = vec2(0.0);
@@ -136,16 +140,17 @@ void main() {
   }
 
   vec3 col = vec3(0.0);
-  col += 0.99 * auroraGlow(t, shift) * cosineGradient(uv.x + uTime * uSpeed * 0.2 * uColorSpeed, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.3, 0.20, 0.20)) * uColor1;
-  col += 0.99 * auroraGlow(t + uLayerOffset, shift) * cosineGradient(uv.x + uTime * uSpeed * 0.1 * uColorSpeed, vec3(0.5), vec3(0.5), vec3(2.0, 1.0, 0.0), vec3(0.5, 0.20, 0.25)) * uColor2;
+  col += 0.99 * auroraGlow(t, shift, normUv) * cosineGradient(normUv.x + uTime * uSpeed * 0.2 * uColorSpeed, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.3, 0.20, 0.20)) * uColor1;
+  col += 0.99 * auroraGlow(t + uLayerOffset, shift, normUv) * cosineGradient(normUv.x + uTime * uSpeed * 0.1 * uColorSpeed, vec3(0.5), vec3(0.5), vec3(2.0, 1.0, 0.0), vec3(0.5, 0.20, 0.25)) * uColor2;
 
-  col *= uBrightness;
+  col *= uBrightness + (uPulse * 0.3);
   float alpha = clamp(length(col), 0.0, 1.0);
   gl_FragColor = vec4(col, alpha);
 }
 `;
 
 export default function SoftAurora({
+  isSpeaking = false,
   speed = 0.6,
   scale = 1.5,
   brightness = 1.0,
@@ -162,6 +167,11 @@ export default function SoftAurora({
   mouseInfluence = 0.25
 }) {
   const containerRef = useRef(null);
+  const isSpeakingRef = useRef(isSpeaking);
+
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking;
+  }, [isSpeaking]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -216,7 +226,8 @@ export default function SoftAurora({
         uColorSpeed: { value: colorSpeed },
         uMouse: { value: new Float32Array([0.5, 0.5]) },
         uMouseInfluence: { value: mouseInfluence },
-        uEnableMouse: { value: enableMouseInteraction }
+        uEnableMouse: { value: enableMouseInteraction },
+        uPulse: { value: 0 }
       }
     });
 
@@ -229,10 +240,36 @@ export default function SoftAurora({
     }
 
     let animationFrameId;
+    let targetPulse = 0;
+    let currentPulse = 0;
+    let lastTime = 0;
 
     function update(time) {
       animationFrameId = requestAnimationFrame(update);
+      const dt = time - lastTime;
+      lastTime = time;
       program.uniforms.uTime.value = time * 0.001;
+
+      if (isSpeakingRef.current) {
+        // Change target randomly every ~50-150ms to simulate syllables
+        if (Math.random() < 0.1) {
+          targetPulse = 0.2 + Math.random() * 0.8;
+        }
+        // Fast attack, slow decay for natural voice envelope
+        if (targetPulse > currentPulse) {
+          currentPulse += (targetPulse - currentPulse) * 0.25;
+        } else {
+          currentPulse += (targetPulse - currentPulse) * 0.08;
+        }
+        
+        program.uniforms.uPulse.value = currentPulse;
+        program.uniforms.uSpeed.value += (speed * 2.5 - program.uniforms.uSpeed.value) * 0.1;
+      } else {
+        targetPulse = 0;
+        currentPulse += (0 - currentPulse) * 0.1;
+        program.uniforms.uPulse.value = currentPulse;
+        program.uniforms.uSpeed.value += (speed - program.uniforms.uSpeed.value) * 0.1;
+      }
 
       if (enableMouseInteraction) {
         currentMouse[0] += 0.05 * (targetMouse[0] - currentMouse[0]);

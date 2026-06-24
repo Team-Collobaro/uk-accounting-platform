@@ -11,12 +11,13 @@ import {
 } from 'lucide-react'
 import LiquidEther from '@/components/LiquidEther'
 import ShinyText from '@/components/reactbits/ShinyText'
+import ThemeToggle from '@/components/ThemeToggle'
 
 const navLinks = [
   { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, color: '#4ECDC4', glow: '78,205,196',  hint: 'Overview & progress' },
-  { href: '/dashboard',   label: 'My Courses',  icon: BookOpen,         color: '#9B6FD0', glow: '155,111,208', hint: 'Browse all 87 modules' },
-  { href: '/dashboard',   label: 'Progress',    icon: TrendingUp,       color: '#52D98B', glow: '82,217,139',  hint: 'Quiz scores & stats' },
-  { href: '/dashboard',   label: 'Certificate', icon: Award,            color: '#E8B84B', glow: '232,184,75',  hint: 'View your certificate' },
+  { href: '/courses',     label: 'My Courses',  icon: BookOpen,         color: '#9B6FD0', glow: '155,111,208', hint: 'Browse all 87 modules' },
+  { href: '/progress',    label: 'Progress',    icon: TrendingUp,       color: '#52D98B', glow: '82,217,139',  hint: 'Quiz scores & stats' },
+  { href: '/certificate', label: 'Certificate', icon: Award,            color: '#E8B84B', glow: '232,184,75',  hint: 'View your certificate' },
 ]
 
 const EXPANDED_W = 248
@@ -58,8 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div style={{
       display: 'flex', height: '100vh',
-      background: 'rgb(3,7,18)',
-      color: '#dce8ff',
+      background: 'var(--bg-base)',
+      color: 'var(--text-primary)',
       fontFamily: "'Inter', system-ui, sans-serif",
       overflow: 'hidden',
       position: 'relative',
@@ -103,18 +104,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           style={{
             height: '100vh',
-            background: 'rgba(3,7,18,0.96)',
-            borderRight: '1px solid rgba(0,220,255,0.1)',
+            background: 'var(--sidebar-bg)',
+            borderRight: '1px solid var(--sidebar-border)',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             position: 'relative',
           }}
         >
-          {/* Sidebar aurora glow strip */}
-          <div style={{
-            position: 'absolute', top: 0, right: 0, width: 1, height: '100%',
-            background: 'linear-gradient(180deg, transparent, rgba(0,220,255,0.4), rgba(150,50,255,0.5), rgba(255,50,180,0.3), transparent)',
-            pointerEvents: 'none',
-          }} />
+
 
           {/* ── Logo row ── */}
           <div style={{
@@ -131,7 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 0 18px rgba(0,220,255,0.25), 0 0 40px rgba(150,50,255,0.15)',
             }}>
-              <Brain size={19} color="#00dcff" />
+              <Brain size={19} color="var(--ac-cyan)" />
             </div>
             <AnimatePresence>
               {!collapsed && (
@@ -140,52 +136,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.18 }}
                   style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
                 >
-                  <p style={{ fontSize: 14, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', color: '#dce8ff' }}>UK Accounting</p>
-                  <ShinyText text="PRO · AI TUTOR" color="rgba(78,205,196,0.6)" shineColor="#4ECDC4" speed={3} className="label-mono" />
+                  <p style={{ fontWeight: 700, margin: 0, letterSpacing: '-0.01em', color: 'var(--text-primary)' }} className="text-sm">UK Accounting</p>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          {/* ── AI status pill ── */}
-          <AnimatePresence>
-            {!collapsed ? (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                style={{
-                  margin: '14px 14px 0', padding: '10px 14px',
-                  background: 'rgba(0,220,255,0.04)',
-                  border: '1px solid rgba(0,220,255,0.12)',
-                  borderRadius: 12,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <motion.div animate={{ scale: [1,1.4,1], opacity: [1,0.5,1] }} transition={{ duration: 2, repeat: Infinity }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
-                  </motion.div>
-                  <Sparkles size={12} color="rgba(0,220,255,0.6)" />
-                  <span style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
-                    <ShinyText text="ALEX ONLINE" color="rgba(0,220,255,0.75)" shineColor="#00ffff" speed={2.5} />
-                  </span>
-                  <motion.span
-                    animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2.5, repeat: Infinity, delay: 0.4 }}
-                    style={{ marginLeft: 'auto', fontSize: 8, fontFamily: 'monospace', letterSpacing: '0.12em' }}
-                  >
-                    <ShinyText text="SYNAPSE LINK ●" color="rgba(150,50,255,0.7)" shineColor="#c084fc" speed={3} delay={0.4} />
-                  </motion.span>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                style={{ margin: '14px auto 0', width: 38, display: 'flex', justifyContent: 'center' }}
-              >
-                <motion.div animate={{ scale: [1,1.35,1], opacity: [1,0.5,1] }} transition={{ duration: 2, repeat: Infinity }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 12px #22c55e, 0 0 24px rgba(34,197,94,0.4)' }} />
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
 
           {/* ── Nav links ── */}
           <nav style={{
@@ -227,17 +184,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       }
                     }}
                   >
-                    <Icon size={18} color={active ? color : 'rgba(255,255,255,0.32)'} style={{ flexShrink: 0, transition: 'color 0.18s' }} />
+                    <Icon size={18} color={active ? color : 'var(--text-tertiary)'} style={{ flexShrink: 0, transition: 'color 0.18s' }} />
                     <AnimatePresence>
                       {!collapsed && (
                         <motion.span
                           initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }}
                           exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.16 }}
                           style={{
-                            fontSize: 13, fontWeight: active ? 600 : 400,
-                            color: active ? color : 'rgba(255,255,255,0.42)',
+                            fontWeight: active ? 600 : 400,
+                            color: active ? color : 'var(--text-secondary)',
                             whiteSpace: 'nowrap', overflow: 'hidden',
-                          }}
+                          }} className="text-small"
                         >
                           {label}
                         </motion.span>
@@ -285,8 +242,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <AnimatePresence>
                     {!collapsed && (
                       <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.16 }} style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.1em', marginBottom: 1 }}>CONTINUE</p>
-                        <p style={{ fontSize: 11, fontWeight: 700, color: '#4ECDC4' }}>{nextModule.toUpperCase()}</p>
+                        <p style={{ fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.1em', marginBottom: 1 }} className="text-[9px]">CONTINUE</p>
+                        <p style={{ fontWeight: 700, color: '#4ECDC4' }} className="text-tiny">{nextModule.toUpperCase()}</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -294,11 +251,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
               {!collapsed && (
                 <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-                  <span style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace' }}>{completedCount}/87 DONE</span>
+                  <span style={{ color: '#4A6285', fontFamily: 'monospace' }} className="text-[9px]">{completedCount}/87 DONE</span>
                   <div style={{ flex: 1, height: 2, borderRadius: 2, background: 'rgba(255,255,255,0.05)', margin: '0 8px', overflow: 'hidden' }}>
                     <div style={{ width: `${Math.round(completedCount / 87 * 100)}%`, height: '100%', background: '#4ECDC4', borderRadius: 2, transition: 'width 0.6s ease' }} />
                   </div>
-                  <span style={{ fontSize: 9, color: '#4ECDC4', fontFamily: 'monospace' }}>{Math.round(completedCount / 87 * 100)}%</span>
+                  <span style={{ color: '#4ECDC4', fontFamily: 'monospace' }} className="text-[9px]">{Math.round(completedCount / 87 * 100)}%</span>
                 </div>
               )}
             </div>
@@ -307,7 +264,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* ── User + sign out ── */}
           <div style={{
             padding: collapsed ? '14px 10px' : '14px 12px',
-            borderTop: '1px solid rgba(0,220,255,0.07)',
+            borderTop: '1px solid var(--sidebar-border)',
           }}>
             {!collapsed ? (
               <>
@@ -322,25 +279,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                     background: 'linear-gradient(135deg, rgba(0,220,255,0.3), rgba(150,50,255,0.35))',
                     border: '1px solid rgba(0,220,255,0.35)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#00dcff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-cyan)',
                     boxShadow: '0 0 12px rgba(0,220,255,0.2)',
-                  }}>
+                  }} className="text-xs">
                     {initials || '?'}
                   </div>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: 'rgba(220,232,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, margin: 0 }}>
+                  <p style={{ fontWeight: 500, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, margin: 0 }} className="text-xs">
                     {studentName}
                   </p>
+                </div>
+                {/* Theme toggle — expanded */}
+                <div style={{ marginBottom: 6 }}>
+                  <ThemeToggle collapsed={false} />
                 </div>
                 <motion.button
                   whileHover={{ x: 3 }} onClick={handleSignOut}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                     padding: '9px 14px', background: 'none', border: 'none', borderRadius: 10,
-                    cursor: 'pointer', color: 'rgba(255,255,255,0.32)', fontSize: 13,
-                  }}
+                    cursor: 'pointer', color: 'var(--text-tertiary)'
+                  }} className="text-small"
                 >
-                  <LogOut size={15} color="rgba(255,255,255,0.28)" />
+                  <LogOut size={15} color="var(--text-tertiary)" />
                   Sign out
                 </motion.button>
               </>
@@ -350,11 +310,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   width: 36, height: 36, borderRadius: '50%',
                   background: 'linear-gradient(135deg, rgba(0,220,255,0.28), rgba(150,50,255,0.32))',
                   border: '1px solid rgba(0,220,255,0.3)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, color: '#00dcff', cursor: 'default',
-                }} title={studentName}>
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-cyan)', cursor: 'default',
+                }} title={studentName} className="text-xs">
                   {initials || '?'}
                 </div>
+                {/* Theme toggle — collapsed (icon only, cycles through) */}
+                <ThemeToggle collapsed={true} />
                 <motion.button
                   whileHover={{ scale: 1.14 }} onClick={handleSignOut} title="Sign out"
                   style={{
@@ -365,7 +326,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     borderRadius: 10, cursor: 'pointer',
                   }}
                 >
-                  <LogOut size={15} color="rgba(255,255,255,0.28)" />
+                  <LogOut size={15} color="var(--text-tertiary)" />
                 </motion.button>
               </div>
             )}
@@ -381,7 +342,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           style={{
             position: 'absolute', top: 26, zIndex: 40,
             width: 26, height: 26, borderRadius: '50%',
-            background: 'rgb(3,7,18)',
+            background: 'var(--bg-base)',
             border: '1px solid rgba(0,220,255,0.4)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer',
@@ -389,8 +350,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}
         >
           {collapsed
-            ? <ChevronRight size={13} color="rgba(0,220,255,0.85)" />
-            : <ChevronLeft  size={13} color="rgba(0,220,255,0.85)" />}
+            ? <ChevronRight size={13} color="var(--text-secondary)" />
+            : <ChevronLeft  size={13} color="var(--text-secondary)" />}
         </motion.button>
 
       </div>{/* end sidebar wrapper */}
@@ -399,11 +360,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', position: 'relative', zIndex: 1 }}>
         {/* Top bar */}
         <header style={{
-          borderBottom: '1px solid rgba(0,220,255,0.07)',
+          borderBottom: '1px solid var(--sidebar-border)',
           padding: '13px 24px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexShrink: 0,
-          background: 'rgba(3,7,18,0.8)',
+          background: 'var(--header-bg)',
           backdropFilter: 'blur(24px) saturate(160%)',
         }}>
           <button
@@ -412,19 +373,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             style={{ padding: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(0,220,255,0.1)', borderRadius: 9, cursor: 'pointer' }}
           >
             {mobileOpen
-              ? <X    size={18} color="rgba(255,255,255,0.6)" />
-              : <Menu size={18} color="rgba(255,255,255,0.6)" />}
+              ? <X    size={18} color="var(--text-secondary)" />
+              : <Menu size={18} color="var(--text-secondary)" />}
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
-            <span style={{ fontSize: 13, color: 'rgba(220,232,255,0.38)' }}>{studentName}</span>
+            <span style={{ color: 'var(--text-secondary)' }} className="text-small">{studentName}</span>
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
               background: 'linear-gradient(135deg, rgba(0,220,255,0.24), rgba(150,50,255,0.28))',
               border: '1px solid rgba(0,220,255,0.35)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 700, color: '#00dcff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-cyan)',
               boxShadow: '0 0 14px rgba(0,220,255,0.22)',
-            }}>
+            }} className="text-xs">
               {initials || '?'}
             </div>
           </div>

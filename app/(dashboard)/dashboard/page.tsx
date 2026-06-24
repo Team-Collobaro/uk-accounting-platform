@@ -86,7 +86,6 @@ const MOTIVATIONAL = [
   { icon: Lightbulb, text: 'Alex is ready to guide you through any topic.' },
   { icon: Rocket,   text: 'The UK\'s best accounting minds started exactly here.' },
   { icon: Star,     text: 'Consistency beats intensity — keep your streak going.' },
-  { icon: Trophy,   text: 'Every module completed is a skill gained for life.' },
 ]
 
 interface ProgressData {
@@ -158,8 +157,8 @@ function StatCard({ icon: Icon, label, value, countTo, color, delay, suffix }: {
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}
       whileHover={{ y: -4, scale: 1.02 }}
       style={{
-        background: `linear-gradient(135deg, ${color}08 0%, rgba(5,8,16,0.6) 100%)`,
-        border: `1px solid ${color}25`,
+        background: 'var(--card-bg)',
+        border: `1px solid ${color}30`,
         borderRadius: 16, padding: '18px 20px',
         display: 'flex', alignItems: 'center', gap: 14,
         position: 'relative', overflow: 'hidden',
@@ -169,13 +168,13 @@ function StatCard({ icon: Icon, label, value, countTo, color, delay, suffix }: {
       }}
       whileTap={{ scale: 0.98 }}
     >
-      <div style={{ position: 'absolute', top: -24, right: -24, width: 80, height: 80, borderRadius: '50%', background: `radial-gradient(circle,${color}10 0%,transparent 70%)`, pointerEvents: 'none' }} />
-      <div style={{ width: 44, height: 44, borderRadius: 13, background: `${color}15`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+
+      <div style={{ width: 44, height: 44, borderRadius: 13, background: `${color}18`, border: `1px solid ${color}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <Icon size={19} color={color} />
       </div>
       <div>
-        <p style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 3, textTransform: 'uppercase' }}>{label}</p>
-        <p style={{ fontSize: 22, fontWeight: 800, color: '#E8F0FC', lineHeight: 1 }}>
+        <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 3, textTransform: 'uppercase' }} className="text-micro">{label}</p>
+        <p style={{ fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }} className="text-3xl">
           {countTo !== undefined
             ? <><CountUp to={countTo} from={0} duration={1.4} delay={delay} />{suffix}</>
             : value}
@@ -199,40 +198,40 @@ function QuickModuleCard({ moduleId, status, color, isNext, onClick }: {
       style={{
         padding: '11px 13px', borderRadius: 11,
         cursor: status !== 'locked' ? 'pointer' : 'default',
-        background: isDone ? `${color}0a` : isNext ? 'rgba(78,205,196,0.07)' : isAvail ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.015)',
-        border: isDone ? `1px solid ${color}30` : isNext ? '1px solid rgba(78,205,196,0.3)' : isAvail ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.03)',
+        background: isDone ? `${color}12` : isNext ? 'var(--bg-hover)' : isAvail ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+        border: isDone ? `1px solid ${color}35` : isNext ? '1px solid var(--border-medium)' : isAvail ? '1px solid var(--border-subtle)' : '1px solid var(--border-subtle)',
         opacity: status === 'locked' ? 0.35 : 1,
         transition: 'all 0.15s',
         display: 'flex', alignItems: 'center', gap: 10,
         position: 'relative', overflow: 'hidden',
       }}
     >
-      {isNext && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(78,205,196,0.04) 0%, transparent 60%)', pointerEvents: 'none' }} />}
+      {isNext && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(78,205,196,0.06) 0%, transparent 60%)', pointerEvents: 'none' }} />}
       <div style={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
         {isDone
           ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: `${color}18`, border: `1px solid ${color}50`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CheckCircle2 size={12} color={color} />
             </div>
           : isNext
-            ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(78,205,196,0.15)', border: '1px solid rgba(78,205,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Play size={9} color="#4ECDC4" style={{ marginLeft: 1 }} />
+            ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(78,205,196,0.18)', border: '1px solid rgba(78,205,196,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Play size={9} color="var(--ac-cyan)" style={{ marginLeft: 1 }} />
               </div>
             : isAvail
-              ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Circle size={9} color="rgba(255,255,255,0.35)" />
+              ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--bg-elevated)', border: '1px solid var(--border-medium)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Circle size={9} color="var(--text-tertiary)" />
                 </div>
-              : <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Lock size={9} color="rgba(255,255,255,0.18)" />
+              : <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Lock size={9} color="var(--text-tertiary)" />
                 </div>
         }
       </div>
       <div style={{ minWidth: 0, flex: 1, position: 'relative', zIndex: 1 }}>
-        <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.08em', marginBottom: 2 }}>{moduleId.toUpperCase()}</p>
-        <p style={{ fontSize: 12, fontWeight: isNext ? 600 : 500, color: isDone ? color : isNext ? '#4ECDC4' : isAvail ? '#8EA8CC' : 'rgba(255,255,255,0.25)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.08em', marginBottom: 2 }} className="text-[9px]">{moduleId.toUpperCase()}</p>
+        <p style={{ fontWeight: isNext ? 600 : 500, color: isDone ? color : isNext ? 'var(--ac-cyan)' : isAvail ? 'var(--text-secondary)' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-xs">
           {MODULE_TITLES[moduleId] ?? moduleId.toUpperCase()}
         </p>
       </div>
-      {(isAvail || isNext) && <ChevronRight size={12} color={isNext ? 'rgba(78,205,196,0.5)' : 'rgba(255,255,255,0.2)'} style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />}
+      {(isAvail || isNext) && <ChevronRight size={12} color={isNext ? 'var(--ac-cyan)' : 'var(--text-tertiary)'} style={{ flexShrink: 0, position: 'relative', zIndex: 1 }} />}
     </motion.div>
   )
 }
@@ -250,8 +249,8 @@ function Shimmer({ w, h, r = 10, delay = 0 }: { w: string | number; h: number; r
 
 function DashboardSkeleton() {
   return (
-    <div style={{ minHeight: '100vh', color: '#E8F0FC', padding: '0 0 100px' }}>
-      <div style={{ padding: '28px 28px 24px', borderBottom: '1px solid rgba(78,205,196,0.07)', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', color: 'var(--text-primary)', padding: '0 0 100px' }}>
+      <div style={{ padding: '28px 28px 24px', borderBottom: '1px solid var(--border-subtle)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -264,7 +263,7 @@ function DashboardSkeleton() {
             </div>
             <Shimmer w={160} h={46} r={12} delay={0.1} />
           </div>
-          <div style={{ background: 'rgba(78,205,196,0.03)', border: '1px solid rgba(78,205,196,0.1)', borderRadius: 20, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 20, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <Shimmer w={52} h={52} r={16} delay={0.05} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -281,7 +280,7 @@ function DashboardSkeleton() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 22 }}>
           {[0, 0.06, 0.12, 0.18, 0.24, 0.3].map((d, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: d }}
-              style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
               <Shimmer w={44} h={44} r={13} delay={d} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <Shimmer w={70} h={9} r={4} delay={d + 0.05} />
@@ -293,7 +292,7 @@ function DashboardSkeleton() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {Array.from({ length: 7 }, (_, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 + i * 0.04 }}
-              style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: 16, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
               <Shimmer w={34} h={34} r={10} delay={i * 0.04} />
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <Shimmer w={60} h={9} r={4} delay={i * 0.04 + 0.05} />
@@ -309,7 +308,7 @@ function DashboardSkeleton() {
           {[0, 0.2, 0.4].map((d, i) => (
             <motion.div key={i} animate={{ scale: [1, 1.5, 1], opacity: [0.3, 0.8, 0.3] }}
               transition={{ duration: 1.2, repeat: Infinity, delay: d }}
-              style={{ width: 6, height: 6, borderRadius: '50%', background: i === 0 ? '#4ECDC4' : i === 1 ? '#9B6FD0' : '#52D98B' }} />
+              style={{ width: 6, height: 6, borderRadius: '50%', background: i === 0 ? 'var(--ac-cyan)' : i === 1 ? 'var(--ac-violet)' : 'var(--ac-mint)' }} />
           ))}
         </motion.div>
       </div>
@@ -340,7 +339,7 @@ function MilestoneToast({ message, icon: Icon, color, onDismiss }: {
         borderRadius: 16, padding: '14px 22px',
         display: 'flex', alignItems: 'center', gap: 12,
         backdropFilter: 'blur(20px)',
-        boxShadow: `0 8px 40px rgba(0,0,0,0.5), 0 0 30px ${color}20`,
+        boxShadow: `var(--shadow-lg), 0 0 30px ${color}20`,
         minWidth: 280,
       }}
     >
@@ -348,8 +347,8 @@ function MilestoneToast({ message, icon: Icon, color, onDismiss }: {
         <Icon size={18} color={color} />
       </div>
       <div>
-        <p style={{ fontSize: 11, color: color, fontFamily: 'monospace', letterSpacing: '0.12em', marginBottom: 2 }}>MILESTONE</p>
-        <p style={{ fontSize: 14, fontWeight: 600, color: '#E8F0FC' }}>{message}</p>
+        <p style={{ color: color, fontFamily: 'monospace', letterSpacing: '0.12em', marginBottom: 2 }} className="text-tiny">MILESTONE</p>
+        <p style={{ fontWeight: 600, color: '#E8F0FC' }} className="text-sm">{message}</p>
       </div>
     </motion.div>
   )
@@ -452,7 +451,7 @@ export default function DashboardPage() {
   const nearbyMods  = allModules.slice(Math.max(0, nextIdx - 1), nextIdx + 4).filter(m => m !== nextModule).slice(0, 3)
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: '#E8F0FC', fontFamily: 'Inter,system-ui,sans-serif', padding: '0 0 100px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: 'Inter,system-ui,sans-serif', padding: '0 0 100px' }}>
       <CelebrationBurst active={celebration} />
 
       <AnimatePresence>
@@ -461,84 +460,49 @@ export default function DashboardPage() {
 
       {/* ── Hero: Continue Learning ── */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '28px 28px 24px', borderBottom: '1px solid rgba(78,205,196,0.07)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -80, right: -80, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle,rgba(155,111,208,0.1) 0%,transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', top: -40, left: '40%', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle,rgba(78,205,196,0.06) 0%,transparent 70%)', pointerEvents: 'none' }} />
-
+        style={{ padding: '28px 28px 24px', borderBottom: '1px solid var(--border-subtle)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           {/* greeting row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <motion.div animate={{ rotate: [0, 5, -5, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ width: 42, height: 42, borderRadius: 14, background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sparkles size={18} color="#4ECDC4" />
-              </motion.div>
+
               <div>
-                <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.15em', marginBottom: 3 }}>WELCOME BACK</p>
-                <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.01em', color: '#E8F0FC' }}>
-                  <BlurText text={studentName.split(' ')[0]} className="aurora-text" delay={70} direction="top" stepDuration={0.25} />
+                <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.15em', marginBottom: 3 }} className="text-micro">READY TO LEARN?</p>
+                <div style={{ fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--text-primary)' }} className="text-[21px]">
+                  <BlurText text={`Welcome back, ${studentName.split(' ')[0]}!`} className="aurora-text" delay={70} direction="top" stepDuration={0.15} />
                 </div>
-                <p style={{ fontSize: 12, color: '#4A6285', marginTop: 2 }}>{completed} of 87 modules completed · {pct}% through the qualification</p>
+                <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontWeight: 500 }} className="text-sm">Grab a coffee and let's dive into your studies today. You're doing great!</p>
+                <p style={{ color: 'var(--text-tertiary)', marginTop: 3 }} className="text-xs">{completed} of 87 modules completed · {pct}% through the qualification</p>
               </div>
             </div>
 
-            {/* Motivational tip */}
-            <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(78,205,196,0.04)', border: '1px solid rgba(78,205,196,0.1)', borderRadius: 13, padding: '10px 16px', maxWidth: 320 }}>
-              <MotivIcon size={15} color="rgba(78,205,196,0.6)" />
-              <p style={{ fontSize: 12, color: '#6A8AB5', lineHeight: 1.5 }}>{MOTIVATIONAL[motivIdx].text}</p>
-            </motion.div>
+
           </div>
 
           {/* Continue Learning CTA */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
             style={{
-              background: 'linear-gradient(135deg, rgba(78,205,196,0.1) 0%, rgba(155,111,208,0.06) 100%)',
-              border: '1px solid rgba(78,205,196,0.22)', borderRadius: 20, padding: '20px 24px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-medium)', borderRadius: 20, padding: '20px 24px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               flexWrap: 'wrap', gap: 16, position: 'relative', overflow: 'hidden',
             }}>
-            <div style={{ position: 'absolute', top: -30, right: 80, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle,rgba(78,205,196,0.08) 0%,transparent 70%)', pointerEvents: 'none' }} />
-
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(78,205,196,0.12)', border: '1px solid rgba(78,205,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Play size={20} color="#4ECDC4" style={{ marginLeft: 2 }} />
+                style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(78,205,196,0.12)', border: '1px solid var(--border-medium)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Play size={20} color="var(--ac-cyan)" style={{ marginLeft: 2 }} />
               </motion.div>
               <div>
-                <p style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(78,205,196,0.6)', letterSpacing: '0.15em', marginBottom: 4 }}>
+                <p style={{ fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.15em', marginBottom: 4, opacity: 0.7 }} className="text-micro">
                   CONTINUE LEARNING · {nextPart ? `PART ${nextPart.number}` : ''}
                 </p>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: '#E8F0FC', margin: '0 0 2px', lineHeight: 1.2 }}>{nextTitle}</h2>
-                <p style={{ fontSize: 12, color: '#4A6285', margin: 0 }}>{nextModule.toUpperCase()} · Alex is ready to guide you</p>
+                <h2 style={{ fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 2px', lineHeight: 1.2 }} className="text-lg">{nextTitle}</h2>
+                <p style={{ color: 'var(--text-tertiary)', margin: 0 }} className="text-xs">{nextModule.toUpperCase()} · Alex is ready to guide you</p>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {/* Nearby modules quick-jump */}
-              {nearbyMods.length > 0 && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {nearbyMods.map(modId => {
-                    const st = getModuleStatus(modId)
-                    const pt = PARTS.find(p => p.modules.includes(modId))
-                    return (
-                      <motion.button key={modId}
-                        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
-                        onClick={() => st !== 'locked' && router.push(`/course/${modId}`)}
-                        title={MODULE_TITLES[modId]}
-                        style={{
-                          padding: '6px 11px', borderRadius: 9, fontSize: 11, cursor: st !== 'locked' ? 'pointer' : 'default',
-                          background: st === 'completed' ? `${pt?.color ?? '#4ECDC4'}10` : 'rgba(255,255,255,0.04)',
-                          border: `1px solid ${st === 'completed' ? `${pt?.color ?? '#4ECDC4'}25` : 'rgba(255,255,255,0.08)'}`,
-                          color: st === 'completed' ? pt?.color ?? '#4ECDC4' : '#6A8AB5',
-                          opacity: st === 'locked' ? 0.4 : 1,
-                        }}>
-                        {modId.toUpperCase()}
-                      </motion.button>
-                    )
-                  })}
-                </div>
-              )}
+
 
               <Link href={`/course/${nextModule}`} style={{ textDecoration: 'none' }}>
                 <motion.button
@@ -546,11 +510,10 @@ export default function DashboardPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '13px 26px', borderRadius: 13,
-                    background: 'linear-gradient(135deg, #4ECDC4 0%, #52D98B 100%)',
-                    border: 'none', cursor: 'pointer',
-                    fontSize: 14, fontWeight: 700, color: '#050810',
+                    background: 'var(--ac-cyan)',
+                    border: 'none', cursor: 'pointer', fontWeight: 700, color: '#050810',
                     boxShadow: '0 4px 20px rgba(78,205,196,0.25)',
-                  }}>
+                  }} className="text-sm">
                   Start Now <ArrowRight size={15} />
                 </motion.button>
               </Link>
@@ -571,15 +534,15 @@ export default function DashboardPage() {
           {/* Streak */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
             whileHover={{ y: -4, scale: 1.02 }}
-            style={{ background: 'linear-gradient(135deg, rgba(232,184,75,0.08) 0%, rgba(5,8,16,0.6) 100%)', border: '1px solid rgba(232,184,75,0.22)', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, backdropFilter: 'blur(12px)' }}>
+            style={{ background: 'var(--card-bg)', border: '1px solid rgba(232,184,75,0.28)', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, backdropFilter: 'blur(12px)' }}>
             <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ width: 44, height: 44, borderRadius: 13, background: 'rgba(232,184,75,0.12)', border: '1px solid rgba(232,184,75,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              style={{ width: 44, height: 44, borderRadius: 13, background: 'rgba(232,184,75,0.15)', border: '1px solid rgba(232,184,75,0.32)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Flame size={19} color="#E8B84B" />
             </motion.div>
             <div>
-              <p style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 3, textTransform: 'uppercase' }}>Streak</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#E8F0FC', lineHeight: 1 }}>
-                <CountUp to={streak} from={0} duration={1.4} delay={0.25} /> <span style={{ fontSize: 13, fontWeight: 500, color: '#4A6285' }}>days</span>
+              <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 3, textTransform: 'uppercase' }} className="text-micro">Streak</p>
+              <p style={{ fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }} className="text-3xl">
+                <CountUp to={streak} from={0} duration={1.4} delay={0.25} /> <span style={{ fontWeight: 500, color: 'var(--text-tertiary)' }} className="text-small">days</span>
               </p>
             </div>
           </motion.div>
@@ -587,71 +550,54 @@ export default function DashboardPage() {
           {/* Daily goal */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             whileHover={{ y: -4, scale: 1.02 }}
-            style={{ background: 'linear-gradient(135deg, rgba(82,217,139,0.06) 0%, rgba(5,8,16,0.6) 100%)', border: '1px solid rgba(82,217,139,0.18)', borderRadius: 16, padding: '18px 20px', backdropFilter: 'blur(12px)' }}>
+            style={{ background: 'var(--card-bg)', border: '1px solid rgba(82,217,139,0.22)', borderRadius: 16, padding: '18px 20px', backdropFilter: 'blur(12px)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <Target size={15} color="#52D98B" />
-              <p style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Daily Goal</p>
-              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#52D98B' }}>{todayDone}/{dailyGoal}</span>
+              <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', letterSpacing: '0.08em', textTransform: 'uppercase' }} className="text-micro">Daily Goal</p>
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#52D98B' }} className="text-tiny">{todayDone}/{dailyGoal}</span>
             </div>
-            <div style={{ height: 5, borderRadius: 5, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+            <div style={{ height: 5, borderRadius: 5, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
               <motion.div initial={{ width: 0 }} animate={{ width: `${goalPct}%` }} transition={{ duration: 1, delay: 0.5 }}
                 style={{ height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,#52D98B,#4ECDC4)', boxShadow: '0 0 8px rgba(82,217,139,0.4)' }} />
             </div>
-            <p style={{ fontSize: 11, color: '#4A6285', marginTop: 7 }}>
+            <p style={{ color: 'var(--text-tertiary)', marginTop: 7 }} className="text-tiny">
               {todayDone === 0 ? `Start today — ${dailyGoal} modules goal` : `${dailyGoal - todayDone} more to hit your goal`}
             </p>
           </motion.div>
         </div>
 
         {/* ── Overall progress + AI tutor badge ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 22, alignItems: 'stretch' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 22, alignItems: 'stretch' }}>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(78,205,196,0.1)', borderRadius: 18, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 22 }}>
+            style={{ background: 'var(--card-bg)', border: '1px solid var(--border-subtle)', borderRadius: 18, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 22 }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <ProgressRing pct={pct} color="#4ECDC4" size={80} />
+              <ProgressRing pct={pct} color="var(--ac-cyan)" size={80} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 15, fontWeight: 800, color: '#4ECDC4' }}>{pct}%</span>
+                <span style={{ fontWeight: 800, color: 'var(--ac-cyan)' }} className="text-[15px]">{pct}%</span>
               </div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <h2 style={{ fontWeight: 600, fontSize: 14, color: '#8EA8CC', margin: 0 }}>Overall course progress</h2>
-                <span style={{ fontSize: 12, color: '#4A6285', fontFamily: 'monospace' }}>{completed}/87 modules</span>
+                <h2 style={{ fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }} className="text-sm">Overall course progress</h2>
+                <span style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace' }} className="text-xs">{completed}/87 modules</span>
               </div>
-              <div style={{ height: 5, borderRadius: 5, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+              <div style={{ height: 5, borderRadius: 5, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
                 <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.3, ease: 'easeOut', delay: 0.4 }}
-                  style={{ height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,#4ECDC4,#9B6FD0)', boxShadow: '0 0 10px rgba(78,205,196,0.3)' }} />
+                  style={{ height: '100%', borderRadius: 5, background: 'linear-gradient(90deg,var(--ac-cyan),var(--ac-violet))', boxShadow: '0 0 10px rgba(78,205,196,0.3)' }} />
               </div>
-              <p style={{ fontSize: 11, color: '#4A6285', marginTop: 7 }}>{87 - completed} modules remaining to complete the qualification</p>
+              <p style={{ color: 'var(--text-tertiary)', marginTop: 7 }} className="text-tiny">{87 - completed} modules remaining to complete the qualification</p>
             </div>
           </motion.div>
 
-          {/* AI tutor status card */}
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.35 }}
-            style={{ background: 'rgba(78,205,196,0.04)', border: '1px solid rgba(78,205,196,0.15)', borderRadius: 18, padding: '20px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, minWidth: 140 }}>
-            <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.7, 1, 0.7] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,rgba(78,205,196,0.2),rgba(155,111,208,0.2))', border: '1px solid rgba(78,205,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(78,205,196,0.2)' }}>
-              <Brain size={22} color="#4ECDC4" />
-            </motion.div>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.15em', marginBottom: 2 }}>AI TUTOR</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#4ECDC4', margin: 0 }}>Alex</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center', marginTop: 4 }}>
-                <motion.div animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#52D98B', boxShadow: '0 0 8px #52D98B' }} />
-                </motion.div>
-                <span style={{ fontSize: 9, color: '#52D98B', fontFamily: 'monospace' }}>ONLINE</span>
-              </div>
-            </div>
-          </motion.div>
+
         </div>
 
         {/* ── Part accordion ── */}
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <BookMarked size={14} color="rgba(78,205,196,0.6)" />
-            <h2 style={{ fontSize: 13, fontWeight: 600, color: '#8EA8CC', margin: 0 }}>Your Curriculum</h2>
-            <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#4A6285', marginLeft: 'auto' }}>
+            <BookMarked size={14} color="var(--ac-cyan)" style={{ opacity: 0.6 }} />
+            <h2 style={{ fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }} className="text-small">Your Curriculum</h2>
+            <span style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', marginLeft: 'auto' }} className="text-micro">
               {PARTS.filter(p => isPartUnlocked(p.number)).length}/12 parts unlocked
             </span>
           </div>
@@ -669,8 +615,8 @@ export default function DashboardPage() {
                 <motion.div key={part.number}
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + pi * 0.03 }}
                   style={{
-                    background: hasNextMod ? 'rgba(78,205,196,0.02)' : partDone ? `${part.color}04` : 'rgba(255,255,255,0.015)',
-                    border: `1px solid ${partLocked ? 'rgba(255,255,255,0.05)' : hasNextMod ? 'rgba(78,205,196,0.18)' : partDone ? `${part.color}20` : `${part.color}18`}`,
+                    background: hasNextMod ? 'var(--bg-elevated)' : partDone ? `${part.color}08` : 'var(--card-bg)',
+                    border: `1px solid ${partLocked ? 'var(--border-subtle)' : hasNextMod ? 'var(--border-medium)' : partDone ? `${part.color}25` : `${part.color}20`}`,
                     borderRadius: 16, overflow: 'hidden',
                     opacity: partLocked ? 0.5 : 1,
                     transition: 'all 0.2s',
@@ -680,31 +626,28 @@ export default function DashboardPage() {
                   <button
                     onClick={() => !partLocked && togglePart(part.number)}
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: 'none', border: 'none', cursor: partLocked ? 'default' : 'pointer', textAlign: 'left' }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 10, background: partLocked ? 'rgba(255,255,255,0.04)' : `${part.color}15`, border: `1px solid ${partLocked ? 'rgba(255,255,255,0.1)' : part.color + '35'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 800, color: partLocked ? '#4A6285' : part.color, fontFamily: 'monospace' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: partLocked ? 'var(--bg-elevated)' : `${part.color}18`, border: `1px solid ${partLocked ? 'var(--border-subtle)' : part.color + '40'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 800, color: partLocked ? 'var(--text-tertiary)' : part.color, fontFamily: 'monospace' }} className="text-xs">
                       {partLocked ? <Lock size={13} /> : partDone ? <CheckCircle2 size={14} color={part.color} /> : part.number}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                        <p style={{ fontSize: 9, fontFamily: 'monospace', color: partLocked ? '#4A6285' : `${part.color}80`, letterSpacing: '0.12em', margin: 0 }}>PART {part.number}</p>
-                        {partLocked
-                          ? <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(232,123,111,0.5)', letterSpacing: '0.1em' }}>LOCKED</span>
-                          : <span style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace' }}>{doneInPart}/{part.modules.length}</span>
-                        }
-                        {hasNextMod && <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(78,205,196,0.7)', letterSpacing: '0.1em', background: 'rgba(78,205,196,0.1)', padding: '1px 6px', borderRadius: 4 }}>ACTIVE</span>}
-                        {partDone && !partLocked && <span style={{ fontSize: 9, fontFamily: 'monospace', color: `${part.color}90`, letterSpacing: '0.1em', background: `${part.color}12`, padding: '1px 6px', borderRadius: 4 }}>COMPLETE</span>}
+                        <span style={{ display: 'block', fontFamily: 'monospace', color: partLocked ? 'var(--text-tertiary)' : `${part.color}90`, letterSpacing: '0.12em', margin: 0 }} className="text-[9px]">PART {part.number}</span>
+                        {!partLocked && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace' }} className="text-micro">{doneInPart}/{part.modules.length}</span>}
+                        {hasNextMod && <span style={{ fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.1em', background: 'rgba(78,205,196,0.12)', padding: '1px 6px', borderRadius: 4 }} className="text-[9px]">ACTIVE</span>}
+                        {partDone && !partLocked && <span style={{ fontFamily: 'monospace', color: `${part.color}`, letterSpacing: '0.1em', background: `${part.color}15`, padding: '1px 6px', borderRadius: 4 }} className="text-[9px]">COMPLETE</span>}
                       </div>
-                      <p style={{ fontWeight: 600, fontSize: 14, color: partLocked ? '#4A6285' : '#E8F0FC', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{part.title}</p>
+                      <span style={{ display: 'block', fontWeight: 600, color: partLocked ? 'var(--text-tertiary)' : 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-sm">{part.title}</span>
                     </div>
                     {!partLocked && (
-                      <div style={{ width: 72, height: 3, borderRadius: 3, background: 'rgba(255,255,255,0.05)', flexShrink: 0, overflow: 'hidden' }}>
+                      <div style={{ width: 72, height: 3, borderRadius: 3, background: 'var(--bg-elevated)', flexShrink: 0, overflow: 'hidden' }}>
                         <motion.div
                           initial={{ width: 0 }} animate={{ width: `${partPct}%` }}
                           transition={{ duration: 0.9, delay: 0.5 + pi * 0.03 }}
                           style={{ height: '100%', borderRadius: 3, background: part.color, boxShadow: `0 0 5px ${part.color}` }} />
                       </div>
                     )}
-                    <div style={{ color: '#4A6285', flexShrink: 0 }}>
-                      {partLocked ? <Lock size={13} color="#4A6285" /> : isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                    <div style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                      {partLocked ? <Lock size={13} color="var(--text-tertiary)" /> : isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </div>
                   </button>
 
@@ -732,9 +675,9 @@ export default function DashboardPage() {
                                   <motion.div
                                     initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
-                                    style={{ position: 'absolute', zIndex: 50, background: 'rgba(9,13,26,0.95)', border: `1px solid ${part.color}30`, borderRadius: 10, padding: '8px 12px', pointerEvents: 'none', marginTop: 4, maxWidth: 200 }}>
-                                    <p style={{ fontSize: 11, color: '#E8F0FC', margin: 0 }}>{MODULE_TITLES[moduleId]}</p>
-                                    <p style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }}>
+                                    style={{ position: 'absolute', zIndex: 50, background: 'var(--glass-overlay)', border: `1px solid ${part.color}30`, borderRadius: 10, padding: '8px 12px', pointerEvents: 'none', marginTop: 4, maxWidth: 200, backdropFilter: 'blur(12px)' }}>
+                                    <p style={{ color: 'var(--text-primary)', margin: 0 }} className="text-tiny">{MODULE_TITLES[moduleId]}</p>
+                                    <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', marginTop: 2 }} className="text-[9px]">
                                       {getModuleStatus(moduleId) === 'completed' ? '✓ Completed' : 'Click to start →'}
                                     </p>
                                   </motion.div>
@@ -754,43 +697,43 @@ export default function DashboardPage() {
 
         {/* ── Certificate ── */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
-          style={{ marginTop: 20, background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(232,184,75,0.15)', borderRadius: 18, padding: '20px 22px' }}>
+          style={{ marginTop: 20, background: 'var(--card-bg)', border: '1px solid rgba(232,184,75,0.20)', borderRadius: 18, padding: '20px 22px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <Award size={18} color="#E8B84B" />
-            <h2 style={{ fontWeight: 700, fontSize: 15, margin: 0, color: '#E8F0FC' }}>Certificate</h2>
+            <h2 style={{ fontWeight: 700, margin: 0, color: 'var(--text-primary)' }} className="text-[15px]">Certificate</h2>
           </div>
 
           {progress?.certificates && progress.certificates.length > 0 ? (
             progress.certificates.map(cert => (
               <motion.div key={cert.id} whileHover={{ scale: 1.01 }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', background: 'rgba(232,184,75,0.06)', border: '1px solid rgba(232,184,75,0.22)', borderRadius: 12, flexWrap: 'wrap', gap: 12 }}>
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', background: 'rgba(232,184,75,0.08)', border: '1px solid rgba(232,184,75,0.25)', borderRadius: 12, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <p style={{ fontWeight: 700, color: '#E8B84B', fontSize: 14, margin: 0 }}>UK Bookkeeping, Accounting & Taxation</p>
-                  <p style={{ fontSize: 11, color: 'rgba(232,184,75,0.55)', marginTop: 3 }}>Score: {cert.final_score}% · Issued {new Date(cert.completion_date).toLocaleDateString('en-GB')}</p>
+                  <p style={{ fontWeight: 700, color: '#E8B84B', margin: 0 }} className="text-sm">UK Bookkeeping, Accounting &amp; Taxation</p>
+                  <p style={{ color: 'rgba(232,184,75,0.6)', marginTop: 3 }} className="text-tiny">Score: {cert.final_score}% · Issued {new Date(cert.completion_date).toLocaleDateString('en-GB')}</p>
                 </div>
                 <Link href={`/verify/${cert.verification_code}`} style={{ textDecoration: 'none' }}>
                   <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-                    style={{ padding: '9px 18px', background: 'rgba(232,184,75,0.15)', border: '1px solid rgba(232,184,75,0.4)', borderRadius: 9, color: '#E8B84B', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ padding: '9px 18px', background: 'rgba(232,184,75,0.15)', border: '1px solid rgba(232,184,75,0.4)', borderRadius: 9, color: '#E8B84B', fontWeight: 700, cursor: 'pointer' }} className="text-small">
                     View Certificate
                   </motion.button>
                 </Link>
               </motion.div>
             ))
           ) : (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '16px 18px', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }}>
-              <AlertCircle size={16} color="#4A6285" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '16px 18px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+              <AlertCircle size={16} color="var(--text-tertiary)" style={{ flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: 1 }}>
-                <p style={{ fontWeight: 600, color: '#8EA8CC', fontSize: 13, margin: '0 0 4px' }}>Certificate not yet earned</p>
-                <p style={{ fontSize: 12, color: '#4A6285', lineHeight: 1.6, margin: '0 0 12px' }}>
+                <p style={{ fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px' }} className="text-small">Certificate not yet earned</p>
+                <p style={{ color: 'var(--text-tertiary)', lineHeight: 1.6, margin: '0 0 12px' }} className="text-xs">
                   Complete all 87 modules and pass the final exam with 70%+ to receive your verifiable certificate.
                 </p>
                 {/* Progress toward certificate */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ flex: 1, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, height: 4, borderRadius: 4, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
                     <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 1.2, delay: 0.6 }}
                       style={{ height: '100%', borderRadius: 4, background: 'linear-gradient(90deg,#E8B84B,#9B6FD0)', boxShadow: '0 0 8px rgba(232,184,75,0.3)' }} />
                   </div>
-                  <span style={{ fontSize: 11, color: 'rgba(78,205,196,0.7)', fontFamily: 'monospace', flexShrink: 0 }}>{completed}/87</span>
+                  <span style={{ color: 'var(--ac-cyan)', fontFamily: 'monospace', flexShrink: 0 }} className="text-tiny">{completed}/87</span>
                 </div>
               </div>
             </div>
@@ -811,14 +754,14 @@ export default function DashboardPage() {
               onClick={() => { if (action) action(); else if (href) router.push(href) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 13,
-                background: `${color}08`, border: `1px solid ${color}20`, cursor: 'pointer',
+                background: 'var(--card-bg)', border: `1px solid ${color}22`, cursor: 'pointer',
                 transition: 'all 0.15s',
               }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, border: `1px solid ${color}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: `${color}18`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icon size={15} color={color} />
               </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#8EA8CC' }}>{label}</span>
-              <ChevronRight size={12} color={`${color}50`} style={{ marginLeft: 'auto', flexShrink: 0 }} />
+              <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }} className="text-xs">{label}</span>
+              <ChevronRight size={12} color={`${color}60`} style={{ marginLeft: 'auto', flexShrink: 0 }} />
             </motion.div>
           ))}
         </motion.div>

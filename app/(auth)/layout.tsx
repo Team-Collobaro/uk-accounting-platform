@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#060a12',
+      background: 'var(--auth-bg)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -27,9 +27,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
-          -webkit-box-shadow: 0 0 0 1000px #0e1525 inset !important;
-          -webkit-text-fill-color: #e8f0fc !important;
-          caret-color: #e8f0fc;
+          -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+          -webkit-text-fill-color: var(--text-primary) !important;
+          caret-color: var(--text-primary);
         }
       `}</style>
 
@@ -43,23 +43,23 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <WatchSpinner size={36} />
-            <span style={{ fontWeight: 700, fontSize: 20, color: '#e8f0fc', letterSpacing: '-0.02em' }}>
-              UK Accounting <span style={{ color: '#4ECDC4' }}>Pro</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }} className="text-xl">
+              UK Accounting <span style={{ color: 'var(--ac-cyan)' }}>Pro</span>
             </span>
           </div>
-          <p style={{ fontSize: 12, fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.2em' }}>
+          <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.2em' }} className="text-xs">
             AI-POWERED · PROFESSIONAL LEARNING
           </p>
         </div>
 
         {/* Glass card */}
         <div style={{
-          background: 'rgba(9,13,26,0.75)',
-          border: '1px solid rgba(78,205,196,0.18)',
+          background: 'var(--auth-card-bg)',
+          border: '1px solid var(--auth-card-border)',
           borderRadius: 24,
           padding: '36px 32px',
           backdropFilter: 'blur(24px)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(78,205,196,0.06), inset 0 1px 0 rgba(255,255,255,0.04)',
+          boxShadow: 'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)',
         }}>
           {children}
         </div>

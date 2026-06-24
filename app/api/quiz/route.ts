@@ -47,11 +47,15 @@ export async function POST(req: NextRequest) {
     const questions = await generateQuiz({ module: mod, ragContext, count })
 
     // Log approximate token usage (quiz generation ~800 input, ~500 output)
-    await logUsage(user.id, 'quiz-' + moduleId + '-' + Date.now(), 800, 500)
+    try {
+      await logUsage(user.id, 'quiz-' + moduleId + '-' + Date.now(), 800, 500)
+    } catch (logErr) {
+      console.warn('Failed to log token usage:', logErr)
+    }
 
     return NextResponse.json({ questions })
-  } catch (err) {
+  } catch (err: any) {
     console.error('/api/quiz error:', err)
-    return NextResponse.json({ error: 'Failed to generate quiz' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to generate quiz', details: err.message || String(err) }, { status: 500 })
   }
 }

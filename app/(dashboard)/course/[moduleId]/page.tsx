@@ -14,6 +14,7 @@ import type { QuizQuestion } from '@/types'
 import StarBorder from '@/components/reactbits/StarBorder'
 import DecryptedText from '@/components/reactbits/DecryptedText'
 import SoftAurora from '@/components/SoftAurora'
+import ThemeToggle from '@/components/ThemeToggle'
 
 /* ─── types ──────────────────────────────────────────────────────────────────── */
 interface Message       { role: 'user' | 'assistant'; content: string; timestamp: string; visual?: string; mcqAnswer?: string; mcqCorrect?: string }
@@ -29,16 +30,16 @@ interface SectionProgress {
 function AuroraStatus({ speaking }: { speaking: boolean }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', gap: 4, position: 'relative', zIndex: 2 }}>
-      <p className="aurora-text" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', fontFamily: 'monospace' }}>
+      <p className="aurora-text text-micro" style={{ fontWeight: 700, letterSpacing: '0.22em', fontFamily: 'monospace' }}>
         ALEX · AI TUTOR
       </p>
       <p style={{
-        fontSize: 9, letterSpacing: '0.16em', fontFamily: 'monospace',
+        letterSpacing: '0.16em', fontFamily: 'monospace',
         color: speaking ? 'var(--ac-cyan)' : 'var(--text-tertiary)',
         opacity: speaking ? 1 : 0.5,
         transition: 'all 0.3s',
         textShadow: speaking ? '0 0 8px rgba(78,205,196,0.7)' : 'none',
-      }}>
+      }} className="text-[9px]">
         {speaking ? '◉ SPEAKING' : '○ READY'}
       </p>
     </div>
@@ -140,9 +141,8 @@ function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: Analyse
         background: 'radial-gradient(circle at 38% 38%, rgba(78,205,196,0.22) 0%, rgba(155,111,208,0.14) 60%, transparent 100%)',
         border: '1.5px solid rgba(78,205,196,0.45)',
         boxShadow: '0 0 32px rgba(78,205,196,0.25), inset 0 0 20px rgba(155,111,208,0.12)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 28, color: 'rgba(78,205,196,0.8)',
-      }}>
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(78,205,196,0.8)',
+      }} className="text-3xl">
         <Brain size={36} strokeWidth={1.2} />
       </div>
     </div>
@@ -224,24 +224,23 @@ function SectionTrail({ sections, currentIdx, progress, quizUnlocked, onSelect, 
             >
               <span style={{
                 minWidth: 32, height: 20, borderRadius: 6, padding: '0 4px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 9, fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
                 background: isCurParent ? 'rgba(78,205,196,0.14)' : parentDone ? 'rgba(82,217,139,0.12)' : 'rgba(255,255,255,0.05)',
                 border: isCurParent ? '1px solid rgba(78,205,196,0.4)' : parentDone ? '1px solid rgba(82,217,139,0.3)' : '1px solid rgba(255,255,255,0.08)',
                 color: isCurParent ? 'var(--ac-cyan)' : parentDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-              }}>
+              }} className="text-[9px]">
                 {parentLocked ? <Lock size={8} /> : parentDone ? <Check size={9} /> : parent.section_id}
               </span>
               <span style={{
-                flex: 1, fontSize: 11, fontWeight: isCurParent ? 600 : 400, lineHeight: 1.35,
+                flex: 1, fontWeight: isCurParent ? 600 : 400, lineHeight: 1.35,
                 color: isCurParent ? 'var(--text-primary)' : parentDone ? 'var(--ac-mint)' : 'var(--text-secondary)',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
+              }} className="text-tiny">
                 {parent.section_title}
               </span>
               {!parentLocked && hasChildren && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <span style={{ fontSize: 8, fontFamily: 'monospace', color: 'var(--text-tertiary)', opacity: 0.5 }}>
+                  <span style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', opacity: 0.5 }} className="text-[8px]">
                     {groupDone}/{groupIds.length}
                   </span>
                   {isExp ? <ChevronUp size={9} color="var(--text-tertiary)" /> : <ChevronDown size={9} color="var(--text-tertiary)" />}
@@ -271,19 +270,18 @@ function SectionTrail({ sections, currentIdx, progress, quizUnlocked, onSelect, 
                     >
                       <span style={{
                         minWidth: 30, height: 17, borderRadius: 5, padding: '0 3px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 8, fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
                         background: isCurChild ? 'rgba(155,111,208,0.18)' : childDone ? 'rgba(82,217,139,0.1)' : 'rgba(255,255,255,0.04)',
                         border: isCurChild ? '1px solid rgba(155,111,208,0.4)' : childDone ? '1px solid rgba(82,217,139,0.25)' : '1px solid rgba(255,255,255,0.06)',
                         color: isCurChild ? 'var(--ac-violet)' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-                      }}>
+                      }} className="text-[8px]">
                         {childLocked ? <Lock size={7} /> : childDone ? <Check size={8} /> : child.section_id}
                       </span>
                       <span style={{
-                        flex: 1, fontSize: 10, lineHeight: 1.35,
+                        flex: 1, lineHeight: 1.35,
                         color: isCurChild ? '#C4A8F0' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
+                      }} className="text-micro">
                         {child.section_title}
                       </span>
                     </button>
@@ -311,13 +309,13 @@ function SectionTrail({ sections, currentIdx, progress, quizUnlocked, onSelect, 
           <span style={{ width: 32, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: quizUnlocked ? 'rgba(232,184,75,0.15)' : 'rgba(255,255,255,0.04)', border: quizUnlocked ? '1px solid rgba(232,184,75,0.35)' : '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
             <Brain size={10} color={quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)'} />
           </span>
-          <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ flex: 1, fontWeight: 600, color: quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-tiny">
             Module Quiz · 10 Questions
           </span>
           {quizUnlocked ? <ChevronRight size={10} color="#E8B84B" style={{ flexShrink: 0 }} /> : <Lock size={9} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />}
         </button>
         {!quizUnlocked && (
-          <p style={{ fontSize: 9, color: 'var(--text-tertiary)', fontFamily: 'monospace', textAlign: 'center', marginTop: 3, opacity: 0.4 }}>
+          <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', textAlign: 'center', marginTop: 3, opacity: 0.4 }} className="text-[9px]">
             Complete all topics to unlock
           </p>
         )}
@@ -359,14 +357,14 @@ function NotesPanel({ section, progress, moduleId, onSave }: {
   }
 
   const panel: React.CSSProperties = {
-    background: 'rgba(12,16,32,0.6)', border: '1px solid var(--border-subtle)',
+    background: 'var(--card-bg)', border: '1px solid var(--border-subtle)',
     borderRadius: 10, padding: '10px 12px',
     boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04)',
   }
 
   if (!section) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: 'var(--text-tertiary)', fontSize: 12, padding: 20, textAlign: 'center' }}>
+      color: 'var(--text-tertiary)', padding: 20, textAlign: 'center' }} className="text-xs">
       Select a section to view notes
     </div>
   )
@@ -376,7 +374,7 @@ function NotesPanel({ section, progress, moduleId, onSave }: {
       {/* header */}
       <div style={panel}>
         <p className="label-mono aurora-text" style={{ marginBottom: 3 }}>Section {section.section_id}</p>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{section.section_title}</p>
+        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }} className="text-tiny">{section.section_title}</p>
       </div>
 
       {/* key insights */}
@@ -390,9 +388,9 @@ function NotesPanel({ section, progress, moduleId, onSave }: {
           {kpOpen && (
             <ul style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {(progress?.key_points ?? []).map((pt, i) => (
-                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, color: 'var(--text-secondary)', lineHeight: 1.45 }} className="text-tiny">
                   <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(139,126,200,0.18)', border: '1px solid rgba(139,126,200,0.4)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: 'var(--ac-violet)', flexShrink: 0, marginTop: 1 }}>
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-violet)', flexShrink: 0, marginTop: 1 }} className="text-[8px]">
                     {i + 1}
                   </span>
                   {pt}
@@ -405,18 +403,18 @@ function NotesPanel({ section, progress, moduleId, onSave }: {
 
       {/* textarea */}
       <div style={{ ...panel, flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, fontWeight: 700, color: 'var(--text-accent)', letterSpacing: '0.12em', fontFamily: 'monospace' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, color: 'var(--text-accent)', letterSpacing: '0.12em', fontFamily: 'monospace' }} className="text-[9px]">
           <PenLine size={10} color="var(--ac-cyan)" /> MY NOTES
         </label>
         <textarea
           value={notes} onChange={e => setNotes(e.target.value)}
           placeholder={`Write your notes for section ${section.section_id}…`}
-          className="aurora-input"
-          style={{ flex: 1, resize: 'none', background: 'rgba(7,9,20,0.6)',
+          className="aurora-input text-xs"
+          style={{ flex: 1, resize: 'none', background: 'var(--input-bg)',
             border: '1px solid var(--border-subtle)', borderRadius: 8,
-            padding: '9px 11px', fontSize: 12, color: 'var(--text-primary)',
+            padding: '9px 11px', color: 'var(--text-primary)',
             outline: 'none', lineHeight: 1.6, minHeight: 90, fontFamily: 'inherit',
-            transition: 'border-color 0.2s', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.35)' }}
+            transition: 'border-color 0.2s', boxShadow: 'var(--shadow-sm)' }}
         />
       </div>
 
@@ -425,11 +423,10 @@ function NotesPanel({ section, progress, moduleId, onSave }: {
         <button onClick={save} disabled={saving} style={{
           flex: 1, padding: '9px 0', borderRadius: 9, cursor: 'pointer',
           background: 'linear-gradient(135deg, rgba(126,207,206,0.18), rgba(139,126,200,0.14))',
-          border: '1px solid rgba(126,207,206,0.28)', color: 'var(--ac-cyan)',
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+          border: '1px solid rgba(126,207,206,0.28)', color: 'var(--ac-cyan)', fontWeight: 700, letterSpacing: '0.08em',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           boxShadow: 'var(--shadow-sm)', transition: 'all 0.18s',
-        }}>
+        }} className="text-tiny">
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} SAVE
         </button>
         <button onClick={download} title="Download" style={{
@@ -461,7 +458,7 @@ function SectionNotePoints({ content }: { content: string }) {
   const copyBullet = (text: string) => {
     void navigator.clipboard.writeText(`• ${text}`).then(() => { setCopied(text); setTimeout(() => setCopied(null), 1500) })
   }
-  if (!groups.length) return <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', padding: '20px 0' }}>No key points extracted yet.</div>
+  if (!groups.length) return <div style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '20px 0' }} className="text-tiny">No key points extracted yet.</div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -469,23 +466,22 @@ function SectionNotePoints({ content }: { content: string }) {
         <button onClick={copyAll} style={{
           background: copied === 'all' ? 'rgba(110,201,160,0.12)' : 'rgba(255,255,255,0.04)',
           border: `1px solid ${copied === 'all' ? 'rgba(110,201,160,0.35)' : 'var(--border-subtle)'}`,
-          borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-          fontSize: 9, fontFamily: 'monospace', color: copied === 'all' ? 'var(--ac-mint)' : 'var(--text-tertiary)',
+          borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'monospace', color: copied === 'all' ? 'var(--ac-mint)' : 'var(--text-tertiary)',
           display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.18s',
-        }}>
+        }} className="text-[9px]">
           {copied === 'all' ? <Check size={9} /> : <Download size={9} />}
           {copied === 'all' ? 'COPIED' : 'COPY ALL'}
         </button>
       </div>
       {groups.map((g, gi) => (
         <div key={gi} style={{
-          background: 'rgba(12,16,32,0.55)', border: '1px solid var(--border-subtle)',
+          background: 'var(--card-bg)', border: '1px solid var(--border-subtle)',
           borderRadius: 9, overflow: 'hidden',
           boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.03)',
         }}>
           {g.subHeading && (
             <div style={{ padding: '6px 11px', background: 'rgba(139,126,200,0.07)', borderBottom: '1px solid rgba(139,126,200,0.12)' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ac-violet)', fontFamily: 'monospace' }}>▸ {g.subHeading}</span>
+              <span style={{ fontWeight: 700, color: 'var(--ac-violet)', fontFamily: 'monospace' }} className="text-micro">▸ {g.subHeading}</span>
             </div>
           )}
           <div style={{ padding: '5px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -504,12 +500,12 @@ function SectionNotePoints({ content }: { content: string }) {
                 <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, marginTop: 5,
                   background: copied === b ? 'var(--ac-mint)' : 'var(--ac-cyan)',
                   boxShadow: `0 0 4px ${copied === b ? 'var(--ac-mint)' : 'var(--ac-cyan)'}`, opacity: 0.7 }} />
-                <span style={{ fontSize: 11, lineHeight: 1.55, flex: 1,
-                  color: copied === b ? 'var(--ac-mint)' : 'var(--text-secondary)' }}>
+                <span style={{ lineHeight: 1.55, flex: 1,
+                  color: copied === b ? 'var(--ac-mint)' : 'var(--text-secondary)' }} className="text-tiny">
                   {b}
                 </span>
                 {copied === b ? <Check size={9} color="var(--ac-mint)" style={{ flexShrink: 0, marginTop: 4 }} />
-                  : <span style={{ fontSize: 8, color: 'var(--text-tertiary)', flexShrink: 0, marginTop: 5, fontFamily: 'monospace', opacity: 0.5 }}>COPY</span>}
+                  : <span style={{ color: 'var(--text-tertiary)', flexShrink: 0, marginTop: 5, fontFamily: 'monospace', opacity: 0.5 }} className="text-[8px]">COPY</span>}
               </div>
             ))}
           </div>
@@ -633,7 +629,7 @@ function KeyCardsBlock({ title, items, accentColor, numbered, connector }: {
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <div style={{ width: 3, height: 14, borderRadius: 2, background: accentColor, boxShadow: `0 0 8px ${accentColor}` }} />
-        <p style={{ fontSize: 10, fontWeight: 700, color: accentColor, fontFamily: 'monospace', letterSpacing: '0.13em', textTransform: 'uppercase', margin: 0 }}>{title}</p>
+        <p style={{ fontWeight: 700, color: accentColor, fontFamily: 'monospace', letterSpacing: '0.13em', textTransform: 'uppercase', margin: 0 }} className="text-micro">{title}</p>
       </div>
 
       {/* Cards */}
@@ -651,11 +647,10 @@ function KeyCardsBlock({ title, items, accentColor, numbered, connector }: {
                 {/* Number badge */}
                 <div style={{
                   width: 28, height: 28, borderRadius: numbered ? 9 : '50%',
-                  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 800, fontFamily: 'monospace',
+                  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontFamily: 'monospace',
                   background: `${color}14`, border: `1px solid ${color}38`, color,
                   boxShadow: `0 0 10px ${color}18`,
-                }}>
+                }} className="text-tiny">
                   {numbered ? (i + 1) : '▸'}
                 </div>
                 {/* Card body */}
@@ -668,11 +663,11 @@ function KeyCardsBlock({ title, items, accentColor, numbered, connector }: {
                   padding: '8px 12px',
                   boxShadow: `inset 0 1px 0 rgba(255,255,255,0.03)`,
                 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color, margin: '0 0 3px', lineHeight: 1.3 }}>
+                  <p style={{ fontWeight: 700, color, margin: '0 0 3px', lineHeight: 1.3 }} className="text-xs">
                     {item.label}
                   </p>
                   {item.desc && (
-                    <p style={{ fontSize: 12, color: '#8EA8CC', margin: 0, lineHeight: 1.6 }}>
+                    <p style={{ color: '#8EA8CC', margin: 0, lineHeight: 1.6 }} className="text-xs">
                       {item.desc}
                     </p>
                   )}
@@ -702,12 +697,12 @@ function TermsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
 function MCQBlock({ data, onAnswer, answered }: { data: MCQData; onAnswer: (letter: string, text: string) => void; answered: string | null }) {
   const COLORS: Record<string, string> = { A: '#4ECDC4', B: '#9B6FD0', C: '#52D98B', D: '#E8B84B' }
   return (
-    <div className="visual-card-enter" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(78,205,196,0.18)', background: 'rgba(5,8,16,0.75)' }}>
+    <div className="visual-card-enter" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)', background: 'var(--card-bg)' }}>
       <div style={{ padding: '10px 14px 9px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ width: 18, height: 18, borderRadius: 5, background: 'rgba(78,205,196,0.12)', border: '1px solid rgba(78,205,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }}>?</span>
+          <span style={{ fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }} className="text-[9px]">?</span>
         </div>
-        <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.5, margin: 0, fontWeight: 500 }}>{data.question}</p>
+        <p style={{ color: 'var(--text-primary)', lineHeight: 1.5, margin: 0, fontWeight: 500 }} className="text-small">{data.question}</p>
       </div>
       <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {data.options.map(opt => {
@@ -739,12 +734,12 @@ function MCQBlock({ data, onAnswer, answered }: { data: MCQData; onAnswer: (lett
               onMouseEnter={e => { if (answered === null) (e.currentTarget as HTMLElement).style.background = `${color}10` }}
               onMouseLeave={e => { if (answered === null) (e.currentTarget as HTMLElement).style.background = bg }}
             >
-              <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, fontFamily: 'monospace', background: `${color}18`, border: `1px solid ${color}35`, color }}>
+              <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontFamily: 'monospace', background: `${color}18`, border: `1px solid ${color}35`, color }} className="text-tiny">
                 {opt.letter}
               </div>
-              <span style={{ fontSize: 12, lineHeight: 1.5, color: textColor, flex: 1 }}>{opt.text}</span>
-              {isCorrect && answered !== null && <span style={{ fontSize: 14, flexShrink: 0 }}>✓</span>}
-              {isWrong                          && <span style={{ fontSize: 14, flexShrink: 0 }}>✗</span>}
+              <span style={{ lineHeight: 1.5, color: textColor, flex: 1 }} className="text-xs">{opt.text}</span>
+              {isCorrect && answered !== null && <span style={{ flexShrink: 0 }} className="text-sm">✓</span>}
+              {isWrong                          && <span style={{ flexShrink: 0 }} className="text-sm">✗</span>}
             </button>
           )
         })}
@@ -754,7 +749,36 @@ function MCQBlock({ data, onAnswer, answered }: { data: MCQData; onAnswer: (lett
 }
 
 /* ── Smart plain-text renderer — converts prose into readable formatted elements ── */
-function FormattedText({ text }: { text: string }) {
+function TextReveal({ text, animate }: { text: string; animate?: boolean }) {
+  if (!animate) return <>{renderInline(text)}</>
+  const parts = text.split(/(\*\*[^*]+\*\*|\s+)/).filter(Boolean)
+  return (
+    <motion.span
+      initial="hidden" animate="visible"
+      variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
+    >
+      {parts.map((part, i) => {
+        if (/^\s+$/.test(part)) return <span key={i}>{part}</span>
+        const isBold = part.startsWith('**') && part.endsWith('**')
+        const content = isBold ? part.slice(2, -2) : part
+        return (
+          <motion.span
+            key={i}
+            variants={{
+              hidden: { opacity: 0, filter: 'blur(4px)' },
+              visible: { opacity: 1, filter: 'blur(0px)', transition: { duration: 0.25 } }
+            }}
+            style={{ display: 'inline-block', fontWeight: isBold ? 700 : 'inherit', color: isBold ? 'var(--text-primary)' : 'inherit' }}
+          >
+            {content}
+          </motion.span>
+        )
+      })}
+    </motion.span>
+  )
+}
+
+function FormattedText({ text, animate }: { text: string, animate?: boolean }) {
   if (!text.trim()) return null
 
   // Split into logical paragraphs first (double newlines or sentence groups)
@@ -782,9 +806,9 @@ function FormattedText({ text }: { text: string }) {
           const items = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim())).map(l => l.replace(/^[•\-]\s*/, '').trim())
           return (
             <div key={pi}>
-              {intro && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 6px' }}>{renderInline(intro)}</p>}
+              {intro && <p style={{ color: 'var(--text-primary)', lineHeight: 1.7, margin: '0 0 6px' }} className="text-small"><TextReveal text={intro} animate={animate} /></p>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
-                {items.map((item, ii) => <BulletItem key={ii} text={item} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} />)}
+                {items.map((item, ii) => <BulletItem key={ii} text={item} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} animate={animate} />)}
               </div>
             </div>
           )
@@ -804,11 +828,11 @@ function FormattedText({ text }: { text: string }) {
           if (numbered.length >= 2) {
             return (
               <div key={pi}>
-                {intro && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 8px' }}>{renderInline(intro)}</p>}
+                {intro && <p style={{ color: 'var(--text-primary)', lineHeight: 1.7, margin: '0 0 8px' }} className="text-small"><TextReveal text={intro} animate={animate} /></p>}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
                   {numbered.map((item, ii) => {
                     const clean = item.replace(/^Number\s+\w+\s*:\s*/i, '').replace(/^\w+[,.:]\s*/i, '').trim()
-                    return <BulletItem key={ii} text={clean} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} index={ii + 1} />
+                    return <BulletItem key={ii} text={clean} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} index={ii + 1} animate={animate} />
                   })}
                 </div>
               </div>
@@ -821,7 +845,7 @@ function FormattedText({ text }: { text: string }) {
           const preText = para.slice(0, para.indexOf(dashItems[0])).trim()
           return (
             <div key={pi}>
-              {preText && <p style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.7, margin: '0 0 8px' }}>{renderInline(preText)}</p>}
+              {preText && <p style={{ color: 'var(--text-primary)', lineHeight: 1.7, margin: '0 0 8px' }} className="text-small"><TextReveal text={preText} animate={animate} /></p>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {dashItems.map((item, ii) => {
                   const dashIdx = item.indexOf(' — ')
@@ -831,10 +855,10 @@ function FormattedText({ text }: { text: string }) {
                   return (
                     <div key={ii} style={{ display: 'flex', alignItems: 'flex-start', gap: 0, borderRadius: 8, overflow: 'hidden', border: `1px solid ${color}18` }}>
                       <div style={{ background: `${color}15`, borderRight: `2px solid ${color}50`, padding: '6px 10px', minWidth: 110, flexShrink: 0 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color, lineHeight: 1.4 }}>{label}</span>
+                        <span style={{ fontWeight: 700, color, lineHeight: 1.4 }} className="text-tiny">{label}</span>
                       </div>
                       {def && <div style={{ padding: '6px 10px', background: `${color}05` }}>
-                        <span style={{ fontSize: 12, color: '#8EA8CC', lineHeight: 1.5 }}>{def}</span>
+                        <span style={{ color: '#8EA8CC', lineHeight: 1.5 }} className="text-xs"><TextReveal text={def} animate={animate} /></span>
                       </div>}
                     </div>
                   )
@@ -847,12 +871,12 @@ function FormattedText({ text }: { text: string }) {
         // Plain paragraph — split on newlines if any, render each line
         const lines = para.split('\n').map(l => l.trim()).filter(Boolean)
         if (lines.length === 1) {
-          return <p key={pi} style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.75, margin: 0 }}>{renderInline(para)}</p>
+          return <p key={pi} style={{ color: 'var(--text-primary)', lineHeight: 1.75, margin: 0 }} className="text-small"><TextReveal text={para} animate={animate} /></p>
         }
         return (
           <div key={pi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {lines.map((line, li) => (
-              <p key={li} style={{ fontSize: 13, color: '#E8F0FC', lineHeight: 1.75, margin: 0 }}>{renderInline(line)}</p>
+              <p key={li} style={{ color: 'var(--text-primary)', lineHeight: 1.75, margin: 0 }} className="text-small"><TextReveal text={line} animate={animate} /></p>
             ))}
           </div>
         )
@@ -861,16 +885,16 @@ function FormattedText({ text }: { text: string }) {
   )
 }
 
-function BulletItem({ text, color, index }: { text: string; color: string; index?: number }) {
+function BulletItem({ text, color, index, animate }: { text: string; color: string; index?: number; animate?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
       <div style={{ width: 20, height: 20, borderRadius: index !== undefined ? 6 : '50%', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${color}15`, border: `1px solid ${color}30` }}>
         {index !== undefined
-          ? <span style={{ fontSize: 9, fontWeight: 800, color, fontFamily: 'monospace' }}>{index}</span>
+          ? <span style={{ fontWeight: 800, color, fontFamily: 'monospace' }} className="text-[9px]">{index}</span>
           : <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'block', boxShadow: `0 0 4px ${color}` }} />
         }
       </div>
-      <span style={{ fontSize: 12, color: '#8EA8CC', lineHeight: 1.6, paddingTop: 2, flex: 1 }}>{renderInline(text)}</span>
+      <span style={{ color: '#8EA8CC', lineHeight: 1.6, paddingTop: 2, flex: 1 }} className="text-xs"><TextReveal text={text} animate={animate} /></span>
     </div>
   )
 }
@@ -885,7 +909,7 @@ function renderInline(text: string): React.ReactNode {
     <>
       {parts.map((part, i) =>
         part.startsWith('**') && part.endsWith('**')
-          ? <strong key={i} style={{ color: '#E8F0FC', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+          ? <strong key={i} style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
           : <span key={i}>{part}</span>
       )}
     </>
@@ -893,7 +917,7 @@ function renderInline(text: string): React.ReactNode {
 }
 
 /* ── Renders a full assistant message: plain text + inline structured blocks ── */
-function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null; isStreaming?: boolean }) {
+function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming, animate }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null; isStreaming?: boolean; animate?: boolean }) {
   // While streaming, hide any incomplete :::MCQ block so raw text never shows
   const displayContent = isStreaming
     ? content.replace(/[ \t]*:::MCQ[\s\S]*$/, '')
@@ -902,7 +926,7 @@ function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming }: 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {segments.map((seg, i) => {
-        if (seg.kind === 'text')    return <FormattedText key={i} text={seg.text} />
+        if (seg.kind === 'text')    return <FormattedText key={i} text={seg.text} animate={animate} />
         if (seg.kind === 'pillars') return <PillarsBlock  key={i} title={seg.title} items={seg.items} />
         if (seg.kind === 'steps')   return <StepsBlock    key={i} title={seg.title} items={seg.items} />
         if (seg.kind === 'terms')   return <TermsBlock    key={i} title={seg.title} items={seg.items} />
@@ -924,10 +948,11 @@ function VisualCard({ svg }: { svg: string }) {
       borderRadius: 14,
       overflow: 'hidden',
       border: '1px solid rgba(78,205,196,0.18)',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(78,205,196,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
+      boxShadow: 'var(--shadow-lg), 0 0 0 1px rgba(78,205,196,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
       width: '100%',
     }}>
       <div
+        className="ai-visual-wrapper"
         style={{ lineHeight: 0, display: 'block' }}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
@@ -945,20 +970,19 @@ function TypingIndicator() {
         width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
         background: 'linear-gradient(135deg, rgba(78,205,196,0.18), rgba(155,111,208,0.18))',
         border: '1.5px solid rgba(78,205,196,0.35)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 700, color: 'var(--ac-cyan)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-cyan)',
         boxShadow: '0 0 12px rgba(78,205,196,0.2)',
-      }}>A</div>
+      }} className="text-tiny">A</div>
       <div style={{
-        background: 'rgba(10,14,28,0.82)',
-        border: '1px solid rgba(78,205,196,0.14)',
+        background: 'var(--card-bg)',
+        border: '1px solid var(--card-border)',
         borderRadius: '16px 16px 16px 4px',
         padding: '11px 16px',
         boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04)',
         display: 'flex', alignItems: 'center', gap: 5,
       }}>
         {[0,1,2].map(i => <span key={i} className="typing-dot" style={{ display: 'inline-block' }} />)}
-        <span style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace', marginLeft: 4, letterSpacing: '0.06em' }}>thinking…</span>
+        <span style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', marginLeft: 4, letterSpacing: '0.06em' }} className="text-micro">thinking…</span>
       </div>
     </div>
   )
@@ -984,17 +1008,17 @@ function NotesPromptBanner({ phase, topicTitle, topicIdx, total }: {
   return (
     <div style={{
       margin: '0 20px 8px', padding: '9px 14px', borderRadius: 9, flexShrink: 0,
-      background: 'rgba(12,16,32,0.65)', border: `1px solid ${c.accent}28`,
+      background: 'var(--card-bg)', border: `1px solid var(--border-subtle)`,
       boxShadow: `var(--shadow-sm), 0 0 12px ${c.accent}14`,
       display: 'flex', alignItems: 'center', gap: 10,
     }}>
-      <span style={{ fontSize: 14 }}>{c.icon}</span>
+      <span className="text-sm">{c.icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-          <span style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.14em', color: c.accent }}>{c.label}</span>
-          {total > 0 && <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-tertiary)' }}>· {topicIdx+1}/{total}</span>}
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.14em', color: c.accent }} className="text-[9px]">{c.label}</span>
+          {total > 0 && <span style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)' }} className="text-[9px]">· {topicIdx+1}/{total}</span>}
         </div>
-        <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, margin: 0 }}>{c.hint}</p>
+        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.4, margin: 0 }} className="text-tiny">{c.hint}</p>
       </div>
     </div>
   )
@@ -1003,8 +1027,9 @@ function NotesPromptBanner({ phase, topicTitle, topicIdx, total }: {
 /* ══════════════════════════════════════════════════════════════════════════════
    QUIZ MODAL
    ══════════════════════════════════════════════════════════════════════════════ */
-function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onComplete }: {
+function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, nextModule, onClose, onComplete }: {
   moduleId: string; moduleTitle: string; partNumber: number; partTitle: string
+  nextModule: string | null
   onClose: () => void; onComplete: (passed: boolean, score: number) => void
 }) {
   const [questions,  setQuestions]  = useState<QuizQuestion[]>([])
@@ -1036,9 +1061,9 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
     <div style={{ position:'fixed', inset:0, background:'rgba(3,5,14,0.85)', zIndex:100,
       display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(10px)' }}>
       {/* bordered wrapper */}
-      <div className="aurora-border" style={{ width:'100%', maxWidth:620, maxHeight:'88vh', borderRadius:16 }}>
+      <div style={{ width:'100%', maxWidth:620, maxHeight:'88vh', borderRadius:16, border:'1px solid var(--border-subtle)', boxShadow:'var(--shadow-xl)' }}>
         <div style={{
-          display:'flex', flexDirection:'column', background:'var(--bg-elevated)',
+          display:'flex', flexDirection:'column', background:'var(--card-bg)',
           borderRadius:15, maxHeight:'88vh',
           boxShadow:'var(--shadow-xl)',
         }}>
@@ -1053,11 +1078,11 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
                 <Brain size={17} color="var(--ac-cyan)" />
               </div>
               <div>
-                <p style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)' }}>Knowledge Check</p>
+                <p style={{ fontWeight:700, color:'var(--text-primary)' }} className="text-small">Knowledge Check</p>
                 <p className="label-mono" style={{ color:'var(--text-tertiary)' }}>{moduleTitle}</p>
               </div>
             </div>
-            <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-tertiary)', fontSize:18, lineHeight:1, padding:4 }}>✕</button>
+            <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-tertiary)', lineHeight:1, padding:4 }} className="text-lg">✕</button>
           </div>
 
           {/* body */}
@@ -1074,17 +1099,17 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
                   {result.passed
                     ? <CheckCircle2 size={19} color="var(--ac-mint)" />
                     : <XCircle size={19} color="var(--ac-rose)" />}
-                  <p style={{ fontWeight:700, color:result.passed?'var(--ac-mint)':'var(--ac-rose)', fontSize:14 }}>
+                  <p style={{ fontWeight:700, color:result.passed?'var(--ac-mint)':'var(--ac-rose)' }} className="text-sm">
                     {result.passed ? `Passed — ${result.percentage}%` : `Not yet — ${result.percentage}%`}
                   </p>
                 </div>
-                {result.weakAreas.length > 0 && <p style={{ fontSize:12, color:'var(--text-tertiary)', marginTop:5 }}>Revisit: {result.weakAreas.join(', ')}</p>}
+                {result.weakAreas.length > 0 && <p style={{ color:'var(--text-tertiary)', marginTop:5 }} className="text-xs">Revisit: {result.weakAreas.join(', ')}</p>}
               </div>
             )}
 
             {!loading && questions.map((q, qi) => (
               <div key={q.id} style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                <p style={{ fontSize:13, color:'var(--text-primary)', fontWeight:500, lineHeight:1.55 }}>{qi+1}. {q.question}</p>
+                <p style={{ color:'var(--text-primary)', fontWeight:500, lineHeight:1.55 }} className="text-small">{qi+1}. {q.question}</p>
                 <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
                   {q.options.map(opt => (
                     <label key={opt} style={{
@@ -1097,19 +1122,25 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
                       <input type="radio" name={q.id} value={opt} checked={answers[q.id]===opt}
                         onChange={()=>!result&&setAnswers(p=>({...p,[q.id]:opt}))}
                         style={{ marginTop:2, accentColor:'var(--ac-cyan)' }} />
-                      <span style={{ fontSize:12, color:answers[q.id]===opt?'var(--text-primary)':'var(--text-secondary)', lineHeight:1.5 }}>{opt}</span>
+                      <span style={{ color:answers[q.id]===opt?'var(--text-primary)':'var(--text-secondary)', lineHeight:1.5 }} className="text-xs">{opt}</span>
                     </label>
                   ))}
                 </div>
-                {result?.explanations[q.id] && (
-                  <div style={{ padding:'9px 13px', borderRadius:9, fontSize:11, lineHeight:1.5,
-                    background: answers[q.id]===result.explanations[q.id].correct ? 'rgba(110,201,160,0.07)' : 'rgba(196,123,138,0.07)',
-                    color: answers[q.id]===result.explanations[q.id].correct ? 'var(--ac-mint)' : 'var(--ac-rose)',
-                    border: `1px solid ${answers[q.id]===result.explanations[q.id].correct ? 'rgba(110,201,160,0.22)' : 'rgba(196,123,138,0.2)'}`,
-                  }}>
-                    <strong>Correct: {result.explanations[q.id].correct}</strong> — {result.explanations[q.id].explanation}
-                  </div>
-                )}
+                {result?.explanations[q.id] && (() => {
+                  const isCorrect = answers[q.id]?.trim().toUpperCase().startsWith(result.explanations[q.id].correct.trim().toUpperCase())
+                  return (
+                    <div style={{ padding:'12px 16px', borderRadius:9, lineHeight:1.5,
+                      background: isCorrect ? 'rgba(110,201,160,0.07)' : 'rgba(196,123,138,0.07)',
+                      color: isCorrect ? 'var(--ac-mint)' : 'var(--ac-rose)',
+                      border: `1px solid ${isCorrect ? 'rgba(110,201,160,0.22)' : 'rgba(196,123,138,0.2)'}`,
+                    }} className="text-tiny">
+                      <div style={{ fontWeight:700, marginBottom:4 }}>
+                        {isCorrect ? '✅ Correct' : `❌ Incorrect (Correct answer: ${result.explanations[q.id].correct})`}
+                      </div>
+                      <div>{result.explanations[q.id].explanation}</div>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>
@@ -1119,7 +1150,7 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
             {!result ? (
               <>
                 <button onClick={onClose} style={{ padding:'8px 16px', borderRadius:9, background:'none',
-                  border:'1px solid var(--border-subtle)', color:'var(--text-secondary)', fontSize:12, cursor:'pointer' }}>Cancel</button>
+                  border:'1px solid var(--border-subtle)', color:'var(--text-secondary)', cursor:'pointer' }} className="text-xs">Cancel</button>
                 <StarBorder
                   as="button"
                   onClick={handleSubmit}
@@ -1139,14 +1170,41 @@ function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, onClose, onCo
                 </StarBorder>
               </>
             ) : (
-              <button onClick={onClose} style={{
-                padding:'8px 20px', borderRadius:9, fontSize:12, fontWeight:700, cursor:'pointer',
-                background: result.passed ? 'rgba(110,201,160,0.12)' : 'rgba(196,123,138,0.08)',
-                border: `1px solid ${result.passed ? 'rgba(110,201,160,0.35)' : 'rgba(196,123,138,0.25)'}`,
-                color: result.passed ? 'var(--ac-mint)' : 'var(--ac-rose)',
-              }}>
-                {result.passed ? 'Continue learning →' : 'Try again later'}
-              </button>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={onClose} style={{
+                  padding:'8px 20px', borderRadius:9, fontWeight:600, cursor:'pointer',
+                  background: 'none',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)',
+                }} className="text-xs">
+                  Close
+                </button>
+                {result.passed ? (
+                  <button onClick={() => {
+                    if (nextModule) {
+                      window.location.href = `/course/${nextModule}`
+                    } else {
+                      onClose()
+                    }
+                  }} style={{
+                    padding:'8px 20px', borderRadius:9, fontWeight:700, cursor:'pointer',
+                    background: 'rgba(110,201,160,0.12)',
+                    border: '1px solid rgba(110,201,160,0.35)',
+                    color: 'var(--ac-mint)',
+                  }} className="text-xs">
+                    {nextModule ? 'Proceed to Next Module →' : 'Course Completed!'}
+                  </button>
+                ) : (
+                  <button onClick={onClose} style={{
+                    padding:'8px 20px', borderRadius:9, fontWeight:700, cursor:'pointer',
+                    background: 'rgba(196,123,138,0.08)',
+                    border: '1px solid rgba(196,123,138,0.25)',
+                    color: 'var(--ac-rose)',
+                  }} className="text-xs">
+                    Try again later
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1268,6 +1326,7 @@ export default function CourseModulePage() {
 
   const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([])
   const currentProgress = sectionProgress.find(p => p.section_id === currentSection?.section_id) ?? null
+  const isModuleComplete = sections.length > 0 && sections.every(s => sectionProgress.find(p => p.section_id === s.section_id)?.status === 'completed')
 
 
   const CHAT_KEY = `chat_history_${moduleId}`
@@ -1796,7 +1855,7 @@ export default function CourseModulePage() {
   /* ── shared button styles ── */
   const hudBtn = (active: boolean, accent = 'var(--ac-cyan)', accentRgb = '126,207,206'): React.CSSProperties => ({
     padding: '5px 11px', borderRadius: 8, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600,
+    display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600,
     background: active ? `rgba(${accentRgb},0.12)` : 'rgba(255,255,255,0.03)',
     border: `1px solid ${active ? `rgba(${accentRgb},0.30)` : 'var(--border-subtle)'}`,
     color: active ? accent : 'var(--text-secondary)',
@@ -1835,8 +1894,8 @@ export default function CourseModulePage() {
             }}>
             <CheckCircle2 size={18} color="#52D98B" />
             <div>
-              <p style={{ fontSize: 11, color: '#52D98B', fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 2 }}>SECTION COMPLETE</p>
-              <p style={{ fontSize: 13, color: '#E8F0FC', fontWeight: 600 }}>
+              <p style={{ color: '#52D98B', fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 2 }} className="text-tiny">SECTION COMPLETE</p>
+              <p style={{ color: 'var(--text-primary)', fontWeight: 600 }} className="text-small">
                 Moving to next section…
               </p>
             </div>
@@ -1856,10 +1915,10 @@ export default function CourseModulePage() {
               position: 'fixed', top: 62, right: 16, zIndex: 150,
               background: 'rgba(9,13,26,0.96)', border: '1px solid rgba(78,205,196,0.2)',
               borderRadius: 14, padding: '16px 18px', minWidth: 240,
-              backdropFilter: 'blur(20px)', boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+              backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-lg)',
               cursor: 'pointer',
             }}>
-            <p style={{ fontSize: 11, color: 'rgba(78,205,196,0.7)', fontFamily: 'monospace', letterSpacing: '0.14em', marginBottom: 12 }}>KEYBOARD SHORTCUTS</p>
+            <p style={{ color: 'rgba(78,205,196,0.7)', fontFamily: 'monospace', letterSpacing: '0.14em', marginBottom: 12 }} className="text-tiny">KEYBOARD SHORTCUTS</p>
             {[
               { key: 'Alt+N', label: 'Next section' },
               { key: 'Alt+Q', label: 'Open quiz' },
@@ -1871,11 +1930,11 @@ export default function CourseModulePage() {
               { key: 'Shift+Enter', label: 'New line' },
             ].map(({ key, label }) => (
               <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                <span style={{ fontSize: 12, color: '#8EA8CC' }}>{label}</span>
-                <kbd style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', borderRadius: 5, padding: '2px 7px' }}>{key}</kbd>
+                <span style={{ color: '#8EA8CC' }} className="text-xs">{label}</span>
+                <kbd style={{ fontFamily: 'monospace', color: '#4ECDC4', background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', borderRadius: 5, padding: '2px 7px' }} className="text-micro">{key}</kbd>
               </div>
             ))}
-            <p style={{ fontSize: 9, color: '#4A6285', fontFamily: 'monospace', marginTop: 8, textAlign: 'center' }}>click to close</p>
+            <p style={{ color: '#4A6285', fontFamily: 'monospace', marginTop: 8, textAlign: 'center' }} className="text-[9px]">click to close</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1895,12 +1954,12 @@ export default function CourseModulePage() {
             onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color='var(--text-primary)'}
             onMouseLeave={e=>(e.currentTarget as HTMLElement).style.color='var(--text-tertiary)'}>
             <ChevronLeft size={15} />
-            <span style={{ fontSize: 11, letterSpacing: '0.08em', fontFamily: 'monospace' }}>BACK</span>
+            <span style={{ letterSpacing: '0.08em', fontFamily: 'monospace' }} className="text-tiny">BACK</span>
           </button>
           <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
           <div>
-            <p style={{ fontSize: 9, fontFamily: 'monospace', letterSpacing: '0.16em', color: 'var(--ac-cyan)', opacity: 0.75 }}>PART {partNumber} · {moduleId.toUpperCase()}</p>
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginTop: 1, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ fontFamily: 'monospace', letterSpacing: '0.16em', color: 'var(--ac-cyan)', opacity: 0.75 }} className="text-[9px]">PART {partNumber} · {moduleId.toUpperCase()}</p>
+            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: 1, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-xs">
               <DecryptedText text={moduleTitle} animateOn="view" sequential={true} revealDirection="start" speed={28} className="aurora-text" encryptedClassName="aurora-text" />
             </p>
           </div>
@@ -1909,24 +1968,24 @@ export default function CourseModulePage() {
         {/* centre — progress */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div>
-            <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.12em', marginBottom: 3, textAlign: 'right' }}>
+            <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.12em', marginBottom: 3, textAlign: 'right' }} className="text-[9px]">
               {completedCount}/{totalSections} sections
             </p>
             <div style={{ width: 160, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 99,
-              overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.4)' }}>
+              overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
               <div className="aurora-progress-fill" style={{ height: '100%', width: `${progressPct}%`, transition: 'width 0.55s ease' }} />
             </div>
           </div>
           {currentSection && (
             <div className="depth-pill" style={{ padding: '3px 10px' }}>
-              <p style={{ fontSize: 10, color: 'var(--ac-cyan)', fontFamily: 'monospace', letterSpacing: '0.08em' }}>§ {currentSection.section_id}</p>
+              <p style={{ color: 'var(--ac-cyan)', fontFamily: 'monospace', letterSpacing: '0.08em' }} className="text-micro">§ {currentSection.section_id}</p>
             </div>
           )}
         </div>
 
         {/* right controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => { setAudioEnabled(v=>!v); if (audioEnabled) cancelSpeech() }} style={hudBtn(audioEnabled)}>
+          <button onClick={() => { setAudioEnabled(v=>!v); if (audioEnabled) cancelSpeech() }} style={hudBtn(audioEnabled)} className="text-tiny">
             {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
             <span style={{ fontFamily: 'monospace' }}>{audioEnabled ? 'AUDIO' : 'MUTED'}</span>
           </button>
@@ -1934,9 +1993,9 @@ export default function CourseModulePage() {
           {availableVoices.length > 1 && (
             <select onChange={e => { const v=availableVoices.find(v=>v.name===e.target.value); if (v) voiceRef.current=v }}
               defaultValue={voiceRef.current?.name ?? ''}
-              style={{ padding: '4px 7px', borderRadius: 7, fontSize: 11, fontFamily: 'monospace',
+              style={{ padding: '4px 7px', borderRadius: 7, fontFamily: 'monospace',
                 background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)',
-                color: 'var(--text-secondary)', cursor: 'pointer', maxWidth: 145, outline: 'none' }}>
+                color: 'var(--text-secondary)', cursor: 'pointer', maxWidth: 145, outline: 'none' }} className="text-tiny">
               {availableVoices.map(v=>(
                 <option key={v.name} value={v.name} style={{ background: '#0C1020', color: '#D8E4F0' }}>
                   {v.name.replace(/Microsoft |Google /,'').slice(0,18)} ({v.lang})
@@ -1946,12 +2005,12 @@ export default function CourseModulePage() {
           )}
 
           {currentSection && currentProgress?.status !== 'completed' && (
-            <button onClick={completeSection} style={hudBtn(false,'var(--ac-mint)','110,201,160')}>
+            <button onClick={completeSection} style={hudBtn(false,'var(--ac-mint)','110,201,160')} className="text-tiny">
               <Check size={12} /> Mark Done
             </button>
           )}
           {currentSection && currentProgress?.status === 'completed' && (
-            <div style={{ ...hudBtn(true,'var(--ac-mint)','110,201,160'), cursor: 'default', opacity: 0.6 }}>
+            <div style={{ ...hudBtn(true,'var(--ac-mint)','110,201,160'), cursor: 'default', opacity: 0.6 }} className="text-tiny">
               <CheckCircle2 size={12} /> Done
             </div>
           )}
@@ -1976,18 +2035,18 @@ export default function CourseModulePage() {
           )}
 
           {canGoNext && nextModule && (
-            <button onClick={()=>router.push(`/course/${nextModule}`)} style={hudBtn(true,'var(--ac-mint)','110,201,160')}>
+            <button onClick={()=>router.push(`/course/${nextModule}`)} style={hudBtn(true,'var(--ac-mint)','110,201,160')} className="text-tiny">
               Next <ChevronRight size={12} />
             </button>
           )}
           {!canGoNext && nextModule && exchangeCount > 0 && (
-            <div title="Pass the quiz to unlock" style={{ ...hudBtn(false), opacity: 0.4, cursor: 'default' }}>
+            <div title="Pass the quiz to unlock" style={{ ...hudBtn(false), opacity: 0.4, cursor: 'default' }} className="text-tiny">
               <Lock size={10} /> Next
             </div>
           )}
 
           <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
-          <button onClick={()=>setShowKeyboardHelp(v=>!v)} style={hudBtn(showKeyboardHelp)} title="Keyboard shortcuts (Alt+K)">
+          <button onClick={()=>setShowKeyboardHelp(v=>!v)} style={hudBtn(showKeyboardHelp)} title="Keyboard shortcuts (Alt+K)" className="text-tiny">
             <Keyboard size={13} />
           </button>
         </div>
@@ -1999,15 +2058,15 @@ export default function CourseModulePage() {
         {/* COL 1 — Sections */}
         <div style={{
             width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
+            background: 'var(--sidebar-bg)',
             borderRight: '1px solid var(--border-subtle)',
-            boxShadow: '2px 0 18px rgba(0,0,0,0.4), inset -1px 0 0 rgba(255,255,255,0.025)',
+            boxShadow: 'var(--shadow-md)',
           }}>
             <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-              <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.16em', marginBottom: 3, opacity: 0.7 }}>
+              <p style={{ fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.16em', marginBottom: 3, opacity: 0.7 }} className="text-[9px]">
                 M{moduleId.replace('m','').padStart(2,'0')} · TOPICS
               </p>
-              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <p style={{ fontWeight: 600, color: 'var(--text-secondary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-tiny">
                 {moduleTitle}
               </p>
             </div>
@@ -2017,18 +2076,18 @@ export default function CourseModulePage() {
                 sections={sections}
                 currentIdx={currentSectionIdx}
                 progress={sectionProgress}
-                quizUnlocked={sections.length > 0 && sections.every(s => sectionProgress.find(p => p.section_id === s.section_id)?.status === 'completed')}
+                quizUnlocked={isModuleComplete}
                 onSelect={switchSection}
                 onStartFinalQuiz={() => setShowQuiz(true)}
               />
             ) : !sectionsLoaded ? (
               <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:8 }}>
                 <Loader2 size={17} color="var(--ac-cyan)" className="animate-spin" style={{ opacity:0.5 }} />
-                <p style={{ fontSize:11, color:'var(--text-tertiary)' }}>Loading…</p>
+                <p style={{ color:'var(--text-tertiary)' }} className="text-tiny">Loading…</p>
               </div>
             ) : (
               <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <p style={{ fontSize:11, color:'var(--text-tertiary)', padding:'0 12px', textAlign:'center' }}>No sections found</p>
+                <p style={{ color:'var(--text-tertiary)', padding:'0 12px', textAlign:'center' }} className="text-tiny">No sections found</p>
               </div>
             )}
 
@@ -2053,29 +2112,34 @@ export default function CourseModulePage() {
                   }}>
                     {item.done
                       ? <Check size={9} color="var(--ac-mint)" />
-                      : <span style={{ fontSize: 6, color: 'var(--text-tertiary)', fontWeight: 700 }}>{i === 0 ? '★' : '?'}</span>
+                      : <span style={{ color: 'var(--text-tertiary)', fontWeight: 700 }} className="text-[6px]">{i === 0 ? '★' : '?'}</span>
                     }
                   </div>
                   <span style={{
-                    fontSize: 10, lineHeight: 1.4, flex: 1,
+                    lineHeight: 1.4, flex: 1,
                     color: item.done ? 'var(--ac-mint)' : 'var(--text-tertiary)',
                     textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.65 : 1,
-                  }}>{item.label}</span>
+                  }} className="text-micro">{item.label}</span>
                 </div>
               ))}
+            </div>
+
+            {/* theme toggle */}
+            <div style={{ padding: '12px' }}>
+              <ThemeToggle />
             </div>
 
             {/* module nav */}
             <div style={{ padding:'9px 12px',borderTop:'1px solid var(--border-subtle)',display:'flex',justifyContent:'space-between',flexShrink:0 }}>
               <button onClick={()=>{const n=parseInt(moduleId.replace('m',''),10);if(n>1)router.push(`/course/m${String(n-1).padStart(2,'0')}`)}}
-                style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',fontSize:10,display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }}>
+                style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }} className="text-micro">
                 <ChevronLeft size={12} /> PREV
               </button>
               {nextModule&&(canGoNext
-                ?<button onClick={()=>router.push(`/course/${nextModule}`)} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',fontSize:10,display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }}>
+                ?<button onClick={()=>router.push(`/course/${nextModule}`)} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }} className="text-micro">
                     NEXT <ChevronRight size={12} />
                   </button>
-                :<span style={{ color:'var(--text-tertiary)',fontSize:10,display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em',opacity:0.45 }}>
+                :<span style={{ color:'var(--text-tertiary)',display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em',opacity:0.45 }} className="text-micro">
                     <Lock size={9} /> NEXT
                   </span>
               )}
@@ -2090,7 +2154,7 @@ export default function CourseModulePage() {
             flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
             paddingTop: 18, paddingBottom: 14,
             borderBottom: '1px solid rgba(78,205,196,0.12)',
-            boxShadow: 'inset 0 -1px 0 rgba(78,205,196,0.06), 0 4px 40px rgba(0,0,0,0.3)',
+            boxShadow: 'var(--shadow-lg)',
             position: 'relative', zIndex: 1,
             overflow: 'hidden',
             minHeight: 200,
@@ -2099,6 +2163,7 @@ export default function CourseModulePage() {
             {/* SoftAurora — audio-visualizer avatar */}
             <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
               <SoftAurora
+                isSpeaking={isSpeaking || streaming}
                 speed={0.45}
                 scale={1.3}
                 brightness={1.1}
@@ -2127,7 +2192,7 @@ export default function CourseModulePage() {
                     boxShadow: isSpeaking ? 'var(--glow-cyan)' : 'none',
                     transition: 'all 0.4s', animation: isSpeaking ? 'onlinePulse 2s infinite' : 'none',
                   }} />
-                  <p style={{ fontSize: 10, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
+                  <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace' }} className="text-micro">
                     <span style={{ color: 'var(--ac-cyan)', marginRight: 5 }}>§{currentSection.section_id}</span>
                     {currentSection.section_title.length > 38 ? currentSection.section_title.slice(0,36)+'…' : currentSection.section_title}
                   </p>
@@ -2155,7 +2220,7 @@ export default function CourseModulePage() {
               <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <div style={{
                   display:'flex', flexDirection:'column', alignItems:'center', gap:20,
-                  background:'rgba(10,14,28,0.7)', border:'1px solid rgba(78,205,196,0.14)',
+                  background:'var(--card-bg)', border:'1px solid var(--card-border)',
                   borderRadius:20, padding:'32px 36px', maxWidth:320, textAlign:'center',
                   boxShadow:'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)',
                   backdropFilter:'blur(16px)',
@@ -2166,26 +2231,25 @@ export default function CourseModulePage() {
                       width:64, height:64, borderRadius:'50%',
                       background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.22))',
                       border:'2px solid rgba(78,205,196,0.4)',
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      fontSize:24, fontWeight:800, color:'var(--ac-cyan)',
+                      display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, color:'var(--ac-cyan)',
                       boxShadow:'0 0 32px rgba(78,205,196,0.2)',
-                    }}>A</div>
+                    }} className="text-2xl">A</div>
                     <div style={{ position:'absolute', bottom:2, right:2, width:14, height:14, borderRadius:'50%', background:'#22c55e', border:'2px solid rgba(10,14,28,0.9)', boxShadow:'0 0 8px #22c55e' }} />
                   </div>
 
                   {/* Intro text */}
                   <div>
-                    <p style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)', margin:'0 0 6px' }}>
+                    <p style={{ fontWeight:700, color:'var(--text-primary)', margin:'0 0 6px' }} className="text-base">
                       Hi, I&apos;m Alex
                     </p>
-                    <p style={{ fontSize:12, color:'var(--text-secondary)', lineHeight:1.7, margin:0 }}>
+                    <p style={{ color:'var(--text-secondary)', lineHeight:1.7, margin:0 }} className="text-xs">
                       Your AI tutor for<br/>
                       <span style={{ color:'var(--ac-cyan)', fontWeight:600 }}>
                         {currentSection?.section_title ?? moduleTitle}
                       </span>
                     </p>
                     {currentSection && (
-                      <p style={{ fontSize:11, color:'var(--text-tertiary)', marginTop:8, lineHeight:1.6 }}>
+                      <p style={{ color:'var(--text-tertiary)', marginTop:8, lineHeight:1.6 }} className="text-tiny">
                         Select a topic from the left panel,<br/>then tap <strong style={{ color:'var(--ac-cyan)' }}>Start Lesson</strong> to begin.
                       </p>
                     )}
@@ -2203,20 +2267,19 @@ export default function CourseModulePage() {
                       display:'flex', alignItems:'center', gap:8,
                       padding:'12px 28px', borderRadius:13,
                       background:'linear-gradient(135deg, #4ECDC4 0%, #52D98B 100%)',
-                      border:'none', cursor:'pointer',
-                      fontSize:14, fontWeight:700, color:'#050810',
+                      border:'none', cursor:'pointer', fontWeight:700, color:'#050810',
                       boxShadow:'0 4px 20px rgba(78,205,196,0.3)',
                       transition:'box-shadow 0.18s, transform 0.18s',
                     }}
                     onMouseEnter={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 6px 28px rgba(78,205,196,0.45)'; (e.currentTarget as HTMLElement).style.transform='translateY(-1px)' }}
-                    onMouseLeave={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 4px 20px rgba(78,205,196,0.3)'; (e.currentTarget as HTMLElement).style.transform='none' }}
+                    onMouseLeave={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 4px 20px rgba(78,205,196,0.3)'; (e.currentTarget as HTMLElement).style.transform='none' }} className="text-sm"
                   >
                     <Brain size={16} />
                     Start Lesson
                   </button>
 
                   {/* Or ask a question */}
-                  <p style={{ fontSize:11, color:'var(--text-tertiary)', margin:0 }}>
+                  <p style={{ color:'var(--text-tertiary)', margin:0 }} className="text-tiny">
                     or type a question below
                   </p>
                 </div>
@@ -2227,7 +2290,7 @@ export default function CourseModulePage() {
             {messages.length > 0 && (
               <div style={{ display:'flex', alignItems:'center', gap:10, margin:'8px 0 12px', flexShrink:0 }}>
                 <div style={{ flex:1, height:1, background:'var(--border-subtle)' }} />
-                <span style={{ fontSize:9, fontFamily:'monospace', letterSpacing:'0.12em', color:'var(--text-tertiary)', whiteSpace:'nowrap' }}>
+                <span style={{ fontFamily:'monospace', letterSpacing:'0.12em', color:'var(--text-tertiary)', whiteSpace:'nowrap' }} className="text-[9px]">
                   SESSION · {new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
                 </span>
                 <div style={{ flex:1, height:1, background:'var(--border-subtle)' }} />
@@ -2268,21 +2331,19 @@ export default function CourseModulePage() {
                       visibility: nextSameRole ? 'hidden' : 'visible',
                       background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))',
                       border:'1.5px solid rgba(78,205,196,0.32)',
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      fontSize:11, fontWeight:700, color:'var(--ac-cyan)',
+                      display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, color:'var(--ac-cyan)',
                       boxShadow: isSpeaking && isLastAss ? '0 0 14px rgba(78,205,196,0.4)' : '0 0 8px rgba(78,205,196,0.12)',
                       transition:'box-shadow 0.4s ease',
-                    }}>A</div>
+                    }} className="text-tiny">A</div>
                   )}
 
                   <div style={{ display:'flex', flexDirection:'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap:2, maxWidth: isUser ? '74%' : '88%' }}>
                     <div style={{
-                      padding: isUser ? '9px 14px' : '10px 15px',
-                      fontSize:13, lineHeight:1.75,
+                      padding: isUser ? '9px 14px' : '10px 15px', lineHeight:1.75,
                       borderRadius: radius,
                       background: isUser
                         ? 'linear-gradient(135deg, rgba(91,110,175,0.28), rgba(155,111,208,0.20))'
-                        : 'rgba(10,14,28,0.82)',
+                        : 'var(--card-bg)',
                       border: isUser
                         ? '1px solid rgba(155,111,208,0.30)'
                         : '1px solid rgba(78,205,196,0.10)',
@@ -2293,9 +2354,9 @@ export default function CourseModulePage() {
                         ? '0 2px 12px rgba(155,111,208,0.15)'
                         : isSpeaking && isLastAss
                           ? '0 2px 12px rgba(78,205,196,0.12), inset 0 1px 0 rgba(255,255,255,0.04)'
-                          : '0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)',
+                          : 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.03)',
                       transition:'box-shadow 0.4s ease',
-                    }}>
+                    }} className="text-small">
                       {isUser
                         ? (msg.content || null)
                         : msg.content
@@ -2304,6 +2365,7 @@ export default function CourseModulePage() {
                               svg={msg.visual}
                               answeredMcq={msg.mcqAnswer ?? null}
                               isStreaming={isLastAss && streaming}
+                              animate={isLastAss}
                               onAnswer={(letter, fullText) => {
                                 if (msg.mcqAnswer) return // already answered
                                 // Lock the MCQ immediately
@@ -2318,17 +2380,17 @@ export default function CourseModulePage() {
                                 }
                               }}
                             />
-                          : <span style={{ color:'var(--text-tertiary)', fontStyle:'italic', fontSize:12 }}>…</span>
+                          : <span style={{ color:'var(--text-tertiary)', fontStyle:'italic' }} className="text-xs">…</span>
                       }
                     </div>
 
                     {/* Timestamp — only on last of a group */}
                     {!nextSameRole && (
                       <span style={{
-                        fontSize:9, color:'var(--text-tertiary)', fontFamily:'monospace',
+                        color:'var(--text-tertiary)', fontFamily:'monospace',
                         letterSpacing:'0.06em', paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0,
                         opacity:0.6,
-                      }}>
+                      }} className="text-[9px]">
                         {new Date(msg.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
                       </span>
                     )}
@@ -2338,6 +2400,37 @@ export default function CourseModulePage() {
             })}
 
             {streaming && messages[messages.length-1]?.role!=='assistant' && <TypingIndicator />}
+
+            {isModuleComplete && !showQuiz && (
+              <div style={{ display:'flex', justifyContent:'center', padding:'30px 0 10px' }}>
+                {(quizPassed || moduleAlreadyCompleted) && nextModule ? (
+                  <button
+                    onClick={() => router.push(`/course/${nextModule}`)}
+                    style={{
+                      padding:'12px 24px', borderRadius:12, fontWeight:700, cursor:'pointer',
+                      background:'var(--ac-mint)', color:'#000', border:'none',
+                      boxShadow:'0 4px 20px rgba(82,217,139,0.3)',
+                      display:'flex', alignItems:'center', gap:8
+                    }} className="text-small"
+                  >
+                    Proceed to Next Module <ChevronRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowQuiz(true)}
+                    style={{
+                      padding:'12px 24px', borderRadius:12, fontWeight:700, cursor:'pointer',
+                      background:'var(--ac-cyan)', color:'#000', border:'none',
+                      boxShadow:'0 4px 20px rgba(78,205,196,0.3)',
+                      display:'flex', alignItems:'center', gap:8
+                    }} className="text-small"
+                  >
+                    <Brain size={16} /> Take Module Quiz
+                  </button>
+                )}
+              </div>
+            )}
+
             <div ref={chatEndRef} style={{ height:8 }} />
           </div>
 
@@ -2351,10 +2444,10 @@ export default function CourseModulePage() {
           }}>
             <div style={{
               display:'flex', alignItems:'flex-end', gap:8,
-              background:'rgba(8,11,22,0.7)',
-              border:`1px solid ${micActive ? 'rgba(232,80,122,0.35)' : streaming ? 'rgba(78,205,196,0.18)' : 'rgba(78,205,196,0.12)'}`,
+              background:'var(--input-bg)',
+              border:`1px solid ${micActive ? 'rgba(232,80,122,0.35)' : streaming ? 'rgba(78,205,196,0.18)' : 'var(--input-border)'}`,
               borderRadius:14, padding:'8px 8px 8px 14px',
-              boxShadow:'inset 0 2px 8px rgba(0,0,0,0.4)',
+              boxShadow: 'var(--shadow-sm)',
               transition:'border-color 0.22s',
             }}>
               <textarea
@@ -2363,12 +2456,12 @@ export default function CourseModulePage() {
                 onKeyDown={e=>{ if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();const t=input.trim();if (!t||streamRef.current) return;setInput('');void doSend(t,false)} }}
                 disabled={streaming} rows={1}
                 placeholder={micActive ? '🎤  Listening…' : streaming ? 'Alex is responding…' : `Message Alex…`}
-                className="aurora-input"
+                className="aurora-input text-small"
                 style={{
                   flex:1, resize:'none',
                   background:'transparent',
                   border:'none',
-                  padding:'4px 0', fontSize:13,
+                  padding:'4px 0',
                   color: micActive ? 'var(--ac-rose)' : 'var(--text-primary)',
                   outline:'none', maxHeight:110,
                   lineHeight:1.6, fontFamily:'inherit', transition:'color 0.2s',
@@ -2429,7 +2522,7 @@ export default function CourseModulePage() {
             {micActive && (
               <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:6, paddingLeft:2 }}>
                 <span style={{ width:5, height:5, borderRadius:'50%', background:'var(--ac-rose)', animation:'tapPulse 0.9s ease-in-out infinite', boxShadow:'0 0 6px var(--ac-rose)' }} />
-                <span style={{ fontSize:10, color:'var(--ac-rose)', fontFamily:'monospace', letterSpacing:'0.1em', opacity:0.85 }}>LISTENING…</span>
+                <span style={{ color:'var(--ac-rose)', fontFamily:'monospace', letterSpacing:'0.1em', opacity:0.85 }} className="text-micro">LISTENING…</span>
               </div>
             )}
           </div>
@@ -2439,9 +2532,9 @@ export default function CourseModulePage() {
 
       {/* quiz modal */}
       {showQuiz && (
-        <QuizModal moduleId={moduleId} moduleTitle={moduleTitle} partNumber={partNumber} partTitle={partTitle}
+        <QuizModal moduleId={moduleId} moduleTitle={moduleTitle} partNumber={partNumber} partTitle={partTitle} nextModule={nextModule}
           onClose={()=>setShowQuiz(false)}
-          onComplete={(passed)=>{setQuizPassed(passed);setShowQuiz(false)}}
+          onComplete={(passed)=>{setQuizPassed(passed)}}
         />
       )}
 

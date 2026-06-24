@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     for (const q of questions) {
       const userAnswer = answers[q.id] ?? ''
-      const isCorrect = userAnswer.trim().toUpperCase() === q.correct.trim().toUpperCase()
+      const isCorrect = userAnswer.trim().toUpperCase().startsWith(q.correct.trim().toUpperCase())
       if (isCorrect) {
         score++
       } else {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     const total = questions.length
     const percentage = Math.round((score / total) * 100)
-    const passed = percentage >= 70
+    const passed = percentage >= 60
 
     // Save result
     const result = await saveQuizResult({

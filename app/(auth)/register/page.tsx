@@ -31,12 +31,12 @@ function PasswordStrengthBar({ password }: { password: string }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {checks.map(c => (
-              <span key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: c.pass ? '#52D98B' : 'rgba(255,255,255,0.25)' }}>
+              <span key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 4, color: c.pass ? '#52D98B' : 'rgba(255,255,255,0.25)' }} className="text-micro">
                 {c.pass ? <Check size={9} /> : <X size={9} />} {c.label}
               </span>
             ))}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: colors[score - 1], fontFamily: 'monospace' }}>{labels[score - 1]}</span>
+          <span style={{ fontWeight: 700, color: colors[score - 1], fontFamily: 'monospace' }} className="text-micro">{labels[score - 1]}</span>
         </div>
       )}
     </motion.div>
@@ -48,8 +48,8 @@ function PasswordMatchIndicator({ password, confirm }: { password: string; confi
   const match = password === confirm
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6, fontSize: 11,
-        color: match ? '#52D98B' : '#E8507A' }}>
+      style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6,
+        color: match ? '#52D98B' : '#E8507A' }} className="text-tiny">
       {match ? <Check size={10} /> : <X size={10} />}
       {match ? 'Passwords match' : 'Passwords do not match'}
     </motion.div>
@@ -115,12 +115,12 @@ export default function RegisterPage() {
     width: '100%', padding: '12px 16px',
     background: 'rgba(14,21,37,0.8)',
     border: '1px solid rgba(78,205,196,0.2)',
-    borderRadius: 12, color: '#e8f0fc', fontSize: 14, outline: 'none',
+    borderRadius: 12, color: '#e8f0fc', outline: 'none',
     transition: 'border-color 0.2s, box-shadow 0.2s',
     fontFamily: 'Inter, system-ui, sans-serif', boxSizing: 'border-box',
   }
   const labelStyle: React.CSSProperties = {
-    display: 'block', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.5)',
+    display: 'block', fontWeight: 600, color: 'rgba(255,255,255,0.5)',
     letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase',
   }
   const focusOn = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -141,8 +141,8 @@ export default function RegisterPage() {
           <Check size={28} color="#52D98B" />
         </motion.div>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#E8F0FC', marginBottom: 6 }}>Account created!</h2>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+          <h2 style={{ fontWeight: 800, color: '#E8F0FC', marginBottom: 6 }} className="text-xl">Account created!</h2>
+          <p style={{ color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }} className="text-sm">
             Welcome, {name.split(' ')[0]}. Taking you to your dashboard…
           </p>
         </div>
@@ -155,7 +155,7 @@ export default function RegisterPage() {
             <motion.div key={text} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, background: `${color}08`, border: `1px solid ${color}20`, borderRadius: 10, padding: '8px 14px' }}>
               <Icon size={13} color={color} />
-              <span style={{ fontSize: 12, color: '#8EA8CC' }}>{text}</span>
+              <span style={{ color: '#8EA8CC' }} className="text-xs">{text}</span>
             </motion.div>
           ))}
         </div>
@@ -166,10 +166,10 @@ export default function RegisterPage() {
   return (
     <>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#e8f0fc', letterSpacing: '-0.02em', marginBottom: 6 }}>
+        <h1 style={{ fontWeight: 800, color: '#e8f0fc', letterSpacing: '-0.02em', marginBottom: 6 }} className="text-[22px]">
           Create your account
         </h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }}>
+        <p style={{ color: 'rgba(255,255,255,0.4)', lineHeight: 1.5 }} className="text-sm">
           Start your UK accounting journey — free, forever.
         </p>
       </div>
@@ -207,7 +207,7 @@ export default function RegisterPage() {
         <AnimatePresence>
           {error && (
             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ background: 'rgba(232,80,122,0.1)', border: '1px solid rgba(232,80,122,0.3)', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#e8507a', lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+              style={{ background: 'rgba(232,80,122,0.1)', border: '1px solid rgba(232,80,122,0.3)', borderRadius: 10, padding: '12px 16px', color: '#e8507a', lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8 }} className="text-small">
               <X size={14} style={{ flexShrink: 0 }} />
               {error}
             </motion.div>
@@ -217,18 +217,18 @@ export default function RegisterPage() {
         <motion.button type="submit" disabled={loading}
           whileHover={!loading ? { scale: 1.02, boxShadow: '0 0 40px rgba(78,205,196,0.25)' } : {}}
           whileTap={!loading ? { scale: 0.98 } : {}}
-          style={{ width: '100%', padding: '13px 24px', borderRadius: 12, border: '1px solid rgba(78,205,196,0.45)', background: loading ? 'rgba(78,205,196,0.08)' : 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(91,120,216,0.22))', color: loading ? 'rgba(78,205,196,0.5)' : '#4ECDC4', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '0.04em', transition: 'background 0.2s', fontFamily: 'Inter, system-ui, sans-serif', marginTop: 4 }}>
+          style={{ width: '100%', padding: '13px 24px', borderRadius: 12, border: '1px solid rgba(78,205,196,0.45)', background: loading ? 'rgba(78,205,196,0.08)' : 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(91,120,216,0.22))', color: loading ? 'rgba(78,205,196,0.5)' : '#4ECDC4', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '0.04em', transition: 'background 0.2s', fontFamily: 'Inter, system-ui, sans-serif', marginTop: 4 }} className="text-sm">
           {loading ? (<><WatchSpinner size={18} /> Creating account…</>) : (<><Sparkles size={15} fill="#4ECDC4" /> Create account</>)}
         </motion.button>
       </form>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em' }}>OR</span>
+        <span style={{ color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em' }} className="text-tiny">OR</span>
         <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
       </div>
 
-      <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+      <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.35)' }} className="text-small">
         Already have an account?{' '}
         <Link href="/login" style={{ color: '#4ECDC4', fontWeight: 600, textDecoration: 'none' }}>
           Sign in

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
 /* ══════════════════════════════════════════════════════════════════════════════
    AURORA WAVE — DEEP SPACE DESIGN SYSTEM
@@ -64,6 +64,89 @@
   --glow-cyan:    0 0 20px rgba(78,205,196, 0.5), 0 0 60px rgba(78,205,196, 0.2);
   --glow-violet:  0 0 20px rgba(155,111,208,0.5), 0 0 60px rgba(155,111,208,0.2);
   --glow-mint:    0 0 16px rgba(82,217,139, 0.45);
+
+  /* ── Semantic surface tokens (used by components) ── */
+  --card-bg:          rgba(14, 21, 37, 0.75);
+  --card-border:      rgba(78,205,196, 0.15);
+  --input-bg:         rgba(14, 21, 37, 0.80);
+  --input-border:     rgba(78,205,196, 0.20);
+  --sidebar-bg:       rgba(3, 7, 18, 0.96);
+  --sidebar-border:   rgba(0, 220, 255, 0.10);
+  --header-bg:        rgba(3, 7, 18, 0.80);
+  --glass-overlay:    rgba(9, 13, 26, 0.75);
+  --auth-bg:          #060a12;
+  --auth-card-bg:     rgba(9, 13, 26, 0.75);
+  --auth-card-border: rgba(78,205,196, 0.18);
+  --scrollbar-thumb:  rgba(78,205,196, 0.25);
+  --scrollbar-hover:  rgba(78,205,196, 0.45);
+  --skeleton-base:    rgba(255,255,255,0.04);
+  --skeleton-shine:   rgba(78,205,196,0.09);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE TOKEN OVERRIDES
+   Applied when data-theme="light" is on <html>
+   ══════════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  /* ── Background depths ── */
+  --bg-base:          #f1f5f9;
+  --bg-surface:       #f8fafc;
+  --bg-elevated:      #ffffff;
+  --bg-hover:         #e2e8f0;
+
+  /* ── Accent colours stay vivid but slightly deepened for contrast ── */
+  --ac-cyan:          #29b8ae;
+  --ac-violet:        #7c52b8;
+  --ac-indigo:        #4462cc;
+  --ac-mint:          #35b870;
+  --ac-gold:          #c8950e;
+  --ac-rose:          #d63060;
+  --ac-pink:          #c020e8;
+  --ac-blue:          #2266ee;
+  --text-accent:      #29b8ae;
+
+  /* ── Text ── */
+  --text-primary:     #0f172a;
+  --text-secondary:   #334155;
+  --text-tertiary:    #64748b;
+
+  /* ── Borders ── */
+  --border-subtle:    rgba(41,184,174, 0.18);
+  --border-medium:    rgba(41,184,174, 0.32);
+  --border-strong:    rgba(41,184,174, 0.55);
+
+  /* ── Glass surfaces ── */
+  --glass-sm:  rgba(255,255,255, 0.72);
+  --glass-md:  rgba(255,255,255, 0.88);
+  --glass-lg:  rgba(255,255,255, 0.96);
+
+  /* ── Shadows (lighter in light mode) ── */
+  --shadow-sm:   0 2px  8px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:   0 4px 20px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.07);
+  --shadow-lg:   0 8px 40px rgba(0,0,0,0.11), 0 4px 12px rgba(0,0,0,0.09);
+  --shadow-xl:   0 16px 64px rgba(0,0,0,0.14), 0 8px 24px rgba(0,0,0,0.10);
+
+  /* ── Glow (softer) ── */
+  --glow-cyan:    0 0 16px rgba(41,184,174, 0.30), 0 0 40px rgba(41,184,174, 0.12);
+  --glow-violet:  0 0 16px rgba(124,82,184,0.28), 0 0 40px rgba(124,82,184,0.12);
+  --glow-mint:    0 0 12px rgba(53,184,112, 0.28);
+
+  /* ── Semantic surfaces ── */
+  --card-bg:          rgba(255,255,255, 0.80);
+  --card-border:      rgba(41,184,174, 0.20);
+  --input-bg:         rgba(238,242,251, 0.90);
+  --input-border:     rgba(41,184,174, 0.28);
+  --sidebar-bg:       rgba(248,251,255, 0.97);
+  --sidebar-border:   rgba(41,184,174, 0.15);
+  --header-bg:        rgba(255,255,255, 0.88);
+  --glass-overlay:    rgba(255,255,255, 0.80);
+  --auth-bg:          #dde8ff;
+  --auth-card-bg:     rgba(255,255,255, 0.88);
+  --auth-card-border: rgba(41,184,174, 0.22);
+  --scrollbar-thumb:  rgba(41,184,174, 0.30);
+  --scrollbar-hover:  rgba(41,184,174, 0.55);
+  --skeleton-base:    rgba(0,0,0,0.04);
+  --skeleton-shine:   rgba(41,184,174,0.10);
 }
 
 /* ══ Base reset ══ */
@@ -73,7 +156,7 @@ html { scroll-behavior: smooth; }
 body {
   color: var(--text-primary);
   background: var(--bg-base);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Poppins', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
@@ -136,8 +219,8 @@ body {
    ══════════════════════════════════════════════════════════════════════════════ */
 ::-webkit-scrollbar              { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track        { background: transparent; }
-::-webkit-scrollbar-thumb        { background: rgba(78,205,196, 0.25); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover  { background: rgba(78,205,196, 0.45); }
+::-webkit-scrollbar-thumb        { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover  { background: var(--scrollbar-hover); }
 .chat-messages::-webkit-scrollbar { display: none; }
 .chat-messages { scrollbar-width: none; -ms-overflow-style: none; }
 
@@ -368,9 +451,9 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255,255,255,0.04) 25%,
-    rgba(78,205,196,0.09)  50%,
-    rgba(255,255,255,0.04) 75%
+    var(--skeleton-base)  25%,
+    var(--skeleton-shine) 50%,
+    var(--skeleton-base)  75%
   );
   background-size: 600px 100%;
   animation: skeletonShimmer 1.6s ease-in-out infinite;
@@ -585,4 +668,9 @@ body {
 }
 @media (min-width: 768px) {
   .mobile-sticky-cta { display: none !important; }
+}
+
+/* AI Visuals — Adapt dark SVG output to light mode */
+html[data-theme="light"] .ai-visual-wrapper svg {
+  filter: invert(1) hue-rotate(180deg) brightness(1.05) contrast(0.95);
 }

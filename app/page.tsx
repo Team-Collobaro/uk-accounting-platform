@@ -113,9 +113,8 @@ function AiOrb() {
         style={{
           position: 'absolute', bottom: -22, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.3)',
-          borderRadius: 20, padding: '4px 14px', whiteSpace: 'nowrap',
-          fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.18em',
-        }}>
+          borderRadius: 20, padding: '4px 14px', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.18em',
+        }} className="text-micro">
         ALEX · AI TUTOR
       </motion.div>
     </div>
@@ -176,7 +175,7 @@ function ChatDemo() {
               </div>
             )}
             <div style={{
-              maxWidth: '78%', padding: '9px 13px', fontSize: 12, lineHeight: 1.6,
+              maxWidth: '78%', padding: '9px 13px', lineHeight: 1.6,
               borderRadius: m.role === 'user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
               background: m.role === 'user'
                 ? 'linear-gradient(135deg,rgba(78,205,196,0.15),rgba(155,111,208,0.15))'
@@ -185,7 +184,7 @@ function ChatDemo() {
               borderLeft: m.role === 'ai' ? '2px solid rgba(78,205,196,0.4)' : undefined,
               color: 'rgba(232,240,252,0.9)',
               backdropFilter: 'blur(12px)',
-            }}>{m.text}</div>
+            }} className="text-xs">{m.text}</div>
           </motion.div>
         ))}
       </AnimatePresence>
@@ -218,8 +217,8 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }: { icon: React.El
       <div style={{ width: 46, height: 46, borderRadius: 13, background: `rgba(${color},0.14)`, border: `1px solid rgba(${color},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
         <Icon size={22} color={`rgb(${color})`} />
       </div>
-      <p style={{ fontSize: 15, fontWeight: 700, color: '#E8F0FC', marginBottom: 8 }}>{title}</p>
-      <p style={{ fontSize: 13, color: '#8EA8CC', lineHeight: 1.65 }}>{desc}</p>
+      <p style={{ fontWeight: 700, color: '#E8F0FC', marginBottom: 8 }} className="text-[15px]">{title}</p>
+      <p style={{ color: '#8EA8CC', lineHeight: 1.65 }} className="text-small">{desc}</p>
     </motion.div>
   )
 }
@@ -292,17 +291,17 @@ export default function HomePage() {
             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.25))', border: '1px solid rgba(78,205,196,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(78,205,196,0.2)' }}>
               <Brain size={17} color="#4ECDC4" />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.01em', color: '#E8F0FC' }}>
+            <span style={{ fontWeight: 700, letterSpacing: '-0.01em', color: '#E8F0FC' }} className="text-[15px]">
               UK Accounting <span style={{ color: '#4ECDC4' }}>Pro</span>
             </span>
           </motion.div>
           <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <Link href="/login" style={{ fontSize: 13, color: '#8EA8CC', fontWeight: 500, textDecoration: 'none', padding: '6px 13px', borderRadius: 8, transition: 'color 0.2s' }}>
+            <Link href="/login" style={{ color: '#8EA8CC', fontWeight: 500, textDecoration: 'none', padding: '6px 13px', borderRadius: 8, transition: 'color 0.2s' }} className="text-small">
               Sign in
             </Link>
             <Link href="/register" style={{ textDecoration: 'none' }}>
               <motion.span whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(78,205,196,0.2),rgba(155,111,208,0.2))', border: '1px solid rgba(78,205,196,0.38)', color: '#4ECDC4', boxShadow: '0 0 18px rgba(78,205,196,0.12)', cursor: 'pointer' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, padding: '8px 18px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(78,205,196,0.2),rgba(155,111,208,0.2))', border: '1px solid rgba(78,205,196,0.38)', color: '#4ECDC4', boxShadow: '0 0 18px rgba(78,205,196,0.12)', cursor: 'pointer' }} className="text-small">
                 Get started free <ArrowRight size={13} />
               </motion.span>
             </Link>
@@ -325,7 +324,7 @@ export default function HomePage() {
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(78,205,196,0.08)', border: '1px solid rgba(78,205,196,0.22)', borderRadius: 30, padding: '5px 14px', marginBottom: 26 }}>
                   <Zap size={11} color="#4ECDC4" fill="#4ECDC4" />
-                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.16em' }}>AI-POWERED · UK FOCUSED · 150 HOURS</span>
+                  <span style={{ fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.16em' }} className="text-micro">AI-POWERED · UK FOCUSED · 150 HOURS</span>
                 </div>
               </motion.div>
 
@@ -334,11 +333,11 @@ export default function HomePage() {
                 Master{' '}
                 <Typewriter texts={['UK Accounting', 'VAT & Tax', 'Payroll & PAYE', 'FRS 102 & 105', 'Corporation Tax']} />
                 <br />
-                <span style={{ color: '#8EA8CC', fontWeight: 400, fontSize: '0.65em', letterSpacing: '-0.01em' }}>with an AI that teaches, not just tells</span>
+                <span style={{ color: '#8EA8CC', fontWeight: 400, letterSpacing: '-0.01em' }} className="text-[0px]">with an AI that teaches, not just tells</span>
               </motion.h1>
 
               <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}
-                style={{ fontSize: 15, color: '#8EA8CC', lineHeight: 1.8, marginBottom: 34, maxWidth: 460 }}>
+                style={{ color: '#8EA8CC', lineHeight: 1.8, marginBottom: 34, maxWidth: 460 }} className="text-[15px]">
                 87 modules. 12 subject areas. An AI tutor that uses the Socratic method
                 — asking the right questions so you build real understanding, not just pass scores.
               </motion.p>
@@ -347,13 +346,13 @@ export default function HomePage() {
                 style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 44 }}>
                 <Link href="/register" style={{ textDecoration: 'none' }}>
                   <motion.button whileHover={{ scale: 1.03, boxShadow: '0 0 36px rgba(78,205,196,0.28)' }} whileTap={{ scale: 0.97 }}
-                    style={{ padding: '13px 28px', borderRadius: 12, background: 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    style={{ padding: '13px 28px', borderRadius: 12, background: 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} className="text-sm">
                     <Sparkles size={15} /> Start learning free
                   </motion.button>
                 </Link>
                 <Link href="#demo" style={{ textDecoration: 'none' }}>
                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                    style={{ padding: '13px 22px', borderRadius: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#8EA8CC', fontWeight: 500, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+                    style={{ padding: '13px 22px', borderRadius: 12, background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: '#8EA8CC', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }} className="text-sm">
                     <Play size={13} fill="currentColor" /> See how it works
                   </motion.button>
                 </Link>
@@ -369,8 +368,8 @@ export default function HomePage() {
                   { v: 'ACCA', l: 'Grade Depth', color: '#E8B84B' },
                 ].map(({ v, l, color }) => (
                   <motion.div key={l} whileHover={{ scale: 1.05 }} style={{ textAlign: 'center', cursor: 'default' }}>
-                    <p style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1, textShadow: `0 0 20px ${color}50` }}>{v}</p>
-                    <p style={{ fontSize: 9, fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.1em', marginTop: 2 }}>{l.toUpperCase()}</p>
+                    <p style={{ fontWeight: 800, color, lineHeight: 1, textShadow: `0 0 20px ${color}50` }} className="text-lg">{v}</p>
+                    <p style={{ fontFamily: 'monospace', color: '#4A6285', letterSpacing: '0.1em', marginTop: 2 }} className="text-[9px]">{l.toUpperCase()}</p>
                   </motion.div>
                 ))}
               </motion.div>
@@ -383,10 +382,10 @@ export default function HomePage() {
               </motion.div>
 
               <motion.div id="demo" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}
-                style={{ width: '100%', maxWidth: 420, background: 'rgba(9,13,26,0.75)', border: '1px solid rgba(78,205,196,0.13)', borderRadius: 18, padding: '18px 16px', backdropFilter: 'blur(20px)', boxShadow: '0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+                style={{ width: '100%', maxWidth: 420, background: 'rgba(9,13,26,0.75)', border: '1px solid rgba(78,205,196,0.13)', borderRadius: 18, padding: '18px 16px', backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-lg)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 11, borderBottom: '1px solid rgba(78,205,196,0.08)' }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#52D98B', boxShadow: '0 0 8px #52D98B' }} />
-                  <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.18em' }}>LIVE TUTOR SESSION · ALEX</span>
+                  <span style={{ fontFamily: 'monospace', color: 'rgba(78,205,196,0.55)', letterSpacing: '0.18em' }} className="text-[9px]">LIVE TUTOR SESSION · ALEX</span>
                 </div>
                 <ChatDemo />
               </motion.div>
@@ -406,7 +405,7 @@ export default function HomePage() {
           ].map(({ icon: I, text }) => (
             <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <I size={13} color="rgba(78,205,196,0.55)" />
-              <span style={{ fontSize: 12, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.04em' }}>{text}</span>
+              <span style={{ color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.04em' }} className="text-xs">{text}</span>
             </div>
           ))}
         </div>
@@ -416,11 +415,11 @@ export default function HomePage() {
       <section style={{ padding: '96px 28px' }}>
         <div style={{ maxWidth: 1160, margin: '0 auto' }}>
           <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 56 }}>
-            <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.22em', marginBottom: 14 }}>PLATFORM FEATURES</p>
+            <p style={{ fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.22em', marginBottom: 14 }} className="text-micro">PLATFORM FEATURES</p>
             <h2 style={{ fontSize: 'clamp(26px,3vw,42px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC', marginBottom: 12 }}>
               Everything you need to{' '}<span style={{ color: '#4ECDC4' }}>qualify</span>
             </h2>
-            <p style={{ fontSize: 15, color: '#8EA8CC', maxWidth: 480, margin: '0 auto' }}>
+            <p style={{ color: '#8EA8CC', maxWidth: 480, margin: '0 auto' }} className="text-[15px]">
               Built for working professionals upgrading UK accounting credentials — at their own pace.
             </p>
           </motion.div>
@@ -434,11 +433,11 @@ export default function HomePage() {
       <section style={{ padding: '96px 28px', background: 'rgba(9,13,26,0.5)', borderTop: '1px solid rgba(78,205,196,0.06)', borderBottom: '1px solid rgba(78,205,196,0.06)' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 48 }}>
-            <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#9B6FD0', letterSpacing: '0.22em', marginBottom: 14 }}>FULL CURRICULUM</p>
+            <p style={{ fontFamily: 'monospace', color: '#9B6FD0', letterSpacing: '0.22em', marginBottom: 14 }} className="text-micro">FULL CURRICULUM</p>
             <h2 style={{ fontSize: 'clamp(26px,3vw,40px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC', marginBottom: 10 }}>
               87 modules across{' '}<span style={{ color: '#9B6FD0' }}>12 subject areas</span>
             </h2>
-            <p style={{ fontSize: 14, color: '#8EA8CC' }}>ACCA/ACA-grade depth · practical UK focus · real practitioner scenarios</p>
+            <p style={{ color: '#8EA8CC' }} className="text-sm">ACCA/ACA-grade depth · practical UK focus · real practitioner scenarios</p>
           </motion.div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(270px,1fr))', gap: 10 }}>
             {PARTS.map(({ n, t, m }, i) => (
@@ -446,12 +445,12 @@ export default function HomePage() {
                 initial={{ opacity: 0, x: -8 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.04 }}
                 whileHover={{ x: 5 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(14,21,37,0.6)', border: '1px solid rgba(78,205,196,0.08)', borderRadius: 13, padding: '13px 16px', backdropFilter: 'blur(8px)', transition: 'border-color 0.2s' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))', border: '1px solid rgba(78,205,196,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))', border: '1px solid rgba(78,205,196,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }} className="text-tiny">
                   {n}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#E8F0FC', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t}</p>
-                  <p style={{ fontSize: 10, color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }}>{m} modules</p>
+                  <p style={{ fontWeight: 600, color: '#E8F0FC', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-small">{t}</p>
+                  <p style={{ color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }} className="text-micro">{m} modules</p>
                 </div>
                 <ChevronRight size={13} color="#4A6285" />
               </motion.div>
@@ -464,7 +463,7 @@ export default function HomePage() {
       <section style={{ padding: '96px 28px' }}>
         <div style={{ maxWidth: 1060, margin: '0 auto' }}>
           <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 48 }}>
-            <p style={{ fontSize: 10, fontFamily: 'monospace', color: '#52D98B', letterSpacing: '0.22em', marginBottom: 12 }}>STUDENT OUTCOMES</p>
+            <p style={{ fontFamily: 'monospace', color: '#52D98B', letterSpacing: '0.22em', marginBottom: 12 }} className="text-micro">STUDENT OUTCOMES</p>
             <h2 style={{ fontSize: 'clamp(24px,2.8vw,38px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC' }}>
               What professionals are <span style={{ color: '#52D98B' }}>saying</span>
             </h2>
@@ -473,14 +472,14 @@ export default function HomePage() {
             {TESTIMONIALS.map((t, i) => (
               <motion.div key={t.name}
                 initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                style={{ background: 'rgba(14,21,37,0.7)', border: '1px solid rgba(82,217,139,0.12)', borderRadius: 18, padding: '24px', backdropFilter: 'blur(12px)', boxShadow: '0 2px 16px rgba(0,0,0,0.3)' }}>
+                style={{ background: 'rgba(14,21,37,0.7)', border: '1px solid rgba(82,217,139,0.12)', borderRadius: 18, padding: '24px', backdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-md)' }}>
                 <div style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
-                  {'★★★★★'.split('').map((s, j) => <span key={j} style={{ color: '#E8B84B', fontSize: 13 }}>{s}</span>)}
+                  {'★★★★★'.split('').map((s, j) => <span key={j} style={{ color: '#E8B84B' }} className="text-small">{s}</span>)}
                 </div>
-                <p style={{ fontSize: 13.5, color: '#8EA8CC', lineHeight: 1.7, marginBottom: 18, fontStyle: 'italic' }}>"{t.quote}"</p>
+                <p style={{ color: '#8EA8CC', lineHeight: 1.7, marginBottom: 18, fontStyle: 'italic' }} className="text-small">"{t.quote}"</p>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#E8F0FC' }}>{t.name}</p>
-                  <p style={{ fontSize: 11, color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }}>{t.role}</p>
+                  <p style={{ fontWeight: 700, color: '#E8F0FC' }} className="text-small">{t.name}</p>
+                  <p style={{ color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }} className="text-tiny">{t.role}</p>
                 </div>
               </motion.div>
             ))}
@@ -500,19 +499,19 @@ export default function HomePage() {
           <h2 style={{ fontSize: 'clamp(26px,3.5vw,46px)', fontWeight: 800, letterSpacing: '-0.025em', marginBottom: 14, color: '#E8F0FC' }}>
             Ready to start?
           </h2>
-          <p style={{ fontSize: 15, color: '#8EA8CC', marginBottom: 36, lineHeight: 1.75 }}>
+          <p style={{ color: '#8EA8CC', marginBottom: 36, lineHeight: 1.75 }} className="text-[15px]">
             Join professionals across the UK upgrading their accounting skills — guided by an AI that genuinely teaches.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/register" style={{ textDecoration: 'none' }}>
               <motion.button whileHover={{ scale: 1.05, boxShadow: '0 0 50px rgba(78,205,196,0.3)' }} whileTap={{ scale: 0.97 }}
-                style={{ padding: '15px 40px', borderRadius: 13, background: 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+                style={{ padding: '15px 40px', borderRadius: 13, background: 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 9 }} className="text-[15px]">
                 Create free account <ArrowRight size={16} />
               </motion.button>
             </Link>
             <Link href="/login" style={{ textDecoration: 'none' }}>
               <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                style={{ padding: '15px 28px', borderRadius: 13, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#8EA8CC', fontWeight: 500, fontSize: 15, cursor: 'pointer' }}>
+                style={{ padding: '15px 28px', borderRadius: 13, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#8EA8CC', fontWeight: 500, cursor: 'pointer' }} className="text-[15px]">
                 Sign in
               </motion.button>
             </Link>
@@ -524,9 +523,9 @@ export default function HomePage() {
       <footer style={{ padding: '28px', borderTop: '1px solid rgba(78,205,196,0.07)', textAlign: 'center', background: 'rgba(5,8,16,0.8)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
           <Brain size={13} color="rgba(78,205,196,0.35)" />
-          <span style={{ fontSize: 12, color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.1em' }}>UK ACCOUNTING PRO</span>
+          <span style={{ color: '#4A6285', fontFamily: 'monospace', letterSpacing: '0.1em' }} className="text-xs">UK ACCOUNTING PRO</span>
         </div>
-        <p style={{ fontSize: 11, color: '#4A6285' }}>© {new Date().getFullYear()} AI-Powered Professional Learning</p>
+        <p style={{ color: '#4A6285' }} className="text-tiny">© {new Date().getFullYear()} AI-Powered Professional Learning</p>
       </footer>
 
       {/* ── Sticky mobile CTA ── */}
@@ -547,12 +546,12 @@ export default function HomePage() {
         className="mobile-sticky-cta"
       >
         <div>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#E8F0FC', marginBottom: 1 }}>Start learning free</p>
-          <p style={{ fontSize: 10, color: '#4A6285' }}>87 modules · AI tutor included</p>
+          <p style={{ fontWeight: 700, color: '#E8F0FC', marginBottom: 1 }} className="text-tiny">Start learning free</p>
+          <p style={{ color: '#4A6285' }} className="text-micro">87 modules · AI tutor included</p>
         </div>
         <Link href="/register" style={{ textDecoration: 'none', flexShrink: 0 }}>
           <motion.span whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 20px', borderRadius: 11, background: 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, fontSize: 13, cursor: 'pointer', boxShadow: '0 0 20px rgba(78,205,196,0.2)' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 20px', borderRadius: 11, background: 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.22))', border: '1px solid rgba(78,205,196,0.42)', color: '#4ECDC4', fontWeight: 700, cursor: 'pointer', boxShadow: '0 0 20px rgba(78,205,196,0.2)' }} className="text-small">
             Get started <ArrowRight size={13} />
           </motion.span>
         </Link>

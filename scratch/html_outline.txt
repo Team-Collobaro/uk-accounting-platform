@@ -1,0 +1,804 @@
+## UK BookkeepingAccounting & Tax
+
+# UK Bookkeeping, Accounting& Taxation — Master Course
+## Visual mockups are embedded throughout
+## Master Contents
+## The 12 Parts & 87 Modules
+### Part 1 · Foundations
+### Part 2 · Software Platforms
+### Part 3 · VAT
+### Part 4 · Payroll
+### Part 5 · Year-End Accounts
+### Part 6 · Corporation Tax
+### Part 7 · Self Assessment
+### Part 8 · Incorporation
+### Part 9 · Cessation
+### Part 10 · Structure Changes
+### Part 11 · Specialist Tax
+### Part 12 · Practice & Ethics
+### Appendices
+
+# Foundations
+
+# UK Compliance Landscape — Who Regulates What, and Why
+## 1.1 Why “compliance” is the centre of gravity for UK accountants
+## 1.2 HMRC — His Majesty's Revenue and Customs
+### 1.2.1 What HMRC actually does
+### 1.2.2 HMRC's structure and how to interact with it
+### 1.2.3 The Government Gateway and Agent Services Account (ASA)
+## 1.3 Companies House — The Registry
+### 1.3.1 What Companies House does
+### 1.3.2 Statutory deadlines — Companies House
+## 1.4 The Financial Reporting Council (FRC) and its successor ARGA
+## 1.5 Professional bodies and AML supervisors
+## 1.6 The Office for Professional Body AML Supervision (OPBAS)
+## 1.7 Anti-Money Laundering (AML) supervision — you must be supervised
+## 1.8 Information Commissioner's Office (ICO) — data protection
+## 1.9 The Pensions Regulator (TPR)
+## 1.10 The Charity Commission & OSCR
+## 1.11 Insolvency Service
+## 1.12 Putting it together — a typical client's regulator map
+### Module 1 — Summary
+### Module 1 — End-of-Section MCQ (10 questions)
+
+# UK Business Structures — Deep Dive
+## 2.1 The seven UK business structures at a glance
+## 2.2 Sole trader — the legal nuts and bolts
+### 2.2.1 Registering as a sole trader
+### 2.2.2 Tax footprint of a sole trader
+### 2.2.3 Advantages and disadvantages of sole trader status
+## 2.3 General Partnership
+### 2.3.1 The partnership agreement
+### 2.3.2 Tax for a general partnership
+### 2.3.3 Limited Partnership (LP) — specialist structure
+## 2.4 Limited Liability Partnership (LLP)
+### 2.4.1 Key LLP attributes
+## 2.5 Private Limited Company (Ltd)
+### 2.5.1 Constitutional documents
+### 2.5.2 Tax footprint of a Ltd
+### 2.5.3 The salary/dividend mix — the classic owner-managed company question
+## 2.6 Public Limited Company (PLC)
+## 2.7 Community Interest Company (CIC)
+## 2.8 Charity, Charitable Incorporated Organisation (CIO) and Charitable Company
+## 2.9 The choice tree — which structure for which client?
+### Module 2 — Summary
+### Module 2 — End-of-Section MCQ (10 questions)
+
+# Bookkeeping Fundamentals — Double-Entry from First Principles
+## 3.1 What is bookkeeping?
+## 3.2 The accounting equation
+## 3.3 Double-entry — the symmetry rule
+## 3.4 The 8 universal transaction patterns
+## 3.5 Compound journals
+## 3.6 The trial balance
+### Module 3 — Summary
+### Module 3 — End-of-Section MCQ (8 questions)
+
+# The Chart of Accounts & The General Ledger
+## 4.1 What is the chart of accounts (COA)?
+## 4.2 Standard UK COA structure (Xero/QBO defaults)
+## 4.3 Control accounts and sub-ledgers
+### Module 4 — Summary
+### Module 4 — End-of-Section MCQ (5 questions)
+
+# The Bookkeeping Cycle — From Source Document to Trial Balance
+## 5.1 The cycle in 9 steps
+## 5.2 Bank reconciliation in depth
+### Module 5 — Summary
+### Module 5 — End-of-Section MCQ (5 questions)
+
+# Source Documents & the UK Record-Keeping Rules
+## 6.1 The principal source documents
+## 6.2 What makes a UK VAT invoice valid?
+## 6.3 Retention periods
+## 6.4 MTD digital records rules
+### Module 6 — Summary
+### Module 6 — End-of-Section MCQ (5 questions)
+
+# Cash vs Accruals Basis
+## 7.1 The two bases defined
+## 7.2 Cash basis — eligibility (FA 2013, ITTOIA 2005 s.25A onwards)
+## 7.3 Differences in practice
+## 7.4 Transition adjustments
+### Module 7 — Summary
+### Module 7 — End-of-Section MCQ (5 questions)
+
+# Cloud Software Platforms
+
+# Dext — Document Capture & Processing
+## 8.1 What Dext is and why we use it
+## 8.2 Practice and client account hierarchy
+### 8.2.1 Adding a new client
+## 8.3 Document upload routes
+## 8.4 Processing items in the Inbox
+### 8.4.1 Supplier rules
+### 8.4.2 Multi-line items
+## 8.5 Publishing to Xero (worked walkthrough)
+## 8.6 Bank statement processing in Dext
+## 8.7 The Practice Dashboard — managing 30+ clients
+### Module 8 — Summary
+### Module 8 — End-of-Section MCQ (5 questions)
+
+# Xero — Setup, Reconciliation & Reporting
+## 9.1 Creating a Xero organisation
+## 9.2 Customising the Chart of Accounts
+## 9.3 Bank feeds
+### 9.3.1 Setting up an Open Banking feed
+## 9.4 Bank reconciliation in Xero
+## 9.5 Bills and Sales Invoices
+### 9.5.1 Recurring sales invoices
+## 9.6 VAT in Xero
+## 9.7 Lock Dates
+## 9.8 Key reports
+### Module 9 — Summary
+### Module 9 — End-of-Section MCQ (6 questions)
+
+# QuickBooks Online (QBO) — Setup & Workflow
+## 10.1 QBO at a glance
+## 10.2 New company file
+## 10.3 Banking and Bank Rules
+## 10.4 VAT in QBO
+## 10.5 Reports
+### Module 10 — Summary
+### Module 10 — End-of-Section MCQ (5 questions)
+
+# Sage Business Cloud Accounting
+## 11.1 Product range
+## 11.2 Workflow basics
+## 11.3 Sage 50 (the desktop legacy)
+### Module 11 — Summary
+### Module 11 — End-of-Section MCQ (4 questions)
+
+# FreeAgent
+## 12.1 What is FreeAgent?
+## 12.2 Why a contractor would prefer FreeAgent
+## 12.3 Limitations
+### Module 12 — Summary
+### Module 12 — End-of-Section MCQ (4 questions)
+
+# Value Added Tax (VAT)
+
+# VAT Fundamentals — Registration, Rates, Tax Points & Returns
+## 13.1 What is VAT, conceptually?
+## 13.2 The four UK VAT rates
+### 13.2.1 Out of scope (OoS)
+## 13.3 Registration
+### 13.3.1 Compulsory registration thresholds (2024/25)
+### 13.3.2 Deregistration threshold
+### 13.3.3 Voluntary registration
+## 13.4 The tax point
+### 13.4.1 The 14-day rule (in detail)
+## 13.5 The 9-box VAT return
+## 13.6 Filing & payment deadlines
+## 13.7 Output and input VAT calculation basics
+### 13.7.1 Input VAT recovery — the four conditions
+### 13.7.2 Blocked input VAT
+### Module 13 — Summary
+### Module 13 — End-of-Section MCQ (8 questions)
+
+# VAT Schemes — Standard, Cash, Annual, Flat Rate, Margin, TOMS, Retail
+## 14.1 Standard accounting (accruals) scheme
+## 14.2 Cash Accounting Scheme
+## 14.3 Annual Accounting Scheme
+## 14.4 Flat Rate Scheme (FRS)
+### 14.4.1 Limited Cost Trader (LCT) — anti-abuse rule
+## 14.5 Margin Schemes
+## 14.6 TOMS — Tour Operators' Margin Scheme
+## 14.7 Retail Schemes
+## 14.8 VAT Group Registration (VATA s.43)
+### Module 14 — Summary
+### Module 14 — End-of-Section MCQ (6 questions)
+
+# VAT on Goods — Domestic, Imports, Exports, NI Protocol
+## 15.1 Domestic supplies
+## 15.2 Exports of goods (UK to outside UK)
+## 15.3 Imports — Postponed VAT Accounting (PVA)
+## 15.4 Northern Ireland Protocol — goods only
+## 15.5 Distance selling B2C to EU consumers
+### Module 15 — Summary
+### Module 15 — End-of-Section MCQ (5 questions)
+
+# VAT on Services — Place of Supply & Reverse Charge
+## 16.1 Place of Supply (POS) foundations
+## 16.2 Special POS rules
+## 16.3 Reverse Charge — services received from overseas (RCSG)
+## 16.4 CIS Domestic Reverse Charge (DRC)
+### Module 16 — Summary
+### Module 16 — End-of-Section MCQ (5 questions)
+
+# VAT on Land & Property
+## 17.1 Default treatment
+## 17.2 Residential property
+## 17.3 Commercial property
+## 17.4 Option to Tax (OTT)
+## 17.5 Capital Goods Scheme — buildings
+## 17.6 Transfer of a Going Concern (TOGC)
+### Module 17 — Summary
+### Module 17 — End-of-Section MCQ (5 questions)
+
+# Partial Exemption
+## 18.1 Partial-exemption principle
+## 18.2 The Standard Method (Reg 101)
+## 18.3 De minimis
+## 18.4 Annual Adjustment
+### Module 18 — Summary
+### Module 18 — End-of-Section MCQ (4 questions)
+
+# VAT Errors, Inspections & Penalties
+## 19.1 Error correction thresholds
+## 19.2 Points-based penalty regime (post Jan 2023)
+## 19.3 VAT inspections
+### Module 19 — Summary
+### Module 19 — End-of-Section MCQ (4 questions)
+
+# Making Tax Digital for VAT
+## 20.1 Scope
+## 20.2 Digital records required
+## 20.3 Digital links — the chain
+## 20.4 Bridging software
+## 20.5 Penalties
+### Module 20 — Summary
+### Module 20 — End-of-Section MCQ (4 questions)
+
+# Payroll, PAYE & CIS
+
+# PAYE Fundamentals — Tax Codes, NI Categories & RTI
+## 21.1 PAYE in one paragraph
+## 21.2 Setting up a PAYE scheme
+## 21.3 Tax codes (2024/25)
+### 21.3.1 Cumulative vs Week 1/Month 1
+## 21.4 National Insurance — categories & rates 2024/25
+### 21.4.1 NI thresholds (2024/25)
+## 21.5 Employer's Allowance
+## 21.6 Real Time Information (RTI)
+## 21.7 Apprenticeship Levy
+### Module 21 — Summary
+### Module 21 — End-of-Section MCQ (6 questions)
+
+# Statutory Payments — SSP, SMP, SPP, ShPP, SAP, SPBP
+## 22.1 Overview
+## 22.2 SSP detail
+## 22.3 SMP detail
+## 22.4 EPS recovery
+### Module 22 — Summary
+### Module 22 — End-of-Section MCQ (4 questions)
+
+# Auto-Enrolment Pensions
+## 23.1 The duty
+## 23.2 Worker categories
+## 23.3 Minimum contributions on qualifying earnings
+## 23.4 Cyclical compliance
+### Module 23 — Summary
+### Module 23 — End-of-Section MCQ (4 questions)
+
+# Benefits in Kind & P11D Reporting
+## 24.1 What is a BIK?
+## 24.2 Common benefits
+## 24.3 Company car AP table
+## 24.4 Payrolling vs P11D
+## 24.5 PAYE Settlement Agreement (PSA)
+### Module 24 — Summary
+### Module 24 — End-of-Section MCQ (5 questions)
+
+# Year-End Payroll Process
+## 25.1 Year-end checklist
+## 25.2 NMW/NLW 2024/25
+### Module 25 — Summary
+### Module 25 — End-of-Section MCQ (3 questions)
+
+# Construction Industry Scheme (CIS)
+## 26.1 Who is in scope?
+## 26.2 Verification
+## 26.3 Calculating the deduction
+## 26.4 Monthly CIS300 return
+## 26.5 Statement to subcontractor
+## 26.6 Subcontractor's recovery
+## 26.7 CIS DRC interaction
+### Module 26 — Summary
+### Module 26 — End-of-Section MCQ (4 questions)
+
+# Year-End Accounts & the Disclosure Framework
+
+# The Year-End Process
+## 27.1 Why year-end exists
+## 27.2 The 11-step year-end workflow
+## 27.3 The 9 standard balance sheet reconciliations
+## 27.4 Materiality
+### Module 27 — Summary
+### Module 27 — End-of-Section MCQ (4 questions)
+
+# Year-End Adjusting Journals
+## 28.1 Accruals
+## 28.2 Prepayments
+## 28.3 Depreciation (FRS 102 s.17)
+## 28.4 Stock movement
+## 28.5 Deferred income
+## 28.6 Dividend declared (interim)
+## 28.7 Corporation Tax provision
+## 28.8 Bad debt provision
+## 28.9 DLA adjustments
+### Module 28 — Summary
+### Module 28 — End-of-Section MCQ (4 questions)
+
+# FRS 105 — Micro-Entity Accounts
+## 29.1 Micro-entity qualification (2024/25)
+## 29.2 Excluded entities
+## 29.3 What's in a FRS 105 set
+## 29.4 FRS 105 simplifications vs FRS 102
+## 29.5 Micro-entity declaration
+### Module 29 — Summary
+### Module 29 — End-of-Section MCQ (4 questions)
+
+# FRS 102 Section 1A — Small Company Accounts
+## 30.1 What Section 1A is
+## 30.2 Eligibility
+## 30.3 Mandatory Section 1A disclosures (Appendix C)
+## 30.4 Why each major disclosure exists
+### Module 30 — Summary
+### Module 30 — End-of-Section MCQ (4 questions)
+
+# FRS 102 Full
+## 31.1 What FRS 102 full is
+## 31.2 The 35 Sections
+## 31.3 The four primary statements
+## 31.4 The 2026 amendments — major changes
+## 31.5 Strategic Report & Directors' Report
+## 31.6 Audit requirements
+### Module 31 — Summary
+### Module 31 — End-of-Section MCQ (4 questions)
+
+# Disclosure Reasoning — Why Each Note Is Required
+### Module 32 — Summary
+### Module 32 — End-of-Section MCQ (4 questions)
+
+# iXBRL Tagging
+## 33.1 What iXBRL is
+## 33.2 Taxonomies
+## 33.3 Two-stage tagging
+### Module 33 — Summary
+### Module 33 — End-of-Section MCQ (3 questions)
+
+# Companies House Filing — Mechanics, Filleted, ECCTA
+## 34.1 Filing routes
+## 34.2 Filleted accounts (currently)
+## 34.3 Late filing penalties (CH)
+## 34.4 ECCTA changes (2024–2027)
+### Module 34 — Summary
+### Module 34 — End-of-Section MCQ (3 questions)
+
+# Corporation Tax
+
+# Corporation Tax Fundamentals
+## 35.1 The basics
+## 35.2 Rates 2024/25 & 2025/26
+## 35.3 Marginal Relief
+## 35.4 Associated companies
+## 35.5 CT600 supplementary forms
+### Module 35 — Summary
+### Module 35 — End-of-Section MCQ (4 questions)
+
+# Adjusting Accounting Profit to Taxable Profit
+## 36.1 Standard add-backs
+## 36.2 Common deductible items not in P&L
+## 36.3 The CT computation template
+### Module 36 — Summary
+### Module 36 — End-of-Section MCQ (3 questions)
+
+# Capital Allowances
+## 37.1 The main allowances 2024/25
+## 37.2 Cars special rules
+### Module 37 — Summary
+### Module 37 — End-of-Section MCQ (4 questions)
+
+# R&D Tax Relief
+## 38.1 The new schemes (from 1 April 2024)
+## 38.2 Pre-1 April 2024 (legacy)
+## 38.3 Qualifying activities
+## 38.4 Qualifying expenditure
+## 38.5 Process
+## 38.6 Patent Box
+### Module 38 — Summary
+### Module 38 — End-of-Section MCQ (3 questions)
+
+# Loss & Group Relief
+## 39.1 The five trading loss reliefs
+## 39.2 Loss Relief Restriction (LRR) — c/f losses
+## 39.3 Group relief — 75% group
+## 39.4 Other losses
+## 39.5 Anti-avoidance
+### Module 39 — Summary
+### Module 39 — End-of-Section MCQ (3 questions)
+
+# CT600 Walkthrough in TaxCalc
+## 40.1 Setup
+## 40.2 Sections of the CT600
+## 40.3 Validation and submission
+### Module 40 — Summary
+### Module 40 — End-of-Section MCQ (3 questions)
+
+# Self Assessment
+
+# SA100 Main Return
+## 41.1 Who must file
+## 41.2 Key dates
+## 41.3 Late filing penalties
+## 41.4 Late payment penalties
+### Module 41 — Summary
+### Module 41 — End-of-Section MCQ (4 questions)
+
+# SA103 — Self-Employment
+## 42.1 SA103S vs SA103F
+## 42.2 Basis period reform
+## 42.3 SA103 sections
+## 42.4 Trading allowance
+### Module 42 — Summary
+### Module 42 — End-of-Section MCQ (3 questions)
+
+# SA105 — Property Income
+## 43.1 Section 24 mortgage interest restriction
+## 43.2 Furnished Holiday Lettings (FHL) — abolished from April 2025
+## 43.3 Property allowance
+## 43.4 Rent-a-Room scheme
+### Module 43 — Summary
+### Module 43 — End-of-Section MCQ (3 questions)
+
+# SA108 — Capital Gains
+## 44.1 Rates 2024/25
+## 44.2 60-day reporting (UK residential property)
+## 44.3 Computation
+## 44.4 Key reliefs (Module 78 in depth)
+### Module 44 — Summary
+### Module 44 — End-of-Section MCQ (4 questions)
+
+# SA104 — Partnership Income
+### Salaried members rule (LLPs)
+### Salaried members rule (LLPs)
+### Module 45 — Summary
+### Module 45 — End-of-Section MCQ (3 questions)
+
+# SA109 — Residence & Domicile
+## 46.1 Statutory Residence Test (SRT)
+## 46.2 Domicile reform
+### Module 46 — Summary
+### Module 46 — End-of-Section MCQ (3 questions)
+
+# Tax Calculation & Payments on Account
+## 47.1 Bands 2024/25
+## 47.2 Scottish income tax 2024/25
+## 47.3 Order of taxation
+## 47.4 Payments on Account
+### Module 47 — Summary
+### Module 47 — End-of-Section MCQ (4 questions)
+
+# SA Reliefs — Pension, Gift Aid, EIS, SEIS, VCT
+## 48.1 Pension contributions
+## 48.2 AA taper
+## 48.3 LTA — abolished from 6 April 2024
+## 48.4 Gift Aid
+## 48.5 EIS
+## 48.6 SEIS
+## 48.7 VCT
+### Module 48 — Summary
+### Module 48 — End-of-Section MCQ (4 questions)
+
+# Incorporation Scenarios
+
+# Choosing a Structure — The Decision Framework
+## 49.1 The five key questions
+## 49.2 The £30k–£60k pivot zone
+## 49.3 Beyond tax — qualitative factors
+## 49.4 Six valid reasons NOT to incorporate (yet)
+### Module 49 — Summary
+### Module 49 — End-of-Section MCQ (3 questions)
+
+# Sole Trader Setup
+## 50.1 Steps
+## 50.2 First-year compliance summary
+### Module 50 — Summary
+
+# Partnership Setup
+## 51.1 Steps
+## 51.2 Annual partnership compliance
+### Module 51 — Summary
+
+# Ltd Company Setup
+## 52.1 Pre-incorporation decisions
+## 52.2 Incorporation routes
+## 52.3 Form IN01 — what's filed
+## 52.4 Day-one tasks
+## 52.5 First-year compliance
+### Module 52 — Summary
+
+# LLP Setup
+## 53.1 Steps
+## 53.2 Annual filings
+### Module 53 — Summary
+
+# Charity Registration
+## 54.1 Choosing the form
+## 54.2 The CIO route (most common for new charities)
+## 54.3 Tax treatment
+### Module 54 — Summary
+
+# Sole Trader → Ltd Company Incorporation
+## 55.1 The 9-step process
+## 55.2 Goodwill — the technically tricky bit
+## 55.3 Goodwill amortisation in Ltd
+## 55.4 Other transfer considerations
+## 55.5 Loss treatment on transition
+## 55.6 Practitioner's incorporation checklist
+### Module 55 — Summary
+### Module 55 — End-of-Section MCQ (5 questions)
+
+# Partnership → LLP / Partnership → Ltd
+## 56.1 General partnership → LLP
+## 56.2 Partnership → Ltd
+### Module 56 — Summary
+
+# First-Year Filings — Compliance Calendar
+## 57.1 Sole trader (commenced 1 May 2024)
+## 57.2 Partnership (commenced 1 April 2024)
+## 57.3 Ltd Company (incorporated 14 March 2024, ARD 31 March)
+### Module 57 — Summary
+### Module 57 — End-of-Section MCQ (3 questions)
+
+# Cessation Scenarios
+
+# Sole Trader Cessation
+## 58.1 Final SA103 — special items
+## 58.2 Capital allowances on cessation
+## 58.3 Loss reliefs
+## 58.4 VAT deregistration
+## 58.5 Other compliance
+### Module 58 — Summary
+### Module 58 — End-of-Section MCQ (4 questions)
+
+# Partnership Cessation
+## 59.1 Steps
+## 59.2 Goodwill on dissolution / sale
+### Module 59 — Summary
+
+# Ltd Strike-Off (DS01) — Voluntary Dissolution
+## 60.1 Eligibility (CA 2006 s.1003)
+## 60.2 Process
+## 60.3 £25,000 capital distribution rule (CTA 2010 s.1030A)
+## 60.4 HMRC objection
+## 60.5 Restoration if struck off in error
+### Module 60 — Summary
+### Module 60 — End-of-Section MCQ (4 questions)
+
+# Members' Voluntary Liquidation (MVL)
+## 61.1 When MVL is the route
+## 61.2 Process
+## 61.3 Tax treatment
+## 61.4 TAAR (Targeted Anti-Avoidance Rule, 2016)
+## 61.5 IP costs
+### Module 61 — Summary
+### Module 61 — End-of-Section MCQ (4 questions)
+
+# Creditors' Voluntary Liquidation (CVL)
+## 62.1 When CVL applies
+## 62.2 Process
+## 62.3 Director consequences
+### Module 62 — Summary
+
+# Compulsory Liquidation
+## 63.1 What it is
+## 63.2 Process
+## 63.3 Effect
+### Module 63 — Summary
+
+# Administration & CVA
+## 64.1 Administration (IA 1986 Sch B1)
+## 64.2 CVA (IA 1986 Part I)
+### Module 64 — Summary
+
+# Final Accounts on Cessation
+## 65.1 Sole trader / partnership
+## 65.2 Ltd (DS01 path)
+## 65.3 Liquidation accounts (MVL/CVL)
+### Module 65 — Summary
+
+# Capital Distributions & BADR
+## 66.1 Capital vs income on closure
+## 66.2 BADR conditions
+## 66.3 Worked example — MVL with BADR
+### Module 66 — Summary
+### Module 66 — End-of-Section MCQ (3 questions)
+
+# Structure Change Scenarios
+
+# Ltd → Sole Trader (Disincorporation)
+## 67.1 Why disincorporate
+## 67.2 No clean tax route
+## 67.3 Practical steps
+## 67.4 Practical reality
+### Module 67 — Summary
+### Module 67 — End-of-Section MCQ (3 questions)
+
+# Sole Trader → Partnership
+## 68.1 Steps
+## 68.2 Tax
+### Module 68 — Summary
+
+# Partnership → Ltd (cross-reference Module 56)
+### Module 69 — Summary
+
+# Group Restructuring
+## 70.1 Why create a group
+## 70.2 Holdco over existing TradingCo (share-for-share, s.135)
+## 70.3 Inter-group asset transfers — TCGA s.171
+## 70.4 Stamp Duty
+## 70.5 Substantial Shareholding Exemption (SSE)
+### Module 70 — Summary
+### Module 70 — End-of-Section MCQ (3 questions)
+
+# Ltd → Charity / CIO Conversion
+## 71.1 Why convert
+## 71.2 Two routes
+## 71.3 Tax consequences
+## 71.4 Process
+## 71.5 Trustee considerations
+### Module 71 — Summary
+### Module 71 — End-of-Section MCQ (3 questions)
+
+# Sale of Business — Asset Sale vs Share Sale
+## 72.1 The two structures
+## 72.2 Negotiating
+## 72.3 Earn-outs
+## 72.4 Loan notes / QCBs
+### Module 72 — Summary
+### Module 72 — End-of-Section MCQ (3 questions)
+
+# Demergers
+## 73.1 Three statutory routes
+## 73.2 Use case
+## 73.3 Conditions
+### Module 73 — Summary
+
+# Reconstructions
+## 74.1 What it is
+## 74.2 Tax
+## 74.3 Stamp Duty / SDRT relief
+### Module 74 — Summary
+
+# Specialist & Advanced Tax
+
+# IR35 / Off-Payroll Working Rules
+## 75.1 What IR35 is
+## 75.2 Status tests (Ready Mixed Concrete v MoP 1968)
+## 75.3 Who decides status
+## 75.4 If inside IR35
+## 75.5 CEST
+### Module 75 — Summary
+
+# Inheritance Tax
+## 76.1 The basics
+## 76.2 Lifetime gifts
+## 76.3 Annual exemptions
+## 76.4 Business Property Relief (BPR)
+## 76.5 Agricultural Property Relief (APR)
+## 76.6 Spring Budget 2024 IHT changes
+### Module 76 — Summary
+
+# Stamp Duty Land Tax
+## 77.1 Residential bands 2024/25 (England + NI)
+## 77.2 Non-Resident SDLT surcharge
+## 77.3 Commercial SDLT
+## 77.4 Reliefs
+## 77.5 Devolved equivalents
+### Module 77 — Summary
+
+# CGT — Reliefs Deep Dive
+## 78.1 Rates 2024/25
+## 78.2 BADR
+## 78.3 Investors' Relief
+## 78.4 Holdover (s.165)
+## 78.5 Rollover (s.152)
+## 78.6 PPR (s.222)
+## 78.7 EIS deferral relief
+### Module 78 — Summary
+
+# Trusts
+## 79.1 Types
+## 79.2 Trust income tax 2024/25
+## 79.3 Trust CGT
+## 79.4 Trust IHT
+## 79.5 Trust Registration Service
+### Module 79 — Summary
+
+# Non-Domiciled Status (Until April 2025)
+## 80.1 Remittance basis charge
+## 80.2 4-year FIG regime (from April 2025)
+## 80.3 Transitional reliefs
+### Module 80 — Summary
+
+# HMRC Enquiries
+## 81.1 Types
+## 81.2 Time limits
+## 81.3 Process
+## 81.4 Penalties (FA 2007 Sch 24)
+### Module 81 — Summary
+
+# Penalty Regimes
+## 82.1 Late filing
+## 82.2 Late payment
+## 82.3 Behavioural penalties (FA 2007 Sch 24)
+## 82.4 SAO regime
+## 82.5 Failure to Prevent Facilitation of Tax Evasion (CFA 2017)
+### Module 82 — Summary
+### Modules 75-82 — End-of-Section MCQ (5 questions)
+
+# Practice Management & Ethics
+
+# AML & MLR 2017
+## 83.1 Why AML matters
+## 83.2 Three lines of defence
+## 83.3 CDD requirements
+## 83.4 Reporting
+## 83.5 Tipping off (POCA 2002 s.333A)
+## 83.6 Record-keeping
+## 83.7 MLRO
+### Module 83 — Summary
+### Module 83 — End-of-Section MCQ (4 questions)
+
+# Professional Ethics
+## 84.1 Five Fundamental Principles (IESBA-aligned)
+## 84.2 Threats & safeguards
+## 84.3 Conflicts of interest
+## 84.4 PCRT (Professional Conduct in Relation to Taxation)
+### Module 84 — Summary
+
+# Engagement Letters
+## 85.1 Why mandatory
+## 85.2 Standard contents
+## 85.3 Templates
+### Module 85 — Summary
+
+# GDPR for Accountants
+## 86.1 Status
+## 86.2 Six lawful bases
+## 86.3 Practitioner duties
+## 86.4 ICO fines
+### Module 86 — Summary
+
+# Professional Indemnity Insurance (PII)
+## 87.1 Why PII
+## 87.2 Cover (ICAEW)
+## 87.3 What PII covers
+## 87.4 Run-off cover
+### Module 87 — Summary
+### Modules 84–87 — End-of-Section MCQ (4 questions)
+
+# Quick References & Final Assessment
+
+# Tax Rates & Thresholds 2024/25 & 2025/26
+## A.1 Income Tax (England, Wales & NI)
+## A.2 Income Tax (Scotland)
+## A.3 Dividend rates 2024/25
+## A.4 NI 2024/25 (Class 1)
+## A.5 Class 4 NI 2024/25
+## A.6 Corporation Tax
+## A.7 VAT
+## A.8 CGT
+## A.9 IHT
+## A.10 SDLT (E&NI residential)
+## A.11 NMW/NLW 2024/25
+## A.12 Pensions
+## A.13 Statutory pay 2024/25
+## A.14 Class 1A NI
+
+# UK Compliance Calendar (Annual Cycle)
+## April
+## May
+## July
+## October
+## December / January
+## Monthly
+## Per-company schedule (varies by ARD)
+
+# Glossary
+
+# 100-Question Final Examination
+### 100 Questions
+## End of Course

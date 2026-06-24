@@ -347,10 +347,12 @@ Return ONLY a valid JSON array with no markdown, no preamble, no explanation:
     const raw = response.content[0].type === 'text' ? response.content[0].text : ''
 
     // Strip markdown fences if present
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim()
+    let cleaned = raw.trim()
+    const startIdx = cleaned.indexOf('[')
+    const endIdx = cleaned.lastIndexOf(']')
+    if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
+      cleaned = cleaned.substring(startIdx, endIdx + 1)
+    }
 
     const parsed = JSON.parse(cleaned) as QuizQuestion[]
     if (!Array.isArray(parsed)) throw new Error('Response is not an array')
