@@ -243,7 +243,7 @@ const FEATURES = [
   { icon: Brain,       title: 'Socratic AI Tutor',       desc: 'Alex asks questions instead of lecturing. You think, you answer, you retain — proven to double knowledge retention.',         color: '78,205,196' },
   { icon: BookOpen,    title: '87 Expert Modules',        desc: 'ACCA/ACA-grade depth from sole trader setup to group restructuring. Everything a UK practitioner needs.',                   color: '155,111,208' },
   { icon: TrendingUp,  title: 'Adaptive Quizzes',         desc: 'Every quiz zeroes in on your weak spots. The system tracks topics and adjusts difficulty as you improve.',                  color: '82,217,139'  },
-  { icon: Shield,      title: 'RAG-Grounded Accuracy',    desc: 'Every AI answer is grounded in your actual course content — no hallucinations, no invented tax rates.',                      color: '91,120,216'  },
+  { icon: Shield,      title: 'Course-Grounded Accuracy',    desc: 'Everything you read is grounded in your actual course content — no hallucinations, no invented tax rates.',                      color: '91,120,216'  },
   { icon: Award,       title: 'Verifiable Certificate',   desc: 'Publicly verifiable with a unique QR code. Employers can confirm authenticity instantly via the verification URL.',          color: '232,184,75'  },
   { icon: Users,       title: 'Employer Dashboard',       desc: 'Track your whole team\'s progress, scores, and certificates in one clean dashboard. Built for practices.',                  color: '232,80,122'  },
 ]
@@ -398,7 +398,7 @@ export default function HomePage() {
       <div style={{ borderTop: '1px solid rgba(78,205,196,0.07)', borderBottom: '1px solid rgba(78,205,196,0.07)', padding: '18px 28px', background: 'rgba(9,13,26,0.6)', backdropFilter: 'blur(12px)' }}>
         <div style={{ maxWidth: 1160, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40, flexWrap: 'wrap' }}>
           {[
-            { icon: Shield,   text: 'RAG-grounded answers — no hallucinations' },
+            { icon: Shield,   text: 'Course-grounded content — no hallucinations' },
             { icon: CheckCircle2, text: 'Publicly verifiable certificate' },
             { icon: Clock,    text: '150-hour professional curriculum' },
             { icon: Brain,    text: 'Socratic AI — Haiku-powered, always current' },
