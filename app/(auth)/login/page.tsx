@@ -81,6 +81,9 @@ function LoginForm() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <label style={{ ...labelStyle, marginBottom: 0 }} className="text-xs">Password</label>
+            <Link href="/reset-password" style={{ color: 'var(--ac-cyan)', fontSize: '12px', textDecoration: 'none', fontWeight: 600 }}>
+              Forgot password?
+            </Link>
           </div>
           <div style={{ position: 'relative' }}>
             <input

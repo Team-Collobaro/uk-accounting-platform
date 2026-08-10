@@ -41,7 +41,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/verify') ||
     pathname.startsWith('/api/webhook') ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon')
+    pathname.startsWith('/favicon') ||
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/update-password')
 
   if (!user && !isPublic) {
     const loginUrl = request.nextUrl.clone()

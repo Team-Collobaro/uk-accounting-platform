@@ -207,21 +207,24 @@ function FeatureCard({ icon: Icon, title, desc, color, delay }: { icon: React.El
     <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay }}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        padding: '24px', borderRadius: 18,
-        background: hov ? `rgba(${color},0.06)` : 'rgba(14,21,37,0.6)',
-        border: `1px solid rgba(${color},${hov ? 0.28 : 0.12})`,
-        backdropFilter: 'blur(12px)',
-        boxShadow: hov ? `0 8px 32px rgba(${color},0.12)` : '0 2px 8px rgba(0,0,0,0.3)',
+        padding: '24px',
+        borderRadius: 6,
+        background: '#fff',
+        border: `1px solid var(--line)`,
+        borderTop: `4px solid rgb(${color})`,
+        boxShadow: hov ? 'var(--shadow-md)' : 'var(--shadow-sm)',
         transition: 'all 0.22s ease', cursor: 'default',
+        transform: hov ? 'translateY(-3px)' : 'none',
       }}>
-      <div style={{ width: 46, height: 46, borderRadius: 13, background: `rgba(${color},0.14)`, border: `1px solid rgba(${color},0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 8, background: `rgba(${color},0.1)`, border: `1px solid rgba(${color},0.25)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
         <Icon size={22} color={`rgb(${color})`} />
       </div>
-      <p style={{ fontWeight: 700, color: '#E8F0FC', marginBottom: 8 }} className="text-[15px]">{title}</p>
-      <p style={{ color: '#8EA8CC', lineHeight: 1.65 }} className="text-small">{desc}</p>
+      <p style={{ fontWeight: 700, color: 'var(--accent-2)', marginBottom: 8, fontSize: 16, fontFamily: '"Charter", Georgia, serif' }}>{title}</p>
+      <p style={{ color: 'var(--ink-soft)', lineHeight: 1.65, fontSize: 14.5, fontFamily: '"Charter", Georgia, serif' }}>{desc}</p>
     </motion.div>
   )
 }
+
 
 // ─── Curriculum part row ──────────────────────────────────────────────────────
 const PARTS = [
@@ -276,7 +279,12 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: '#050810', color: '#E8F0FC', fontFamily: "'Inter', system-ui, sans-serif", overflowX: 'hidden',
+      ['--bg-base' as string]: '#050810',
+      ['--text-primary' as string]: '#E8F0FC',
+      ['--shadow-lg' as string]: '0 16px 40px rgba(0,0,0,0.6)',
+      ['--shadow-md' as string]: '0 6px 20px rgba(0,0,0,0.4)',
+    }}>
 
       {/* ── Nav ── */}
       <motion.nav style={{
@@ -411,48 +419,48 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── Features ── */}
-      <section style={{ padding: '96px 28px' }}>
+      {/* ─ Features ─ */}
+      <section style={{ padding: '96px 28px', background: 'var(--bg)', borderTop: '1px solid var(--line-soft)' }}>
         <div style={{ maxWidth: 1160, margin: '0 auto' }}>
-          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 56 }}>
-            <p style={{ fontFamily: 'monospace', color: '#4ECDC4', letterSpacing: '0.22em', marginBottom: 14 }} className="text-micro">PLATFORM FEATURES</p>
-            <h2 style={{ fontSize: 'clamp(26px,3vw,42px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC', marginBottom: 12 }}>
-              Everything you need to{' '}<span style={{ color: '#4ECDC4' }}>qualify</span>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{ display: 'inline-block', background: 'var(--accent)', color: '#fff', padding: '3px 14px', fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontFamily: '"Inter", sans-serif', fontWeight: 700, borderRadius: 2, marginBottom: 16 }}>Platform Features</div>
+            <h2 style={{ fontSize: 'clamp(26px,3vw,40px)', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink)', marginBottom: 12, fontFamily: '"Charter", Georgia, serif' }}>
+              Everything you need to <em style={{ color: 'var(--accent)', fontStyle: 'italic' }}>qualify</em>
             </h2>
-            <p style={{ color: '#8EA8CC', maxWidth: 480, margin: '0 auto' }} className="text-[15px]">
-              Built for working professionals upgrading UK accounting credentials — at their own pace.
+            <p style={{ color: 'var(--ink-soft)', maxWidth: 480, margin: '0 auto', fontSize: 16, lineHeight: 1.6 }}>
+              Built for working professionals upgrading UK accounting credentials &mdash; at their own pace.
             </p>
-          </motion.div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
             {FEATURES.map((f, i) => <FeatureCard key={f.title} {...f} delay={i * 0.07} />)}
           </div>
         </div>
       </section>
 
-      {/* ── Curriculum ── */}
-      <section style={{ padding: '96px 28px', background: 'rgba(9,13,26,0.5)', borderTop: '1px solid rgba(78,205,196,0.06)', borderBottom: '1px solid rgba(78,205,196,0.06)' }}>
+      {/* ─ Curriculum ─ */}
+      <section style={{ padding: '80px 28px', background: 'var(--bg-dark)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ textAlign: 'center', marginBottom: 48 }}>
-            <p style={{ fontFamily: 'monospace', color: '#9B6FD0', letterSpacing: '0.22em', marginBottom: 14 }} className="text-micro">FULL CURRICULUM</p>
-            <h2 style={{ fontSize: 'clamp(26px,3vw,40px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#E8F0FC', marginBottom: 10 }}>
-              87 modules across{' '}<span style={{ color: '#9B6FD0' }}>12 subject areas</span>
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ marginBottom: 40 }}>
+            <div style={{ display: 'inline-block', background: 'var(--accent)', color: '#fff', padding: '3px 12px', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: '"Inter", sans-serif', fontWeight: 700, borderRadius: 2, marginBottom: 14 }}>Full Curriculum</div>
+            <h2 style={{ fontSize: 'clamp(24px,2.8vw,38px)', fontWeight: 800, letterSpacing: '-0.02em', color: '#fff', marginBottom: 10, fontFamily: '"Charter", Georgia, serif' }}>
+              87 modules across <span style={{ color: '#b8860b' }}>12 subject areas</span>
             </h2>
-            <p style={{ color: '#8EA8CC' }} className="text-sm">ACCA/ACA-grade depth · practical UK focus · real practitioner scenarios</p>
+            <p style={{ color: '#94a3b8', fontSize: 15 }}>ACCA/ACA-grade depth · practical UK focus · real practitioner scenarios</p>
           </motion.div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(270px,1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
             {PARTS.map(({ n, t, m }, i) => (
               <motion.div key={n}
                 initial={{ opacity: 0, x: -8 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.04 }}
-                whileHover={{ x: 5 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(14,21,37,0.6)', border: '1px solid rgba(78,205,196,0.08)', borderRadius: 13, padding: '13px 16px', backdropFilter: 'blur(8px)', transition: 'border-color 0.2s' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))', border: '1px solid rgba(78,205,196,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }} className="text-tiny">
+                whileHover={{ x: 4 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderLeft: '3px solid var(--accent)', borderRadius: 4, padding: '12px 16px', transition: 'border-color 0.2s' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 4, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 800, color: '#fff', fontFamily: '"Inter", sans-serif', fontSize: 12 }}>
                   {n}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 600, color: '#E8F0FC', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-small">{t}</p>
-                  <p style={{ color: '#4A6285', fontFamily: 'monospace', marginTop: 2 }} className="text-micro">{m} modules</p>
+                  <p style={{ fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{t}</p>
+                  <p style={{ color: '#475569', fontFamily: '"Inter", sans-serif', marginTop: 1, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{m} modules</p>
                 </div>
-                <ChevronRight size={13} color="#4A6285" />
+                <ChevronRight size={13} color="#475569" />
               </motion.div>
             ))}
           </div>

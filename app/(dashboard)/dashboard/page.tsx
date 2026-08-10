@@ -451,69 +451,84 @@ export default function DashboardPage() {
   const nearbyMods  = allModules.slice(Math.max(0, nextIdx - 1), nextIdx + 4).filter(m => m !== nextModule).slice(0, 3)
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: 'Inter,system-ui,sans-serif', padding: '0 0 100px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)', fontFamily: '"Inter", system-ui, sans-serif', padding: '0 0 100px',
+      // dashboard CSS overrides — map dark vars to old-HTML warm palette
+      ['--card-bg' as string]: '#fff',
+      ['--card-border' as string]: 'var(--line)',
+      ['--bg-elevated' as string]: 'var(--bg)',
+      ['--bg-hover' as string]: 'var(--line-soft)',
+      ['--bg-surface' as string]: '#fff',
+      ['--text-primary' as string]: 'var(--ink)',
+      ['--text-secondary' as string]: 'var(--ink-soft)',
+      ['--text-tertiary' as string]: 'var(--ink-faint)',
+      ['--border-subtle' as string]: 'var(--line)',
+      ['--border-medium' as string]: 'var(--line)',
+      ['--ac-cyan' as string]: 'var(--accent-2)',
+      ['--ac-violet' as string]: '#6d28d9',
+      ['--ac-mint' as string]: 'var(--accent-3)',
+      ['--glass-overlay' as string]: 'rgba(255,255,255,0.95)',
+    }}>
       <CelebrationBurst active={celebration} />
 
       <AnimatePresence>
         {milestone && <MilestoneToast {...milestone} onDismiss={() => setMilestone(null)} />}
       </AnimatePresence>
 
-      {/* ── Hero: Continue Learning ── */}
+      {/* ─ Hero banner – editorial part-header style ─ */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        style={{ padding: '28px 28px 24px', borderBottom: '1px solid var(--border-subtle)', position: 'relative', overflow: 'hidden' }}>
+        style={{
+          background: 'linear-gradient(135deg, var(--bg-dark) 0%, #0f172a 100%)',
+          color: '#fff', padding: '32px 36px 28px',
+          borderLeft: '6px solid var(--accent)',
+          position: 'relative', overflow: 'hidden',
+        }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           {/* greeting row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-
-              <div>
-                <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.15em', marginBottom: 3 }} className="text-micro">READY TO LEARN?</p>
-                <div style={{ fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--text-primary)' }} className="text-[21px]">
-                  <BlurText text={`Welcome back, ${studentName.split(' ')[0]}!`} className="aurora-text" delay={70} direction="top" stepDuration={0.15} />
-                </div>
-                <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontWeight: 500 }} className="text-sm">Grab a coffee and let's dive into your studies today. You're doing great!</p>
-                <p style={{ color: 'var(--text-tertiary)', marginTop: 3 }} className="text-xs">{completed} of 87 modules completed · {pct}% through the qualification</p>
+            <div>
+              <div style={{ display: 'inline-block', background: 'var(--accent)', color: '#fff', padding: '3px 12px', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: '"Inter", sans-serif', fontWeight: 700, borderRadius: 2, marginBottom: 12 }}>
+                ACCA / ACA Grade
               </div>
+              <div style={{ fontWeight: 800, letterSpacing: '-0.015em', color: '#fff', fontSize: 22, fontFamily: '"Charter", "Georgia", serif', marginBottom: 4, lineHeight: 1.2 }}>
+                <BlurText text={`Welcome back, ${studentName.split(' ')[0]}!`} className="aurora-text" delay={70} direction="top" stepDuration={0.15} />
+              </div>
+              <p style={{ color: '#94a3b8', marginTop: 4, fontWeight: 400, fontSize: 14, lineHeight: 1.5, margin: '4px 0 0', fontFamily: '"Inter", sans-serif' }}>Ready to continue your studies? {completed} of 87 modules complete &mdash; {pct}% through the qualification.</p>
             </div>
-
-
           </div>
 
           {/* Continue Learning CTA */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
             style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-medium)', borderRadius: 20, padding: '20px 24px',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '18px 22px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               flexWrap: 'wrap', gap: 16, position: 'relative', overflow: 'hidden',
             }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ width: 52, height: 52, borderRadius: 16, background: 'rgba(78,205,196,0.12)', border: '1px solid var(--border-medium)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Play size={20} color="var(--ac-cyan)" style={{ marginLeft: 2 }} />
+                style={{ width: 48, height: 48, borderRadius: 6, background: 'rgba(185,28,28,0.2)', border: '1px solid rgba(185,28,28,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Play size={20} color="var(--accent)" style={{ marginLeft: 2 }} />
               </motion.div>
               <div>
-                <p style={{ fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.15em', marginBottom: 4, opacity: 0.7 }} className="text-micro">
-                  CONTINUE LEARNING · {nextPart ? `PART ${nextPart.number}` : ''}
+                <p style={{ fontFamily: '"Inter", sans-serif', color: 'var(--accent)', letterSpacing: '0.15em', marginBottom: 4, opacity: 0.9, fontSize: 10, textTransform: 'uppercase', fontWeight: 700 }}>
+                  Continue Learning &middot; {nextPart ? `Part ${nextPart.number}` : ''}
                 </p>
-                <h2 style={{ fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 2px', lineHeight: 1.2 }} className="text-lg">{nextTitle}</h2>
-                <p style={{ color: 'var(--text-tertiary)', margin: 0 }} className="text-xs">{nextModule.toUpperCase()} · Alex is ready to guide you</p>
+                <h2 style={{ fontWeight: 700, color: '#fff', margin: '0 0 2px', lineHeight: 1.2, fontSize: 18, fontFamily: '"Charter", "Georgia", serif' }}>{nextTitle}</h2>
+                <p style={{ color: '#64748b', margin: 0, fontSize: 12, fontFamily: '"Inter", sans-serif' }}>{nextModule.toUpperCase()} &middot; Alex is ready to guide you</p>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-
-
               <Link href={`/course/${nextModule}`} style={{ textDecoration: 'none' }}>
                 <motion.button
-                  whileHover={{ scale: 1.04, boxShadow: '0 0 30px rgba(78,205,196,0.35)' }} whileTap={{ scale: 0.97 }}
+                  whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '13px 26px', borderRadius: 13,
-                    background: 'var(--ac-cyan)',
-                    border: 'none', cursor: 'pointer', fontWeight: 700, color: '#050810',
-                    boxShadow: '0 4px 20px rgba(78,205,196,0.25)',
-                  }} className="text-sm">
+                    padding: '11px 24px', borderRadius: 4,
+                    background: 'var(--accent)',
+                    border: 'none', cursor: 'pointer', fontWeight: 700, color: '#fff',
+                    fontFamily: '"Inter", sans-serif', fontSize: 14, letterSpacing: '0.02em',
+                  }}>
                   Start Now <ArrowRight size={15} />
                 </motion.button>
               </Link>

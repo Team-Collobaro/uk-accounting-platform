@@ -15,6 +15,7 @@ export const PARTS = [
   { number: 10, title: 'Structure Changes',         modules: mods(67, 74), color: '#E8B84B' },
   { number: 11, title: 'Specialist Tax',            modules: mods(75, 82), color: '#9B6FD0' },
   { number: 12, title: 'Practice & Ethics',         modules: mods(83, 87), color: '#4ECDC4' },
+  { number: 13, title: 'Appendices',                modules: ['appA', 'appB', 'appC', 'appD'], color: '#9B6FD0' },
 ]
 
 export const MODULE_TITLES: Record<string, string> = {
@@ -62,4 +63,8 @@ export const MODULE_TITLES: Record<string, string> = {
   m83: 'AML & MLR 2017',                m84: 'Professional Ethics',
   m85: 'Engagement Letters',            m86: 'GDPR for Accountants',
   m87: 'Professional Indemnity Insurance',
+  appA: 'Appendix A: Tax Rates & Allowances',
+  appB: 'Appendix B: Compliance Calendar',
+  appC: 'Appendix C: Glossary',
+  appD: 'Appendix D: Final Assessment',
 }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { ShieldAlert } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface AntiCheatWrapperProps {
   children: React.ReactNode
@@ -78,6 +79,54 @@ export default function AntiCheatWrapper({
       e.preventDefault()
     }
 
+    // 5. Handle extended displays / multiple monitors
+    const checkMultipleMonitors = () => {
+      if (typeof window !== 'undefined' && window.screen && (window.screen as any).isExtended) {
+        setIsBlurredBySystem(true)
+        setSystemWarning('Multiple monitors detected. Please disconnect secondary displays to continue.')
+        return true
+      }
+      return false
+    }
+
+    const hasMultipleMonitors = checkMultipleMonitors()
+
+    let screenDetailsInstance: any = null
+    let handleScreensChangeRef: any = null
+
+    const initScreenDetails = async () => {
+      if (typeof window !== 'undefined' && 'getScreenDetails' in window) {
+        try {
+          const screenDetails = await (window as any).getScreenDetails()
+          screenDetailsInstance = screenDetails
+          
+          handleScreensChangeRef = () => {
+            if (screenDetails.screens.length > 1) {
+              setIsBlurredBySystem(true)
+              setSystemWarning('Multiple monitors detected. Please disconnect secondary displays to continue.')
+            } else {
+              setSystemWarning(prev => {
+                if (prev.includes('monitor') || prev.includes('display')) {
+                  setIsBlurredBySystem(false)
+                  return ''
+                }
+                return prev
+              })
+            }
+          }
+          
+          handleScreensChangeRef()
+          screenDetails.addEventListener('screenschange', handleScreensChangeRef)
+        } catch (err) {
+          console.warn("Screen details permission denied or not supported:", err)
+        }
+      }
+    }
+    
+    if (!hasMultipleMonitors) {
+      initScreenDetails()
+    }
+
     window.addEventListener('blur', handleBlur)
     window.addEventListener('focus', handleFocus)
     window.addEventListener('keydown', handleKeyDown)
@@ -92,11 +141,47 @@ export default function AntiCheatWrapper({
       window.removeEventListener('keyup', handleKeyUp)
       document.removeEventListener('copy', handleCopy)
       document.removeEventListener('contextmenu', handleContextMenu)
+      if (screenDetailsInstance && handleScreensChangeRef) {
+        screenDetailsInstance.removeEventListener('screenschange', handleScreensChangeRef)
+      }
     }
   }, [systemWarning])
 
   return (
     <div className="anti-cheat-container no-copy relative">
+      <AnimatePresence>
+        {isBlurred && warningMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
+            exit={{ opacity: 0, y: -20, scale: 0.95, x: '-50%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            style={{
+              position: 'fixed',
+              top: '24px',
+              left: '50%',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: 'rgba(239, 68, 68, 0.95)', // red-500
+              backdropFilter: 'blur(12px)',
+              color: '#ffffff',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              fontFamily: '"Inter", sans-serif',
+              fontSize: '14px',
+              fontWeight: 600,
+            }}
+          >
+            <ShieldAlert className="w-5 h-5 text-white flex-shrink-0 animate-pulse" />
+            <span>{warningMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {isBlurred && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-xl rounded-lg border border-slate-700 mt-20">
           <div className="text-center p-8">
