@@ -20,10 +20,14 @@ interface ModuleData {
 }
 
 import { motion, AnimatePresence } from 'framer-motion'
+import DOMPurify from 'dompurify'
 import AiZone from '@/components/AiZone'
 import AntiCheatWrapper from '@/components/AntiCheatWrapper'
 import ProctoringCamera from '@/components/ProctoringCamera'
+import MobileDeviceStatus from '@/components/MobileDeviceStatus'
 import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
+import DevProctoringToolbar from '@/components/DevProctoringToolbar'
+import { useProctoringConfig } from '@/lib/proctoringConfig'
 import { initAnimFactory } from '@/lib/animFactory'
 
 export default function CourseLessonPage() {
@@ -34,20 +38,65 @@ export default function CourseLessonPage() {
   const [loading, setLoading] = useState(true)
   const [moduleData, setModuleData] = useState<ModuleData | null>(null)
   const [currentIdx, setCurrentIdx] = useState(0)
+  const currentSection = moduleData?.sections[currentIdx]
   const [contentHtml, setContentHtml] = useState('')
 
   const [isViolatingProctoring, setIsViolatingProctoring] = useState(false)
   const [proctoringWarning, setProctoringWarning] = useState('')
   const [isProctoringAgreed, setIsProctoringAgreed] = useState(false)
+  const [proctorSessionId, setProctorSessionId] = useState<string | null>(null)
+  const [proctorQrValue, setProctorQrValue] = useState<string | null>(null)
+  const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
+
+  const { config } = useProctoringConfig()
 
   const handleProctoringViolation = React.useCallback((isViolating: boolean, message: string) => {
     setIsViolatingProctoring(isViolating)
     if (isViolating) setProctoringWarning(message)
   }, [])
 
+  const handleAgreeProctoring = async () => {
+    try {
+      const res = await fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId })
+      })
+      const data = await res.json()
+      if (data.sessionId) {
+        setProctorSessionId(data.sessionId)
+        setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+      }
+    } catch (e) {
+      console.error('Failed to get proctor session', e)
+    }
+    setIsProctoringAgreed(true)
+  }
+
   useEffect(() => {
     setIsProctoringAgreed(false)
+    setProctorSessionId(null)
+    setProctorQrValue(null)
+    setMobileStatus('not_linked')
   }, [currentIdx, moduleId])
+
+  useEffect(() => {
+    if (currentSection?.section_title === 'Knowledge Check' && !proctorSessionId) {
+      fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.sessionId) {
+            setProctorSessionId(data.sessionId)
+            setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+          }
+        })
+        .catch(err => console.error('Failed to auto-init proctor session:', err))
+    }
+  }, [currentSection?.section_title, moduleId, proctorSessionId])
 
   useEffect(() => {
     fetch(`/api/sections?moduleId=${moduleId}`)
@@ -199,8 +248,14 @@ export default function CourseLessonPage() {
       const prefix = match[1];
       let scenes;
       try {
-        // eslint-disable-next-line no-eval
-        scenes = eval(match[2]);
+        // Safe alternative to eval: since it's an array of objects, we use JSON.parse.
+        // Convert JS single-quote keys/strings to double-quotes if necessary, 
+        // though standard JSON requires double-quotes. Assuming the backend sends valid JSON-like structures:
+        const jsonStr = match[2]
+          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"\$2": ')
+          .replace(/'/g, '"')
+          .replace(/,\s*}/g, '}');
+        scenes = JSON.parse(jsonStr);
       } catch (e) {
         console.error('Failed to parse animation scenes for', prefix, e);
         continue;
@@ -218,7 +273,6 @@ export default function CourseLessonPage() {
     return <div style={{ padding: 40, textAlign: 'center' }}>Module content not found.</div>
   }
 
-  const currentSection = moduleData?.sections[currentIdx]
   const moduleNumberStr = moduleId.replace(/\D/g, '') || '1'
   const moduleNumber = parseInt(moduleNumberStr, 10)
 
@@ -309,7 +363,7 @@ export default function CourseLessonPage() {
               </div>
               <div className="section-content-wrapper">
                 {currentSection?.section_title === 'Knowledge Check' ? (
-                  !isProctoringAgreed ? (
+                  !(isProctoringAgreed || config.gates.bypassIntegrityAgreement) ? (
                     <div style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -363,20 +417,20 @@ export default function CourseLessonPage() {
                       }}>
                         <div style={{ display: 'flex', gap: '12px' }}>
                           <span style={{ color: '#ef4444', fontWeight: 700 }}>1.</span>
-                          <div><strong style={{ color: '#ffffff' }}>Camera & Mic:</strong> Evaluates local AI to confirm only 1 person faces the screen. No feeds are sent to servers.</div>
+                          <div><strong style={{ color: '#ffffff' }}>Camera & Mic:</strong> Evaluates local AI to confirm only 1 person faces the screen. If flagged locally, specific images are securely sent to our Tier-2 AI (Claude) for secondary review. </div>
                         </div>
                         <div style={{ display: 'flex', gap: '12px' }}>
                           <span style={{ color: '#ef4444', fontWeight: 700 }}>2.</span>
-                          <div><strong style={{ color: '#ffffff' }}>Focus Mode:</strong> Keep this window active. Switching tabs or capturing screenshots will lock the exam.</div>
+                          <div><strong style={{ color: '#ffffff' }}>Focus Mode:</strong> Keep this window active. Switching tabs or capturing screenshots will log a violation.</div>
                         </div>
                         <div style={{ display: 'flex', gap: '12px' }}>
                           <span style={{ color: '#ef4444', fontWeight: 700 }}>3.</span>
-                          <div><strong style={{ color: '#ffffff' }}>Single Screen:</strong> Extended displays are restricted. Please disconnect secondary monitors.</div>
+                          <div><strong style={{ color: '#ffffff' }}>Privacy & Appeals:</strong> Tier-2 images are retained for 30 days for appeal review and then securely deleted. Only authorized instructors can review flags. If you lack a second device, please contact support for an alternative arrangement.</div>
                         </div>
                       </div>
 
                       <button 
-                        onClick={() => setIsProctoringAgreed(true)}
+                        onClick={handleAgreeProctoring}
                         style={{
                           width: '100%',
                           background: '#ef4444', // red-500
@@ -395,21 +449,35 @@ export default function CourseLessonPage() {
                         I Agree, Start Knowledge Check
                       </button>
                     </div>
+                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live') ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff', background: '#1f2937', borderRadius: 12, marginTop: 40 }}>
+                      <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>📱 Link Your Phone to Continue</h2>
+                      <p style={{ color: '#9ca3af', marginBottom: 24 }}>Mobile camera monitoring is required for this exam.</p>
+                      <div style={{ display: 'inline-block', textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: 20, borderRadius: 8 }}>
+                        <ol style={{ margin: 0, paddingLeft: 20, color: '#d1d5db', lineHeight: 1.6 }}>
+                          <li>Open the <strong>LMS Mobile App</strong> on your phone</li>
+                          <li>Tap <strong>Scan Desktop QR Code</strong></li>
+                          <li>Scan the QR code shown in the sidebar</li>
+                          <li>Position your phone behind you, facing your screen</li>
+                        </ol>
+                      </div>
+                    </div>
                   ) : (
                     <AntiCheatWrapper 
                       isViolatingProctoring={isViolatingProctoring}
                       proctoringWarning={proctoringWarning}
+                      sessionId={proctorSessionId || undefined}
                     >
                       <div 
                         className="section-content-html"
-                        dangerouslySetInnerHTML={{ __html: contentHtml }} 
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} 
                       />
                     </AntiCheatWrapper>
                   )
                 ) : (
                   <div 
                     className="section-content-html"
-                    dangerouslySetInnerHTML={{ __html: contentHtml }} 
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} 
                   />
                 )}
               </div>
@@ -500,8 +568,18 @@ export default function CourseLessonPage() {
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 8, marginBottom: 24, lineHeight: 1.5 }}>
           Your camera is active to ensure academic integrity. Please face the screen during the entire Knowledge Check.
         </p>
-        {isProctoringAgreed ? (
-          <ProctoringCamera onViolation={handleProctoringViolation} />
+        {(isProctoringAgreed || config.gates.bypassIntegrityAgreement) ? (
+          <>
+            {proctorSessionId && !config.gates.bypassMobileCameraRequired && (
+              <div style={{ marginBottom: 20 }}>
+                <MobileDeviceStatus 
+                  sessionId={proctorSessionId} 
+                  onStatusChange={setMobileStatus} 
+                />
+              </div>
+            )}
+            <ProctoringCamera onViolation={handleProctoringViolation} sessionId={proctorSessionId || undefined} qrValue={proctorQrValue || undefined} />
+          </>
         ) : (
           <div style={{
             background: 'rgba(15, 23, 42, 0.5)',
@@ -531,6 +609,9 @@ export default function CourseLessonPage() {
       />
     )}
   </div>
+
+  {/* Dev Proctoring Floating Toolbar */}
+  <DevProctoringToolbar onSimulateViolation={handleProctoringViolation} />
 </div>
   )
 }

@@ -1,0 +1,34 @@
+{
+  "devMode": false,
+  "laptop": {
+    "cameraFeed": true,
+    "microphoneFeed": true,
+    "facePresenceDetection": true,
+    "multiplePeopleDetection": true,
+    "gazeTracking": true,
+    "livenessCheck": true,
+    "forbiddenObjectDetection": true,
+    "audioNoiseDetection": true,
+    "audioCountdownBlur": false
+  },
+  "browserGuards": {
+    "tabSwitchBlur": true,
+    "multiMonitorDetection": false,
+    "screenshotProtection": true,
+    "clipboardCopyProtection": true
+  },
+  "gates": {
+    "bypassIntegrityAgreement": false,
+    "bypassMobileCameraRequired": false
+  },
+  "mobile": {
+    "cameraFeed": true,
+    "mlKitObjectDetection": true,
+    "studentMissingWatchdog": true,
+    "livenessDetection": true,
+    "claudeTier2Verification": true,
+    "supabaseBroadcast": true,
+    "heartbeatWatchdog": true,
+    "wakelock": true
+  }
+}

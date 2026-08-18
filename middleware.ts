@@ -25,11 +25,6 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — must await to keep session alive
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
 
   // Public paths — no auth required
@@ -40,12 +35,24 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/verify') ||
     pathname.startsWith('/api/verify') ||
     pathname.startsWith('/api/webhook') ||
+    pathname.startsWith('/api/proctor-session') ||
+    pathname.startsWith('/api/dev-config') ||
+    pathname.startsWith('/api/proctor-analyze') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/update-password')
 
-  if (!user && !isPublic) {
+  if (isPublic) {
+    return supabaseResponse
+  }
+
+  // Refresh session — must await to keep session alive
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     loginUrl.searchParams.set('redirectTo', pathname)

@@ -16,6 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [nextModule, setNextModule] = useState<string | null>(null)
   const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set([1]))
   const [readingPct, setReadingPct] = useState(0)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   useEffect(() => {
     const fetchProgress = () => {
@@ -90,6 +91,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div id="app" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {/* ── Mobile Header & Hamburger ────────────────────────────────────── */}
+      <div className="mobile-header" style={{
+        display: 'none', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        padding: '12px 20px',
+        background: 'var(--bg-dark)',
+        color: '#fff',
+        borderBottom: '1px solid #000',
+        zIndex: 50,
+      }}>
+        <h2 style={{ fontSize: 16, margin: 0, fontWeight: 700, fontFamily: '"Charter", "Georgia", serif' }}>UK Accounting</h2>
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          style={{ background: 'transparent', border: 'none', color: '#fff', padding: '8px', cursor: 'pointer' }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @media (max-width: 768px) {
+          .mobile-header { display: flex !important; }
+          #sidebar { 
+            position: fixed; 
+            left: 0; 
+            top: 53px; 
+            bottom: 0; 
+            z-index: 40; 
+            transform: translateX(\${isSidebarOpen ? '0' : '-100%'});
+            transition: transform 0.3s ease;
+          }
+          #app { flex-direction: column !important; }
+        }
+      `}} />
 
       {/* ── Sidebar ────────────────────────────────────────────────────── */}
       <nav id="sidebar" style={{
@@ -100,7 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }}>
 
         {/* ─ Header ─ */}
-        <div style={{ padding: '22px 20px 14px', borderBottom: '1px solid #1e293b', flexShrink: 0 }}>
+        <div style={{ padding: '22px 20px 14px', borderBottom: '1px solid #1e293b', flexShrink: 0 }} className="sidebar-desktop-header">
           <h2 style={{
             margin: '0 0 4px', fontSize: 17, fontWeight: 700, color: '#fff',
             fontFamily: '"Charter", "Georgia", serif', lineHeight: 1.3, letterSpacing: '-0.01em',
