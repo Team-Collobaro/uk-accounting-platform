@@ -60,3 +60,46 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to load progress' }, { status: 500 })
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+    const { moduleId, status } = body
+
+    if (!moduleId || !status) {
+      return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
+    }
+
+    // Only update if status is 'completed'
+    if (status === 'completed') {
+      const student = await getStudent(user.id)
+      const completedModules = new Set(student.completedModules)
+      
+      // If module isn't already completed, add it
+      if (!completedModules.has(moduleId)) {
+        completedModules.add(moduleId)
+        await import('@/lib/supabase-server').then(m => m.updateStudent(user.id, { 
+          completedModules: Array.from(completedModules) 
+        }))
+        
+        await import('@/lib/supabase-server').then(m => m.updateModuleProgress(user.id, moduleId, {
+          status: 'completed',
+          completedAt: new Date().toISOString()
+        }))
+      }
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('/api/progress POST error:', err)
+    return NextResponse.json({ error: 'Failed to save progress' }, { status: 500 })
+  }
+}
+

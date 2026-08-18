@@ -1,2550 +1,617 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@/lib/supabase'
+
+interface SectionMeta {
+  section_id: string
+  section_title: string
+  section_order: number
+  aiPractice?: any
+}
+
+interface ModuleData {
+  module_title: string
+  meta: string
+  learningObjHtml: string
+  hookHtml?: string
+  hookText?: string
+  sections: SectionMeta[]
+}
+
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Send, Loader2, ChevronLeft, ChevronRight, Brain,
-  CheckCircle2, XCircle, Mic, MicOff, Volume2, VolumeX,
-  Download, PenLine, ChevronDown, ChevronUp, Check, Lock,
-  Keyboard, Sparkles,
-} from 'lucide-react'
-import type { QuizQuestion } from '@/types'
-import StarBorder from '@/components/reactbits/StarBorder'
-import DecryptedText from '@/components/reactbits/DecryptedText'
-import SoftAurora from '@/components/SoftAurora'
-import ThemeToggle from '@/components/ThemeToggle'
+import DOMPurify from 'dompurify'
+import AiZone from '@/components/AiZone'
+import AntiCheatWrapper from '@/components/AntiCheatWrapper'
+import ProctoringCamera from '@/components/ProctoringCamera'
+import MobileDeviceStatus from '@/components/MobileDeviceStatus'
+import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
+import DevProctoringToolbar from '@/components/DevProctoringToolbar'
+import { useProctoringConfig } from '@/lib/proctoringConfig'
+import { initAnimFactory } from '@/lib/animFactory'
 
-/* ─── types ──────────────────────────────────────────────────────────────────── */
-interface Message       { role: 'user' | 'assistant'; content: string; timestamp: string; visual?: string; mcqAnswer?: string; mcqCorrect?: string }
-interface Section       { section_id: string; section_title: string; section_order: number }
-interface TeachingPoint { title: string; content: string; done: boolean }
-interface SectionProgress {
-  section_id: string; section_title: string; status: string
-  notes: string; key_points: string[]
-  teaching_point_idx?: number; teaching_points?: TeachingPoint[]
-  t_phase?: string
-}
+export default function CourseLessonPage() {
+  const params = useParams()
+  const router = useRouter()
+  const moduleId = (params.moduleId as string) || 'm01'
 
-function AuroraStatus({ speaking }: { speaking: boolean }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', gap: 4, position: 'relative', zIndex: 2 }}>
-      <p className="aurora-text text-micro" style={{ fontWeight: 700, letterSpacing: '0.22em', fontFamily: 'monospace' }}>
-        ALEX · AI TUTOR
-      </p>
-      <p style={{
-        letterSpacing: '0.16em', fontFamily: 'monospace',
-        color: speaking ? 'var(--ac-cyan)' : 'var(--text-tertiary)',
-        opacity: speaking ? 1 : 0.5,
-        transition: 'all 0.3s',
-        textShadow: speaking ? '0 0 8px rgba(78,205,196,0.7)' : 'none',
-      }} className="text-[9px]">
-        {speaking ? '◉ SPEAKING' : '○ READY'}
-      </p>
-    </div>
-  )
-}
+  const [loading, setLoading] = useState(true)
+  const [moduleData, setModuleData] = useState<ModuleData | null>(null)
+  const [currentIdx, setCurrentIdx] = useState(0)
+  const currentSection = moduleData?.sections[currentIdx]
+  const [contentHtml, setContentHtml] = useState('')
 
-// ─── Liquid Core Orb (concentric ripple waves, audio-reactive) ───────────────
-function AudioOrb({ speaking, analyser }: { speaking: boolean; analyser: AnalyserNode | null }) {
-  const innerRef = useRef<HTMLDivElement>(null)
-  const midRef   = useRef<HTMLDivElement>(null)
-  const outerRef = useRef<HTMLDivElement>(null)
-  const coreRef  = useRef<HTMLDivElement>(null)
-  const frameRef = useRef<number>(0)
-  const freqData = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  const [isViolatingProctoring, setIsViolatingProctoring] = useState(false)
+  const [proctoringWarning, setProctoringWarning] = useState('')
+  const [isProctoringAgreed, setIsProctoringAgreed] = useState(false)
+  const [proctorSessionId, setProctorSessionId] = useState<string | null>(null)
+  const [proctorQrValue, setProctorQrValue] = useState<string | null>(null)
+  const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
 
-  // Drive ring scale + opacity from live frequency data
-  useEffect(() => {
-    const tick = () => {
-      let bass = 0, mid = 0, high = 0
-      if (analyser && speaking) {
-        if (!freqData.current || freqData.current.length !== analyser.frequencyBinCount) {
-          freqData.current = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount))
-        }
-        analyser.getByteFrequencyData(freqData.current)
-        const bins = freqData.current
-        const len = bins.length
-        // Split frequency spectrum into thirds
-        for (let i = 0; i < Math.floor(len * 0.15); i++) bass  += bins[i]
-        for (let i = Math.floor(len * 0.15); i < Math.floor(len * 0.5); i++) mid  += bins[i]
-        for (let i = Math.floor(len * 0.5);  i < Math.floor(len * 0.85); i++) high += bins[i]
-        bass  = bass  / (Math.floor(len * 0.15) * 255)
-        mid   = mid   / (Math.floor(len * 0.35) * 255)
-        high  = high  / (Math.floor(len * 0.35) * 255)
+  const { config } = useProctoringConfig()
+
+  const handleProctoringViolation = React.useCallback((isViolating: boolean, message: string) => {
+    setIsViolatingProctoring(isViolating)
+    if (isViolating) setProctoringWarning(message)
+  }, [])
+
+  const handleAgreeProctoring = async () => {
+    try {
+      const res = await fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId })
+      })
+      const data = await res.json()
+      if (data.sessionId) {
+        setProctorSessionId(data.sessionId)
+        setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
       }
-
-      const t = performance.now() / 1000
-      const idle = !speaking
-
-      // Core breathe
-      if (coreRef.current) {
-        const breathe = idle ? 1 + 0.04 * Math.sin(t * 0.8) : 1 + bass * 0.18
-        coreRef.current.style.transform = `scale(${breathe})`
-        coreRef.current.style.filter = idle
-          ? `brightness(1)`
-          : `brightness(${1 + bass * 0.4})`
-      }
-
-      // Inner ring — bass driven
-      if (innerRef.current) {
-        const s = idle ? 0.95 + 0.05 * Math.sin(t * 1.2) : 0.9 + bass * 0.35
-        const op = idle ? 0.5 + 0.1 * Math.sin(t) : 0.6 + bass * 0.4
-        innerRef.current.style.transform = `scale(${s})`
-        innerRef.current.style.opacity = `${Math.min(1, op)}`
-      }
-
-      // Mid ring — mid driven
-      if (midRef.current) {
-        const s = idle ? 0.92 + 0.08 * Math.sin(t * 0.9 + 1) : 0.85 + mid * 0.4
-        const op = idle ? 0.35 + 0.1 * Math.sin(t * 0.7) : 0.45 + mid * 0.45
-        midRef.current.style.transform = `scale(${s})`
-        midRef.current.style.opacity = `${Math.min(1, op)}`
-      }
-
-      // Outer ring — high driven
-      if (outerRef.current) {
-        const s = idle ? 0.88 + 0.12 * Math.sin(t * 0.6 + 2) : 0.8 + high * 0.45
-        const op = idle ? 0.2 + 0.08 * Math.sin(t * 0.5) : 0.3 + high * 0.5
-        outerRef.current.style.transform = `scale(${s})`
-        outerRef.current.style.opacity = `${Math.min(1, op)}`
-      }
-
-      frameRef.current = requestAnimationFrame(tick)
+    } catch (e) {
+      console.error('Failed to get proctor session', e)
     }
-    frameRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frameRef.current)
-  }, [analyser, speaking])
-
-  const SIZE = 220
-  const ringStyle = (color: string): React.CSSProperties => ({
-    position: 'absolute', inset: 0, borderRadius: '50%',
-    border: `1.5px solid ${color}`,
-    boxShadow: `0 0 18px ${color}, inset 0 0 12px ${color}`,
-  })
-
-  return (
-    <div style={{
-      width: SIZE, height: SIZE, position: 'relative',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      {/* outer ring */}
-      <div ref={outerRef} style={{ ...ringStyle('rgba(155,111,208,0.28)'), position: 'absolute', inset: 0, borderRadius: '50%' }} />
-      {/* mid ring */}
-      <div ref={midRef} style={{ ...ringStyle('rgba(78,205,196,0.35)'), position: 'absolute', inset: '14px', borderRadius: '50%' }} />
-      {/* inner ring */}
-      <div ref={innerRef} style={{ ...ringStyle('rgba(78,205,196,0.5)'), position: 'absolute', inset: '28px', borderRadius: '50%' }} />
-      {/* core */}
-      <div ref={coreRef} style={{
-        width: SIZE * 0.48, height: SIZE * 0.48, borderRadius: '50%',
-        background: 'radial-gradient(circle at 38% 38%, rgba(78,205,196,0.22) 0%, rgba(155,111,208,0.14) 60%, transparent 100%)',
-        border: '1.5px solid rgba(78,205,196,0.45)',
-        boxShadow: '0 0 32px rgba(78,205,196,0.25), inset 0 0 20px rgba(155,111,208,0.12)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(78,205,196,0.8)',
-      }} className="text-3xl">
-        <Brain size={36} strokeWidth={1.2} />
-      </div>
-    </div>
-  )
-}
-
-function isSubSection(id: string) { return (id.match(/\./g) ?? []).length >= 2 }
-
-function groupSections(sections: Section[]) {
-  const groups: Array<{ parent: Section; parentIdx: number; children: Array<{ section: Section; idx: number }> }> = []
-  for (let i = 0; i < sections.length; i++) {
-    const s = sections[i]
-    if (!isSubSection(s.section_id)) {
-      groups.push({ parent: s, parentIdx: i, children: [] })
-    } else {
-      const last = groups[groups.length - 1]
-      if (last) last.children.push({ section: s, idx: i })
-    }
+    setIsProctoringAgreed(true)
   }
-  return groups
-}
-
-function SectionTrail({ sections, currentIdx, progress, quizUnlocked, onSelect, onStartFinalQuiz }: {
-  sections: Section[]; currentIdx: number; progress: SectionProgress[]
-  quizUnlocked: boolean
-  onSelect: (i: number) => void
-  onStartFinalQuiz: () => void
-}) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    const cur = sections[currentIdx]
-    if (!cur) return
-    const parentId = isSubSection(cur.section_id)
-      ? cur.section_id.split('.').slice(0, 2).join('.')
-      : cur.section_id
-    setExpanded(prev => new Set(prev).add(parentId))
-  }, [currentIdx, sections])
+    setIsProctoringAgreed(false)
+    setProctorSessionId(null)
+    setProctorQrValue(null)
+    setMobileStatus('not_linked')
+  }, [currentIdx, moduleId])
 
-  const isUnlocked = (idx: number) => {
-    if (idx === 0) return true
-    const prev = sections[idx - 1]
-    return progress.find(p => p.section_id === prev.section_id)?.status === 'completed'
-  }
-
-  const groups = groupSections(sections)
-
-  return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {groups.map(({ parent, parentIdx, children }) => {
-        const parentDone = progress.find(p => p.section_id === parent.section_id)?.status === 'completed'
-        const isCurParent = currentIdx === parentIdx
-        const parentLocked = !isUnlocked(parentIdx)
-        const isExp = expanded.has(parent.section_id)
-        const hasChildren = children.length > 0
-        const groupIds = [parent.section_id, ...children.map(c => c.section.section_id)]
-        const groupDone = groupIds.filter(id => progress.find(p => p.section_id === id)?.status === 'completed').length
-
-        return (
-          <div key={parent.section_id}>
-            {/* H2 topic row */}
-            <button
-              onClick={() => {
-                if (!parentLocked) {
-                  if (hasChildren) setExpanded(prev => { const n = new Set(prev); n.has(parent.section_id) ? n.delete(parent.section_id) : n.add(parent.section_id); return n })
-                  onSelect(parentIdx)
-                }
-              }}
-              className={isCurParent ? 'trail-active' : ''}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 10px', borderRadius: 9, textAlign: 'left',
-                cursor: parentLocked ? 'default' : 'pointer', opacity: parentLocked ? 0.3 : 1,
-                border: isCurParent ? '1px solid var(--border-medium)' : parentDone ? '1px solid rgba(82,217,139,0.15)' : '1px solid transparent',
-                background: isCurParent ? undefined : parentDone ? 'rgba(82,217,139,0.04)' : 'transparent',
-                boxShadow: isCurParent ? 'var(--shadow-sm)' : 'none',
-                transition: 'all 0.18s',
-              }}
-            >
-              <span style={{
-                minWidth: 32, height: 20, borderRadius: 6, padding: '0 4px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
-                background: isCurParent ? 'rgba(78,205,196,0.14)' : parentDone ? 'rgba(82,217,139,0.12)' : 'rgba(255,255,255,0.05)',
-                border: isCurParent ? '1px solid rgba(78,205,196,0.4)' : parentDone ? '1px solid rgba(82,217,139,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                color: isCurParent ? 'var(--ac-cyan)' : parentDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-              }} className="text-[9px]">
-                {parentLocked ? <Lock size={8} /> : parentDone ? <Check size={9} /> : parent.section_id}
-              </span>
-              <span style={{
-                flex: 1, fontWeight: isCurParent ? 600 : 400, lineHeight: 1.35,
-                color: isCurParent ? 'var(--text-primary)' : parentDone ? 'var(--ac-mint)' : 'var(--text-secondary)',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }} className="text-tiny">
-                {parent.section_title}
-              </span>
-              {!parentLocked && hasChildren && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                  <span style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', opacity: 0.5 }} className="text-[8px]">
-                    {groupDone}/{groupIds.length}
-                  </span>
-                  {isExp ? <ChevronUp size={9} color="var(--text-tertiary)" /> : <ChevronDown size={9} color="var(--text-tertiary)" />}
-                </span>
-              )}
-            </button>
-
-            {/* H3 sub-sections */}
-            {isExp && hasChildren && (
-              <div style={{ marginLeft: 14, paddingLeft: 8, borderLeft: '1px solid rgba(78,205,196,0.1)', display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 2 }}>
-                {children.map(({ section: child, idx: childIdx }) => {
-                  const childDone = progress.find(p => p.section_id === child.section_id)?.status === 'completed'
-                  const isCurChild = currentIdx === childIdx
-                  const childLocked = !isUnlocked(childIdx)
-                  return (
-                    <button key={child.section_id}
-                      onClick={() => !childLocked && onSelect(childIdx)}
-                      className={isCurChild ? 'trail-active' : ''}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 7,
-                        padding: '5px 8px', borderRadius: 7, textAlign: 'left',
-                        cursor: childLocked ? 'default' : 'pointer', opacity: childLocked ? 0.3 : 1,
-                        border: isCurChild ? '1px solid rgba(155,111,208,0.3)' : childDone ? '1px solid rgba(82,217,139,0.1)' : '1px solid transparent',
-                        background: isCurChild ? 'rgba(155,111,208,0.07)' : childDone ? 'rgba(82,217,139,0.03)' : 'transparent',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      <span style={{
-                        minWidth: 30, height: 17, borderRadius: 5, padding: '0 3px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'monospace', flexShrink: 0,
-                        background: isCurChild ? 'rgba(155,111,208,0.18)' : childDone ? 'rgba(82,217,139,0.1)' : 'rgba(255,255,255,0.04)',
-                        border: isCurChild ? '1px solid rgba(155,111,208,0.4)' : childDone ? '1px solid rgba(82,217,139,0.25)' : '1px solid rgba(255,255,255,0.06)',
-                        color: isCurChild ? 'var(--ac-violet)' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-                      }} className="text-[8px]">
-                        {childLocked ? <Lock size={7} /> : childDone ? <Check size={8} /> : child.section_id}
-                      </span>
-                      <span style={{
-                        flex: 1, lineHeight: 1.35,
-                        color: isCurChild ? '#C4A8F0' : childDone ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }} className="text-micro">
-                        {child.section_title}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      {/* Module Quiz — unlocks after all sections done */}
-      <div style={{ marginTop: 4, paddingTop: 6, borderTop: '1px solid var(--border-subtle)' }}>
-        <button
-          onClick={() => quizUnlocked && onStartFinalQuiz()}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 10px', borderRadius: 9, textAlign: 'left',
-            cursor: quizUnlocked ? 'pointer' : 'default', opacity: quizUnlocked ? 1 : 0.3,
-            border: quizUnlocked ? '1px solid rgba(232,184,75,0.3)' : '1px solid rgba(255,255,255,0.06)',
-            background: quizUnlocked ? 'rgba(232,184,75,0.05)' : 'transparent',
-            transition: 'all 0.18s',
-          }}
-        >
-          <span style={{ width: 32, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: quizUnlocked ? 'rgba(232,184,75,0.15)' : 'rgba(255,255,255,0.04)', border: quizUnlocked ? '1px solid rgba(232,184,75,0.35)' : '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-            <Brain size={10} color={quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)'} />
-          </span>
-          <span style={{ flex: 1, fontWeight: 600, color: quizUnlocked ? '#E8B84B' : 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-tiny">
-            Module Quiz · 10 Questions
-          </span>
-          {quizUnlocked ? <ChevronRight size={10} color="#E8B84B" style={{ flexShrink: 0 }} /> : <Lock size={9} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />}
-        </button>
-        {!quizUnlocked && (
-          <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', textAlign: 'center', marginTop: 3, opacity: 0.4 }} className="text-[9px]">
-            Complete all topics to unlock
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   NOTES PANEL
-   ══════════════════════════════════════════════════════════════════════════════ */
-function NotesPanel({ section, progress, moduleId, onSave }: {
-  section: Section | null; progress: SectionProgress | null
-  moduleId: string; onSave: (notes: string, kp: string[]) => void
-}) {
-  const [notes,  setNotes]  = useState(progress?.notes ?? '')
-  const [saving, setSaving] = useState(false)
-  const [kpOpen, setKpOpen] = useState(true)
-
-  useEffect(() => { setNotes(progress?.notes ?? '') }, [progress])
-
-  const save = async () => {
-    if (!section) return
-    setSaving(true)
-    await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId, sectionId: section.section_id, sectionTitle: section.section_title,
-        notes, keyPoints: progress?.key_points ?? [], status: progress?.status ?? 'in_progress' }) })
-    onSave(notes, progress?.key_points ?? [])
-    setSaving(false)
-  }
-
-  const download = () => {
-    if (!section) return
-    const text = [`Section ${section.section_id}: ${section.section_title}`, '─'.repeat(50), '',
-      'KEY POINTS:', ...(progress?.key_points ?? []).map(p => `• ${p}`), '', 'MY NOTES:', notes].join('\n')
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
-    const a   = document.createElement('a'); a.href = url
-    a.download = `Section_${section.section_id}_notes.txt`; a.click(); URL.revokeObjectURL(url)
-  }
-
-  const panel: React.CSSProperties = {
-    background: 'var(--card-bg)', border: '1px solid var(--border-subtle)',
-    borderRadius: 10, padding: '10px 12px',
-    boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04)',
-  }
-
-  if (!section) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: 'var(--text-tertiary)', padding: 20, textAlign: 'center' }} className="text-xs">
-      Select a section to view notes
-    </div>
-  )
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 10px', overflow: 'hidden' }}>
-      {/* header */}
-      <div style={panel}>
-        <p className="label-mono aurora-text" style={{ marginBottom: 3 }}>Section {section.section_id}</p>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }} className="text-tiny">{section.section_title}</p>
-      </div>
-
-      {/* key insights */}
-      {(progress?.key_points ?? []).length > 0 && (
-        <div style={panel}>
-          <button onClick={() => setKpOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', background: 'none', border: 'none', cursor: 'pointer', marginBottom: kpOpen ? 8 : 0 }}>
-            <Brain size={12} color="var(--ac-violet)" />
-            <span className="label-mono" style={{ flex: 1, textAlign: 'left', color: 'var(--text-accent)' }}>Key Insights</span>
-            {kpOpen ? <ChevronUp size={10} color="var(--text-tertiary)" /> : <ChevronDown size={10} color="var(--text-tertiary)" />}
-          </button>
-          {kpOpen && (
-            <ul style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {(progress?.key_points ?? []).map((pt, i) => (
-                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, color: 'var(--text-secondary)', lineHeight: 1.45 }} className="text-tiny">
-                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(139,126,200,0.18)', border: '1px solid rgba(139,126,200,0.4)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-violet)', flexShrink: 0, marginTop: 1 }} className="text-[8px]">
-                    {i + 1}
-                  </span>
-                  {pt}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* textarea */}
-      <div style={{ ...panel, flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, color: 'var(--text-accent)', letterSpacing: '0.12em', fontFamily: 'monospace' }} className="text-[9px]">
-          <PenLine size={10} color="var(--ac-cyan)" /> MY NOTES
-        </label>
-        <textarea
-          value={notes} onChange={e => setNotes(e.target.value)}
-          placeholder={`Write your notes for section ${section.section_id}…`}
-          className="aurora-input text-xs"
-          style={{ flex: 1, resize: 'none', background: 'var(--input-bg)',
-            border: '1px solid var(--border-subtle)', borderRadius: 8,
-            padding: '9px 11px', color: 'var(--text-primary)',
-            outline: 'none', lineHeight: 1.6, minHeight: 90, fontFamily: 'inherit',
-            transition: 'border-color 0.2s', boxShadow: 'var(--shadow-sm)' }}
-        />
-      </div>
-
-      {/* actions */}
-      <div style={{ display: 'flex', gap: 7, flexShrink: 0 }}>
-        <button onClick={save} disabled={saving} style={{
-          flex: 1, padding: '9px 0', borderRadius: 9, cursor: 'pointer',
-          background: 'linear-gradient(135deg, rgba(126,207,206,0.18), rgba(139,126,200,0.14))',
-          border: '1px solid rgba(126,207,206,0.28)', color: 'var(--ac-cyan)', fontWeight: 700, letterSpacing: '0.08em',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          boxShadow: 'var(--shadow-sm)', transition: 'all 0.18s',
-        }} className="text-tiny">
-          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} SAVE
-        </button>
-        <button onClick={download} title="Download" style={{
-          padding: '9px 13px', borderRadius: 9, cursor: 'pointer',
-          background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-subtle)',
-          color: 'var(--text-tertiary)', boxShadow: 'var(--shadow-sm)',
-        }}>
-          <Download size={13} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   SECTION NOTE-POINTS
-   ══════════════════════════════════════════════════════════════════════════════ */
-function SectionNotePoints({ content }: { content: string }) {
-  const [copied, setCopied] = useState<string | null>(null)
-  const groups = extractNotePoints(content)
-  const copyAll = () => {
-    const lines: string[] = []
-    for (const g of groups) {
-      if (g.subHeading) lines.push(`\n▸ ${g.subHeading}`)
-      for (const b of g.bullets) lines.push(`  • ${b}`)
+  useEffect(() => {
+    if (currentSection?.section_title === 'Knowledge Check' && !proctorSessionId) {
+      fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.sessionId) {
+            setProctorSessionId(data.sessionId)
+            setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+          }
+        })
+        .catch(err => console.error('Failed to auto-init proctor session:', err))
     }
-    void navigator.clipboard.writeText(lines.join('\n').trim()).then(() => { setCopied('all'); setTimeout(() => setCopied(null), 1800) })
-  }
-  const copyBullet = (text: string) => {
-    void navigator.clipboard.writeText(`• ${text}`).then(() => { setCopied(text); setTimeout(() => setCopied(null), 1500) })
-  }
-  if (!groups.length) return <div style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '20px 0' }} className="text-tiny">No key points extracted yet.</div>
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span className="label-mono aurora-text">Key Points</span>
-        <button onClick={copyAll} style={{
-          background: copied === 'all' ? 'rgba(110,201,160,0.12)' : 'rgba(255,255,255,0.04)',
-          border: `1px solid ${copied === 'all' ? 'rgba(110,201,160,0.35)' : 'var(--border-subtle)'}`,
-          borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'monospace', color: copied === 'all' ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-          display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.18s',
-        }} className="text-[9px]">
-          {copied === 'all' ? <Check size={9} /> : <Download size={9} />}
-          {copied === 'all' ? 'COPIED' : 'COPY ALL'}
-        </button>
-      </div>
-      {groups.map((g, gi) => (
-        <div key={gi} style={{
-          background: 'var(--card-bg)', border: '1px solid var(--border-subtle)',
-          borderRadius: 9, overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.03)',
-        }}>
-          {g.subHeading && (
-            <div style={{ padding: '6px 11px', background: 'rgba(139,126,200,0.07)', borderBottom: '1px solid rgba(139,126,200,0.12)' }}>
-              <span style={{ fontWeight: 700, color: 'var(--ac-violet)', fontFamily: 'monospace' }} className="text-micro">▸ {g.subHeading}</span>
-            </div>
-          )}
-          <div style={{ padding: '5px 9px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {g.bullets.map((b, bi) => (
-              <div key={bi} onClick={() => copyBullet(b)} title="Click to copy"
-                style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 7, padding: '4px 7px',
-                  borderRadius: 6, cursor: 'pointer',
-                  background: copied === b ? 'rgba(110,201,160,0.07)' : 'transparent',
-                  border: `1px solid ${copied === b ? 'rgba(110,201,160,0.28)' : 'transparent'}`,
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (copied !== b) (e.currentTarget as HTMLElement).style.background = 'rgba(126,207,206,0.05)' }}
-                onMouseLeave={e => { if (copied !== b) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-              >
-                <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, marginTop: 5,
-                  background: copied === b ? 'var(--ac-mint)' : 'var(--ac-cyan)',
-                  boxShadow: `0 0 4px ${copied === b ? 'var(--ac-mint)' : 'var(--ac-cyan)'}`, opacity: 0.7 }} />
-                <span style={{ lineHeight: 1.55, flex: 1,
-                  color: copied === b ? 'var(--ac-mint)' : 'var(--text-secondary)' }} className="text-tiny">
-                  {b}
-                </span>
-                {copied === b ? <Check size={9} color="var(--ac-mint)" style={{ flexShrink: 0, marginTop: 4 }} />
-                  : <span style={{ color: 'var(--text-tertiary)', flexShrink: 0, marginTop: 5, fontFamily: 'monospace', opacity: 0.5 }} className="text-[8px]">COPY</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+  }, [currentSection?.section_title, moduleId, proctorSessionId])
 
-function extractNotePoints(content: string): { subHeading: string | null; bullets: string[] }[] {
-  if (!content) return []
-  const subRe = /\[(\d+\.\d+\.\d+(?:\.\d+)?\s+[^\]]{2,80})\]/g
-  const parts: { heading: string | null; text: string }[] = []
-  let lastIndex = 0, match: RegExpExecArray | null
-  while ((match = subRe.exec(content)) !== null) {
-    if (match.index > lastIndex) parts.push({ heading: null, text: content.slice(lastIndex, match.index) })
-    const hs = match.index + match[0].length; lastIndex = hs
-    const nm = subRe.exec(content)
-    if (nm) { parts.push({ heading: match[1].trim(), text: content.slice(hs, nm.index) }); lastIndex = nm.index; subRe.lastIndex = nm.index }
-    else { parts.push({ heading: match[1].trim(), text: content.slice(hs) }); lastIndex = content.length }
-  }
-  if (lastIndex < content.length) parts.push({ heading: null, text: content.slice(lastIndex) })
-  if (!parts.length) parts.push({ heading: null, text: content })
-  return parts.map(part => {
-    const raw = part.text.replace(/\s+/g, ' ').trim()
-    const bullets = (raw.match(/[^.!?]+[.!?]/g) ?? []).map(s => s.trim())
-      .filter(s => s.length >= 15 && s.length <= 180)
-      .filter(s => !/^(the|a|an|this|that|these|those|it|in|at|on|for|and|or)\b/i.test(s))
-      .slice(0, 5)
-    return { subHeading: part.heading, bullets }
-  }).filter(p => p.bullets.length || p.subHeading)
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   CONTENT PARSER — splits assistant text into plain text + structured blocks
-   ══════════════════════════════════════════════════════════════════════════════ */
-type MCQData = { question: string; options: Array<{ letter: string; text: string }>; correct: string }
-type LabeledItem = { label: string; desc: string }
-
-type ContentSegment =
-  | { kind: 'text';    text: string }
-  | { kind: 'pillars'; title: string; items: LabeledItem[] }
-  | { kind: 'steps';   title: string; items: LabeledItem[] }
-  | { kind: 'terms';   title: string; items: LabeledItem[] }
-  | { kind: 'mcq';     data: MCQData }
-
-// Split "Label — Description" or "Label :: Description" or plain text
-function splitLabelDesc(line: string): LabeledItem {
-  const stripped = line.replace(/^[-*\d.]+\s*/, '').trim()
-  // Try em-dash variants: —  –  -
-  const m = stripped.match(/^(.+?)\s+(?:—|–|::)\s+(.+)$/)
-  if (m) return { label: m[1].trim(), desc: m[2].trim() }
-  return { label: stripped, desc: '' }
-}
-
-function parseContent(raw: string): ContentSegment[] {
-  // Strip :::VISUAL signal lines — they're just a trigger for the diagram, not displayed text
-  const cleaned = raw.replace(/:::VISUAL\r?\n?/g, '')
-  const segments: ContentSegment[] = []
-  // Match block with closing ::: OR end-of-string (handles truncated/missing closing :::)
-  const blockRe = /[ \t]*:::(PILLARS|STEPS|TERMS|MCQ)\r?\n([\s\S]*?)(?:[ \t]*:::[ \t]*(?:\r?\n|$)|$)/g
-  raw = cleaned
-  let last = 0
-  let m: RegExpExecArray | null
-  while ((m = blockRe.exec(raw)) !== null) {
-    if (m.index > last) {
-      const txt = raw.slice(last, m.index).trim()
-      if (txt) segments.push({ kind: 'text', text: txt })
-    }
-    const type = m[1] as 'PILLARS' | 'STEPS' | 'TERMS' | 'MCQ'
-    const body = m[2].trim()
-    const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-
-    if (type === 'MCQ') {
-      const question = lines[0] ?? ''
-      const options: Array<{ letter: string; text: string }> = []
-      let correct = ''
-      for (const l of lines.slice(1)) {
-        const optM = l.match(/^([A-D])\.\s+(.+)/)
-        if (optM) { options.push({ letter: optM[1], text: optM[2] }); continue }
-        const corM = l.match(/^CORRECT:\s*([A-D])/)
-        if (corM) correct = corM[1]
-      }
-      segments.push({ kind: 'mcq', data: { question, options, correct } })
-    } else {
-      const title = lines[0] ?? ''
-      const items = lines.slice(1).map(splitLabelDesc)
-      const kind = type === 'PILLARS' ? 'pillars' : type === 'STEPS' ? 'steps' : 'terms'
-      segments.push({ kind, title, items } as ContentSegment)
-    }
-    last = m.index + m[0].length
-  }
-  const tail = raw.slice(last).trim()
-  if (tail) segments.push({ kind: 'text', text: tail })
-  return segments
-}
-
-/* ── Inline visual blocks rendered inside the chat bubble ── */
-const BLOCK_COLORS = ['#4ECDC4', '#9B6FD0', '#52D98B', '#E8B84B', '#E87B6F']
-
-// Shared card renderer — each item gets its own highlighted card with a coloured accent bar
-function KeyCardsBlock({ title, items, accentColor, numbered, connector }: {
-  title: string
-  items: LabeledItem[]
-  accentColor: string
-  numbered: boolean
-  connector?: boolean  // draw a line between items (for steps)
-}) {
-  return (
-    <div className="visual-card-enter" style={{
-      marginTop: 12, borderRadius: 14, overflow: 'hidden',
-      border: `1px solid ${accentColor}22`,
-      background: 'rgba(4,6,14,0.82)',
-      boxShadow: `0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px ${accentColor}08`,
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: '9px 14px 8px',
-        borderBottom: `1px solid ${accentColor}18`,
-        background: `linear-gradient(90deg, ${accentColor}0d 0%, transparent 100%)`,
-        display: 'flex', alignItems: 'center', gap: 8,
-      }}>
-        <div style={{ width: 3, height: 14, borderRadius: 2, background: accentColor, boxShadow: `0 0 8px ${accentColor}` }} />
-        <p style={{ fontWeight: 700, color: accentColor, fontFamily: 'monospace', letterSpacing: '0.13em', textTransform: 'uppercase', margin: 0 }} className="text-micro">{title}</p>
-      </div>
-
-      {/* Cards */}
-      <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: connector ? 0 : 7 }}>
-        {items.map((item, i) => {
-          const color = BLOCK_COLORS[i % BLOCK_COLORS.length]
-          return (
-            <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative' }}>
-              {/* Connector line for steps */}
-              {connector && i < items.length - 1 && (
-                <div style={{ position: 'absolute', left: 15, top: 30, bottom: -10, width: 1, background: `${color}25`, zIndex: 0 }} />
-              )}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
-                padding: connector ? '0 0 14px' : 0, position: 'relative', zIndex: 1 }}>
-                {/* Number badge */}
-                <div style={{
-                  width: 28, height: 28, borderRadius: numbered ? 9 : '50%',
-                  flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontFamily: 'monospace',
-                  background: `${color}14`, border: `1px solid ${color}38`, color,
-                  boxShadow: `0 0 10px ${color}18`,
-                }} className="text-tiny">
-                  {numbered ? (i + 1) : '▸'}
-                </div>
-                {/* Card body */}
-                <div style={{
-                  flex: 1, minWidth: 0,
-                  background: `${color}07`,
-                  border: `1px solid ${color}18`,
-                  borderLeft: `3px solid ${color}70`,
-                  borderRadius: '0 10px 10px 0',
-                  padding: '8px 12px',
-                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.03)`,
-                }}>
-                  <p style={{ fontWeight: 700, color, margin: '0 0 3px', lineHeight: 1.3 }} className="text-xs">
-                    {item.label}
-                  </p>
-                  {item.desc && (
-                    <p style={{ color: '#8EA8CC', margin: 0, lineHeight: 1.6 }} className="text-xs">
-                      {item.desc}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function PillarsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
-  return <KeyCardsBlock title={title} items={items} accentColor="#4ECDC4" numbered={true} />
-}
-
-function StepsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
-  return <KeyCardsBlock title={title} items={items} accentColor="#9B6FD0" numbered={true} connector={true} />
-}
-
-function TermsBlock({ title, items }: { title: string; items: LabeledItem[] }) {
-  return <KeyCardsBlock title={title} items={items} accentColor="#E8B84B" numbered={false} />
-}
-
-/* ── MCQ interactive block ── */
-function MCQBlock({ data, onAnswer, answered }: { data: MCQData; onAnswer: (letter: string, text: string) => void; answered: string | null }) {
-  const COLORS: Record<string, string> = { A: '#4ECDC4', B: '#9B6FD0', C: '#52D98B', D: '#E8B84B' }
-  return (
-    <div className="visual-card-enter" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border-subtle)', background: 'var(--card-bg)' }}>
-      <div style={{ padding: '10px 14px 9px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 18, height: 18, borderRadius: 5, background: 'rgba(78,205,196,0.12)', border: '1px solid rgba(78,205,196,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontWeight: 800, color: '#4ECDC4', fontFamily: 'monospace' }} className="text-[9px]">?</span>
-        </div>
-        <p style={{ color: 'var(--text-primary)', lineHeight: 1.5, margin: 0, fontWeight: 500 }} className="text-small">{data.question}</p>
-      </div>
-      <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {data.options.map(opt => {
-          const isSelected = answered === opt.letter
-          const isCorrect  = answered !== null && opt.letter === data.correct
-          const isWrong    = answered === opt.letter && opt.letter !== data.correct
-          const color = COLORS[opt.letter] ?? '#4ECDC4'
-
-          let bg = 'rgba(255,255,255,0.02)'
-          let border = 'rgba(255,255,255,0.08)'
-          let textColor = '#8EA8CC'
-          if (isCorrect && answered !== null) { bg = 'rgba(82,217,139,0.1)'; border = 'rgba(82,217,139,0.35)'; textColor = '#52D98B' }
-          else if (isWrong)                   { bg = 'rgba(232,123,111,0.1)'; border = 'rgba(232,123,111,0.35)'; textColor = '#E87B6F' }
-          else if (isSelected)                { bg = `${color}12`; border = `${color}40`; textColor = color }
-
-          return (
-            <button
-              key={opt.letter}
-              disabled={answered !== null}
-              onClick={() => onAnswer(opt.letter, `${opt.letter}. ${opt.text}`)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 9,
-                background: bg, border: `1px solid ${border}`,
-                cursor: answered !== null ? 'default' : 'pointer',
-                textAlign: 'left', width: '100%',
-                transition: 'all 0.18s',
-              }}
-              onMouseEnter={e => { if (answered === null) (e.currentTarget as HTMLElement).style.background = `${color}10` }}
-              onMouseLeave={e => { if (answered === null) (e.currentTarget as HTMLElement).style.background = bg }}
-            >
-              <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontFamily: 'monospace', background: `${color}18`, border: `1px solid ${color}35`, color }} className="text-tiny">
-                {opt.letter}
-              </div>
-              <span style={{ lineHeight: 1.5, color: textColor, flex: 1 }} className="text-xs">{opt.text}</span>
-              {isCorrect && answered !== null && <span style={{ flexShrink: 0 }} className="text-sm">✓</span>}
-              {isWrong                          && <span style={{ flexShrink: 0 }} className="text-sm">✗</span>}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-/* ── Smart plain-text renderer — converts prose into readable formatted elements ── */
-function TextReveal({ text, animate }: { text: string; animate?: boolean }) {
-  if (!animate) return <>{renderInline(text)}</>
-  const parts = text.split(/(\*\*[^*]+\*\*|\s+)/).filter(Boolean)
-  return (
-    <motion.span
-      initial="hidden" animate="visible"
-      variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
-    >
-      {parts.map((part, i) => {
-        if (/^\s+$/.test(part)) return <span key={i}>{part}</span>
-        const isBold = part.startsWith('**') && part.endsWith('**')
-        const content = isBold ? part.slice(2, -2) : part
-        return (
-          <motion.span
-            key={i}
-            variants={{
-              hidden: { opacity: 0, filter: 'blur(4px)' },
-              visible: { opacity: 1, filter: 'blur(0px)', transition: { duration: 0.25 } }
-            }}
-            style={{ display: 'inline-block', fontWeight: isBold ? 700 : 'inherit', color: isBold ? 'var(--text-primary)' : 'inherit' }}
-          >
-            {content}
-          </motion.span>
-        )
-      })}
-    </motion.span>
-  )
-}
-
-function FormattedText({ text, animate }: { text: string, animate?: boolean }) {
-  if (!text.trim()) return null
-
-  // Split into logical paragraphs first (double newlines or sentence groups)
-  const rawParas = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {rawParas.map((para, pi) => {
-        // Detect inline numbered list: "Number one: ... Number two: ..." or "1. ... 2. ..."
-        const numberedInline = para.match(/\bNumber\s+(?:one|two|three|four|five|six)\s*:/i) ||
-          para.match(/\b(?:one|two|three|four|five|six)\s*:\s+[A-Z]/i)
-
-        // Detect dash-separated items: "Term — definition. Term — definition."
-        const dashItems = para.match(/[A-Z][^.!?]*\s+—\s+[^.!?]+[.!?]/g)
-
-        // Detect "First, ... Second, ... Third, ..."
-        const ordinalInline = para.match(/\b(?:First|Second|Third|Fourth|Fifth)[,.:]/i)
-
-        // Detect "• item" or "- item" bullets already in text
-        const bulletLines = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim()))
-
-        if (bulletLines.length >= 2) {
-          // Already has bullets — render as list
-          const intro = para.split('\n').find(l => !/^[•\-]\s/.test(l.trim()))?.trim()
-          const items = para.split('\n').filter(l => /^[•\-]\s/.test(l.trim())).map(l => l.replace(/^[•\-]\s*/, '').trim())
-          return (
-            <div key={pi}>
-              {intro && <p style={{ color: 'var(--text-primary)', lineHeight: 1.7, margin: '0 0 6px' }} className="text-small"><TextReveal text={intro} animate={animate} /></p>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
-                {items.map((item, ii) => <BulletItem key={ii} text={item} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} animate={animate} />)}
-              </div>
-            </div>
-          )
+  useEffect(() => {
+    fetch(`/api/sections?moduleId=${moduleId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.sections && data.sections.length > 0) {
+          setModuleData(data)
+          loadSectionContent(moduleId, data.sections[0].section_id)
+        } else {
+          setLoading(false)
         }
+      })
+      .catch(console.error)
+  }, [moduleId])
 
-        if (numberedInline || ordinalInline) {
-          // Split on "Number X:" or ordinal words
-          const parts = para
-            .split(/(?=\bNumber\s+(?:one|two|three|four|five|six)\s*:|\b(?:First|Second|Third|Fourth|Fifth)[,.:]\s)/i)
-            .map(p => p.trim()).filter(Boolean)
+  const loadSectionContent = async (mId: string, sId: string) => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/section-content?moduleId=${mId}&sectionId=${sId}`)
+      const data = await res.json()
+      setContentHtml(data.content || '<p>No content available.</p>')
+    } catch (err) {
+      console.error(err)
+      setContentHtml('<p>Error loading content.</p>')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-          // First part might be intro text (no number prefix)
-          const isIntro = (p: string) => !/^\bNumber\s+|^\b(?:First|Second|Third|Fourth|Fifth)/i.test(p)
-          const intro = parts.find(isIntro)
-          const numbered = parts.filter(p => !isIntro(p))
+  const handlePrev = () => {
+    if (currentIdx > 0) {
+      const newIdx = currentIdx - 1
+      setCurrentIdx(newIdx)
+      loadSectionContent(moduleId, moduleData!.sections[newIdx].section_id)
+      window.scrollTo(0, 0)
+    } else {
+      router.push('/courses')
+    }
+  }
 
-          if (numbered.length >= 2) {
-            return (
-              <div key={pi}>
-                {intro && <p style={{ color: 'var(--text-primary)', lineHeight: 1.7, margin: '0 0 8px' }} className="text-small"><TextReveal text={intro} animate={animate} /></p>}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 4 }}>
-                  {numbered.map((item, ii) => {
-                    const clean = item.replace(/^Number\s+\w+\s*:\s*/i, '').replace(/^\w+[,.:]\s*/i, '').trim()
-                    return <BulletItem key={ii} text={clean} color={BLOCK_COLORS[ii % BLOCK_COLORS.length]} index={ii + 1} animate={animate} />
-                  })}
-                </div>
-              </div>
-            )
+  const handleNext = () => {
+    if (currentIdx < moduleData!.sections.length - 1) {
+      const newIdx = currentIdx + 1
+      setCurrentIdx(newIdx)
+      loadSectionContent(moduleId, moduleData!.sections[newIdx].section_id)
+      window.scrollTo(0, 0)
+    } else {
+      const currentModuleNum = parseInt(moduleId.replace(/\D/g, ''), 10)
+      if (currentModuleNum < 87) {
+        const nextModuleId = `m${String(currentModuleNum + 1).padStart(2, '0')}`
+        router.push(`/course/${nextModuleId}`)
+      } else {
+        router.push('/courses')
+      }
+    }
+  }
+
+  const handleMarkDone = async () => {
+    try {
+      const currentSection = moduleData!.sections[currentIdx]
+      if (!currentSection) return
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          moduleId,
+          sectionId: currentSection.section_id,
+          sectionTitle: currentSection.section_title,
+          status: 'completed',
+        }),
+      })
+      window.dispatchEvent(new Event('progress-updated'))
+      handleNext()
+    } catch (err) {
+      console.error('Failed to mark done', err)
+    }
+  }
+
+  // Handle Knowledge Check MCQ clicks via event delegation
+  useEffect(() => {
+    if (!contentHtml) return
+    
+    const handleQuizClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.classList.contains('opt')) return
+      
+      const q = target.closest('.quiz-q') as HTMLElement
+      if (!q || q.dataset.answered === 'yes') return
+      
+      q.dataset.answered = 'yes'
+      const isCorrect = target.dataset.correct === 'true'
+      target.classList.add(isCorrect ? 'correct' : 'wrong')
+      
+      if (!isCorrect) {
+        const correctOpt = q.querySelector('.opt[data-correct="true"]')
+        if (correctOpt) correctOpt.classList.add('correct')
+      }
+      
+      q.querySelectorAll('.opt').forEach(o => o.classList.add('disabled'))
+      
+      const fb = q.querySelector('.feedback')
+      if (fb) fb.classList.add('show')
+      
+      const block = q.closest('.quiz-block') as HTMLElement
+      if (block) {
+        const qs = block.querySelectorAll('.quiz-q')
+        const total = qs.length
+        let answered = 0, correctCount = 0
+        qs.forEach((question: any) => {
+          if (question.dataset.answered === 'yes') {
+            answered++
+            if (question.querySelector('.opt.correct') && !question.querySelector('.opt.wrong')) {
+              correctCount++
+            }
+          }
+        })
+        
+        if (answered === total) {
+          const res = block.querySelector('.quiz-result')
+          if (res) {
+            res.classList.add('show')
+            res.innerHTML = `You scored <strong>${correctCount} / ${total}</strong>` +
+              (correctCount === total ? ' &mdash; perfect, move on to the next module.' :
+                correctCount >= total * 0.7 ? ' &mdash; good, but review the items you missed.' :
+                  ' &mdash; please re-read this module before progressing.')
           }
         }
+      }
+    }
+    
+    const container = document.getElementById('lesson-body')
+    if (container) {
+      container.addEventListener('click', handleQuizClick)
+    }
+    return () => {
+      if (container) container.removeEventListener('click', handleQuizClick)
+    }
+  }, [contentHtml])
 
-        if (dashItems && dashItems.length >= 2) {
-          // Dash-separated definitions — render as mini term cards
-          const preText = para.slice(0, para.indexOf(dashItems[0])).trim()
-          return (
-            <div key={pi}>
-              {preText && <p style={{ color: 'var(--text-primary)', lineHeight: 1.7, margin: '0 0 8px' }} className="text-small"><TextReveal text={preText} animate={animate} /></p>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {dashItems.map((item, ii) => {
-                  const dashIdx = item.indexOf(' — ')
-                  const label = dashIdx >= 0 ? item.slice(0, dashIdx).trim() : item
-                  const def   = dashIdx >= 0 ? item.slice(dashIdx + 3).replace(/[.!?]$/, '').trim() : ''
-                  const color = BLOCK_COLORS[ii % BLOCK_COLORS.length]
-                  return (
-                    <div key={ii} style={{ display: 'flex', alignItems: 'flex-start', gap: 0, borderRadius: 8, overflow: 'hidden', border: `1px solid ${color}18` }}>
-                      <div style={{ background: `${color}15`, borderRight: `2px solid ${color}50`, padding: '6px 10px', minWidth: 110, flexShrink: 0 }}>
-                        <span style={{ fontWeight: 700, color, lineHeight: 1.4 }} className="text-tiny">{label}</span>
-                      </div>
-                      {def && <div style={{ padding: '6px 10px', background: `${color}05` }}>
-                        <span style={{ color: '#8EA8CC', lineHeight: 1.5 }} className="text-xs"><TextReveal text={def} animate={animate} /></span>
-                      </div>}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        }
-
-        // Plain paragraph — split on newlines if any, render each line
-        const lines = para.split('\n').map(l => l.trim()).filter(Boolean)
-        if (lines.length === 1) {
-          return <p key={pi} style={{ color: 'var(--text-primary)', lineHeight: 1.75, margin: 0 }} className="text-small"><TextReveal text={para} animate={animate} /></p>
-        }
-        return (
-          <div key={pi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {lines.map((line, li) => (
-              <p key={li} style={{ color: 'var(--text-primary)', lineHeight: 1.75, margin: 0 }} className="text-small"><TextReveal text={line} animate={animate} /></p>
-            ))}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function BulletItem({ text, color, index, animate }: { text: string; color: string; index?: number; animate?: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-      <div style={{ width: 20, height: 20, borderRadius: index !== undefined ? 6 : '50%', flexShrink: 0, marginTop: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${color}15`, border: `1px solid ${color}30` }}>
-        {index !== undefined
-          ? <span style={{ fontWeight: 800, color, fontFamily: 'monospace' }} className="text-[9px]">{index}</span>
-          : <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'block', boxShadow: `0 0 4px ${color}` }} />
-        }
-      </div>
-      <span style={{ color: '#8EA8CC', lineHeight: 1.6, paddingTop: 2, flex: 1 }} className="text-xs"><TextReveal text={text} animate={animate} /></span>
-    </div>
-  )
-}
-
-// Inline formatting: bold **text**, "quoted terms", and term — definition splits
-function renderInline(text: string): React.ReactNode {
-  if (!text) return null
-  // Split on **bold** markers
-  const parts = text.split(/(\*\*[^*]+\*\*)/)
-  if (parts.length === 1) return text
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.startsWith('**') && part.endsWith('**')
-          ? <strong key={i} style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
-          : <span key={i}>{part}</span>
-      )}
-    </>
-  )
-}
-
-/* ── Renders a full assistant message: plain text + inline structured blocks ── */
-function AssistantMessage({ content, svg, onAnswer, answeredMcq, isStreaming, animate }: { content: string; svg?: string; onAnswer?: (letter: string, text: string) => void; answeredMcq?: string | null; isStreaming?: boolean; animate?: boolean }) {
-  // While streaming, hide any incomplete :::MCQ block so raw text never shows
-  const displayContent = isStreaming
-    ? content.replace(/[ \t]*:::MCQ[\s\S]*$/, '')
-    : content
-  const segments = parseContent(displayContent)
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {segments.map((seg, i) => {
-        if (seg.kind === 'text')    return <FormattedText key={i} text={seg.text} animate={animate} />
-        if (seg.kind === 'pillars') return <PillarsBlock  key={i} title={seg.title} items={seg.items} />
-        if (seg.kind === 'steps')   return <StepsBlock    key={i} title={seg.title} items={seg.items} />
-        if (seg.kind === 'terms')   return <TermsBlock    key={i} title={seg.title} items={seg.items} />
-        if (seg.kind === 'mcq')     return <MCQBlock      key={i} data={seg.data} onAnswer={onAnswer ?? (()=>{})} answered={answeredMcq ?? null} />
-        return null
-      })}
-      {svg && <VisualCard svg={svg} />}
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   VISUAL CARD — renders AI-generated SVG diagram beneath assistant bubbles
-   ══════════════════════════════════════════════════════════════════════════════ */
-function VisualCard({ svg }: { svg: string }) {
-  return (
-    <div className="visual-card-enter" style={{
-      marginTop: 8,
-      borderRadius: 14,
-      overflow: 'hidden',
-      border: '1px solid rgba(78,205,196,0.18)',
-      boxShadow: 'var(--shadow-lg), 0 0 0 1px rgba(78,205,196,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
-      width: '100%',
-    }}>
-      <div
-        className="ai-visual-wrapper"
-        style={{ lineHeight: 0, display: 'block' }}
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   TYPING INDICATOR
-   ══════════════════════════════════════════════════════════════════════════════ */
-function TypingIndicator() {
-  return (
-    <div className="message-enter" style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-      <div style={{
-        width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-        background: 'linear-gradient(135deg, rgba(78,205,196,0.18), rgba(155,111,208,0.18))',
-        border: '1.5px solid rgba(78,205,196,0.35)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--ac-cyan)',
-        boxShadow: '0 0 12px rgba(78,205,196,0.2)',
-      }} className="text-tiny">A</div>
-      <div style={{
-        background: 'var(--card-bg)',
-        border: '1px solid var(--card-border)',
-        borderRadius: '16px 16px 16px 4px',
-        padding: '11px 16px',
-        boxShadow: 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.04)',
-        display: 'flex', alignItems: 'center', gap: 5,
-      }}>
-        {[0,1,2].map(i => <span key={i} className="typing-dot" style={{ display: 'inline-block' }} />)}
-        <span style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', marginLeft: 4, letterSpacing: '0.06em' }} className="text-micro">thinking…</span>
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   NOTES PROMPT BANNER
-   ══════════════════════════════════════════════════════════════════════════════ */
-function NotesPromptBanner({ phase, topicTitle, topicIdx, total }: {
-  phase: 'PRE_NOTES'|'EXPLAIN'|'CONFIRM'|'POST_NOTES'|'CHECK'|'WRAP'
-  topicTitle: string|null; topicIdx: number; total: number
-}) {
-  if (!topicTitle) return null
-  const cfg: Record<string, { icon: string; label: string; hint: string; accent: string }> = {
-    PRE_NOTES:  { icon: '✏️', label: 'WRITE HEADING', hint: `Write "${topicTitle}" as a heading in your notes.`, accent: 'var(--ac-gold)' },
-    EXPLAIN:    { icon: '📖', label: 'LISTENING',      hint: `Alex is explaining "${topicTitle}".`, accent: 'var(--ac-cyan)' },
-    CONFIRM:    { icon: '📝', label: 'UPDATE NOTES',   hint: `Update your notes for "${topicTitle}", then reply when ready.`, accent: 'var(--ac-mint)' },
-    POST_NOTES: { icon: '💬', label: 'QUICK CHECK',    hint: `Answer the question about "${topicTitle}".`, accent: 'var(--ac-violet)' },
-    CHECK:      { icon: '💬', label: 'ANSWER',          hint: `Answer Alex's question about "${topicTitle}".`, accent: 'var(--ac-violet)' },
-    WRAP:       { icon: '🏁', label: 'WRAP-UP',         hint: 'Final check — answer the question to complete this section.', accent: 'var(--ac-cyan)' },
-  }
-  const c = cfg[phase]; if (!c) return null
-  return (
-    <div style={{
-      margin: '0 20px 8px', padding: '9px 14px', borderRadius: 9, flexShrink: 0,
-      background: 'var(--card-bg)', border: `1px solid var(--border-subtle)`,
-      boxShadow: `var(--shadow-sm), 0 0 12px ${c.accent}14`,
-      display: 'flex', alignItems: 'center', gap: 10,
-    }}>
-      <span className="text-sm">{c.icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-          <span style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.14em', color: c.accent }} className="text-[9px]">{c.label}</span>
-          {total > 0 && <span style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)' }} className="text-[9px]">· {topicIdx+1}/{total}</span>}
-        </div>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.4, margin: 0 }} className="text-tiny">{c.hint}</p>
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   QUIZ MODAL
-   ══════════════════════════════════════════════════════════════════════════════ */
-function QuizModal({ moduleId, moduleTitle, partNumber, partTitle, nextModule, onClose, onComplete }: {
-  moduleId: string; moduleTitle: string; partNumber: number; partTitle: string
-  nextModule: string | null
-  onClose: () => void; onComplete: (passed: boolean, score: number) => void
-}) {
-  const [questions,  setQuestions]  = useState<QuizQuestion[]>([])
-  const [answers,    setAnswers]    = useState<Record<string,string>>({})
-  const [result,     setResult]     = useState<{
-    score:number; total:number; percentage:number; passed:boolean; weakAreas:string[]
-    explanations:Record<string,{correct:string;explanation:string;userAnswer:string}>
-  }|null>(null)
-  const [loading,    setLoading]    = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-
+  // Handle AnimFactory initialization and extraction
   useEffect(() => {
-    fetch('/api/quiz',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({moduleId,moduleTitle,partNumber,partTitle,count:5})})
-      .then(r=>r.json() as Promise<{questions:QuizQuestion[]}>)
-      .then(d=>{setQuestions(d.questions??[]);setLoading(false)})
-      .catch(()=>setLoading(false))
-  },[moduleId,moduleTitle,partNumber,partTitle])
+    if (!contentHtml) return;
+    initAnimFactory();
+    
+    // Extract and run AnimFactory scenes from contentHtml (strips scripts, so we parse them out)
+    const scriptRegex = /AnimFactory\.create\('([^']+)',\s*(\[\s*\{[\s\S]*?\}\s*\])\s*\);/g;
+    let match;
+    while ((match = scriptRegex.exec(contentHtml)) !== null) {
+      const prefix = match[1];
+      let scenes;
+      try {
+        // Safe alternative to eval: since it's an array of objects, we use JSON.parse.
+        // Convert JS single-quote keys/strings to double-quotes if necessary, 
+        // though standard JSON requires double-quotes. Assuming the backend sends valid JSON-like structures:
+        const jsonStr = match[2]
+          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"\$2": ')
+          .replace(/'/g, '"')
+          .replace(/,\s*}/g, '}');
+        scenes = JSON.parse(jsonStr);
+      } catch (e) {
+        console.error('Failed to parse animation scenes for', prefix, e);
+        continue;
+      }
+      if (scenes && (window as any).AnimFactory) {
+        // Run on the next tick so the DOM nodes are painted by dangerouslySetInnerHTML
+        setTimeout(() => {
+          (window as any).AnimFactory.create(prefix, scenes);
+        }, 50);
+      }
+    }
+  }, [contentHtml])
 
-  const handleSubmit = async () => {
-    setSubmitting(true)
-    const res  = await fetch('/api/quiz/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({moduleId,answers,questions})})
-    const data = await res.json() as typeof result
-    setResult(data); setSubmitting(false)
-    if (data) onComplete(data.passed, data.percentage)
+  if (!moduleData && !loading) {
+    return <div style={{ padding: 40, textAlign: 'center' }}>Module content not found.</div>
   }
 
+  const moduleNumberStr = moduleId.replace(/\D/g, '') || '1'
+  const moduleNumber = parseInt(moduleNumberStr, 10)
+
+  // Extract Part name from meta or default
+  const partNameMatch = moduleData?.meta.match(/Part (\d+) of \d+/)
+  const partName = partNameMatch ? `Part ${partNameMatch[1]}` : 'Part'
+  const partNumber = partNameMatch ? parseInt(partNameMatch[1], 10) : 1
+  const partTitle = moduleData?.meta.match(/Part \d+ · ([^·]+)/)?.[1]?.trim() ?? ''
+
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(3,5,14,0.85)', zIndex:100,
-      display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(10px)' }}>
-      {/* bordered wrapper */}
-      <div style={{ width:'100%', maxWidth:620, maxHeight:'88vh', borderRadius:16, border:'1px solid var(--border-subtle)', boxShadow:'var(--shadow-xl)' }}>
-        <div style={{
-          display:'flex', flexDirection:'column', background:'var(--card-bg)',
-          borderRadius:15, maxHeight:'88vh',
-          boxShadow:'var(--shadow-xl)',
-        }}>
-          {/* header */}
-          <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--border-subtle)',
-            display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <div style={{ width:34, height:34, borderRadius:9,
-                background:'linear-gradient(135deg,rgba(126,207,206,0.18),rgba(139,126,200,0.16))',
-                border:'1px solid var(--border-medium)', display:'flex', alignItems:'center', justifyContent:'center',
-                boxShadow:'var(--shadow-sm)' }}>
-                <Brain size={17} color="var(--ac-cyan)" />
-              </div>
-              <div>
-                <p style={{ fontWeight:700, color:'var(--text-primary)' }} className="text-small">Knowledge Check</p>
-                <p className="label-mono" style={{ color:'var(--text-tertiary)' }}>{moduleTitle}</p>
-              </div>
-            </div>
-            <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-tertiary)', lineHeight:1, padding:4 }} className="text-lg">✕</button>
+    <div id="lesson-screen" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', fontFamily: '"Charter", Georgia, serif' }}>
+      
+      {/* ─ Top bar ─ */}
+      <div id="lesson-topbar" style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '12px 40px', borderBottom: '1px solid var(--line-soft)',
+        background: 'var(--bg-alt)', zIndex: 10, flexShrink: 0,
+      }}>
+        <div id="topbar-breadcrumb" style={{ fontFamily: '"Inter", sans-serif', fontSize: 12.5, color: 'var(--ink-faint)', letterSpacing: '0.02em' }}>
+          <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', marginRight: 8 }}>{partName}</span>
+          <span style={{ color: 'var(--line)' }}>›</span>
+          <strong style={{ color: 'var(--ink)', marginLeft: 8 }}>M{moduleNumber} · {moduleData?.module_title || 'Module'}</strong>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, color: 'var(--ink-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Section {currentIdx + 1} / {moduleData?.sections.length || 0}
           </div>
+          <button
+            onClick={handleMarkDone}
+            style={{
+              background: 'var(--accent-3)', color: '#fff', border: 'none',
+              padding: '7px 16px', borderRadius: 4, fontSize: 12.5, fontWeight: 700,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              fontFamily: '"Inter", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+            }}
+            onMouseOver={e => e.currentTarget.style.background = '#166534'}
+            onMouseOut={e => e.currentTarget.style.background = 'var(--accent-3)'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            Mark Done
+          </button>
+        </div>
+      </div>
 
-          {/* body */}
-          <div style={{ flex:1, overflowY:'auto', padding:'18px 22px', display:'flex', flexDirection:'column', gap:18 }}>
-            {loading && <div style={{ display:'flex',justifyContent:'center',padding:'40px 0' }}><Loader2 size={26} color="var(--ac-cyan)" className="animate-spin" /></div>}
-
-            {!loading && result && (
-              <div style={{ borderRadius:11, padding:'14px 18px',
-                background: result.passed ? 'rgba(110,201,160,0.07)' : 'rgba(196,123,138,0.07)',
-                border: `1px solid ${result.passed ? 'rgba(110,201,160,0.28)' : 'rgba(196,123,138,0.25)'}`,
-                boxShadow: `var(--shadow-sm), 0 0 20px ${result.passed?'rgba(110,201,160,0.1)':'rgba(196,123,138,0.08)'}`,
-              }}>
-                <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                  {result.passed
-                    ? <CheckCircle2 size={19} color="var(--ac-mint)" />
-                    : <XCircle size={19} color="var(--ac-rose)" />}
-                  <p style={{ fontWeight:700, color:result.passed?'var(--ac-mint)':'var(--ac-rose)' }} className="text-sm">
-                    {result.passed ? `Passed — ${result.percentage}%` : `Not yet — ${result.percentage}%`}
-                  </p>
-                </div>
-                {result.weakAreas.length > 0 && <p style={{ color:'var(--text-tertiary)', marginTop:5 }} className="text-xs">Revisit: {result.weakAreas.join(', ')}</p>}
-              </div>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Main Content Area */}
+        <div 
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowY: 'auto' }}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            if (el.scrollHeight > el.clientHeight) {
+              let pct = Math.round((el.scrollTop / (el.scrollHeight - el.clientHeight)) * 100);
+              if (pct > 100) pct = 100;
+              if (pct < 0) pct = 0;
+              window.dispatchEvent(new CustomEvent('reading-progress', { detail: pct }));
+            }
+          }}
+        >
+          {/* Lesson Body */}
+          <div id="lesson-body" style={{ flex: 1, padding: '40px 60px 80px', maxWidth: 860, margin: '0 auto', width: '100%' }}>
+        {loading && !moduleData ? (
+          <div style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 40, fontFamily: '"Inter", sans-serif' }}>Loading content...</div>
+        ) : (
+          <>
+            {currentIdx === 0 && moduleData && (
+              <>
+                {/* Module header — matching old HTML book style */}
+                <div className="lesson-module-badge">Module {moduleNumber}</div>
+                <h1 className="lesson-module-title">{moduleData.module_title}</h1>
+                <div className="lesson-module-meta">{moduleData.meta}</div>
+                {moduleData.hookHtml && (
+                  <div
+                    className="module-hook"
+                    dangerouslySetInnerHTML={{ __html: moduleData.hookHtml }}
+                  />
+                )}
+                {moduleData.learningObjHtml && (
+                  <div dangerouslySetInnerHTML={{ __html: moduleData.learningObjHtml }} />
+                )}
+                <div style={{ marginTop: 28 }} />
+              </>
             )}
 
-            {!loading && questions.map((q, qi) => (
-              <div key={q.id} style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                <p style={{ color:'var(--text-primary)', fontWeight:500, lineHeight:1.55 }} className="text-small">{qi+1}. {q.question}</p>
-                <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                  {q.options.map(opt => (
-                    <label key={opt} style={{
-                      display:'flex', alignItems:'flex-start', gap:10, padding:'9px 13px',
-                      borderRadius:9, cursor:result?'default':'pointer', transition:'all 0.18s',
-                      background: answers[q.id]===opt ? 'rgba(126,207,206,0.08)' : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${answers[q.id]===opt ? 'rgba(126,207,206,0.32)' : 'var(--border-subtle)'}`,
-                      boxShadow: answers[q.id]===opt ? '0 0 10px rgba(126,207,206,0.08)' : 'none',
-                    }}>
-                      <input type="radio" name={q.id} value={opt} checked={answers[q.id]===opt}
-                        onChange={()=>!result&&setAnswers(p=>({...p,[q.id]:opt}))}
-                        style={{ marginTop:2, accentColor:'var(--ac-cyan)' }} />
-                      <span style={{ color:answers[q.id]===opt?'var(--text-primary)':'var(--text-secondary)', lineHeight:1.5 }} className="text-xs">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-                {result?.explanations[q.id] && (() => {
-                  const isCorrect = answers[q.id]?.trim().toUpperCase().startsWith(result.explanations[q.id].correct.trim().toUpperCase())
-                  return (
-                    <div style={{ padding:'12px 16px', borderRadius:9, lineHeight:1.5,
-                      background: isCorrect ? 'rgba(110,201,160,0.07)' : 'rgba(196,123,138,0.07)',
-                      color: isCorrect ? 'var(--ac-mint)' : 'var(--ac-rose)',
-                      border: `1px solid ${isCorrect ? 'rgba(110,201,160,0.22)' : 'rgba(196,123,138,0.2)'}`,
-                    }} className="text-tiny">
-                      <div style={{ fontWeight:700, marginBottom:4 }}>
-                        {isCorrect ? '✅ Correct' : `❌ Incorrect (Correct answer: ${result.explanations[q.id].correct})`}
-                      </div>
-                      <div>{result.explanations[q.id].explanation}</div>
-                    </div>
-                  )
-                })()}
+            <div className="section-card" style={{ opacity: loading ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+              <div className="section-card-header">
+                <h2>{currentSection?.section_title}</h2>
               </div>
-            ))}
-          </div>
+              <div className="section-content-wrapper">
+                {currentSection?.section_title === 'Knowledge Check' ? (
+                  !(isProctoringAgreed || config.gates.bypassIntegrityAgreement) ? (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '40px',
+                      background: '#1f2937', // gray-800
+                      border: '1px solid #4b5563', // gray-600
+                      borderRadius: '12px',
+                      maxWidth: '560px',
+                      margin: '30px auto',
+                      textAlign: 'center',
+                      color: '#ffffff', // white
+                      boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)',
+                      fontFamily: 'Inter, sans-serif'
+                    }}>
+                      <div style={{
+                        width: '64px',
+                        height: '64px',
+                        background: 'rgba(239, 68, 68, 0.1)', // red low opacity
+                        color: '#ef4444', // red-500
+                        borderRadius: '9999px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '24px'
+                      }}>
+                        <svg style={{ width: '32px', height: '32px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </div>
+                      <h2 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '12px', letterSpacing: '-0.025em', color: '#ffffff' }}>Academic Integrity Agreement</h2>
+                      <p style={{ color: '#d1d5db', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
+                        To ensure the fairness and credibility of this certification, this session uses real-time local proctoring. Please be honest and follow the exam rules.
+                      </p>
 
-          {/* footer */}
-          <div style={{ padding:'13px 22px', borderTop:'1px solid var(--border-subtle)', display:'flex', justifyContent:'flex-end', gap:9 }}>
-            {!result ? (
-              <>
-                <button onClick={onClose} style={{ padding:'8px 16px', borderRadius:9, background:'none',
-                  border:'1px solid var(--border-subtle)', color:'var(--text-secondary)', cursor:'pointer' }} className="text-xs">Cancel</button>
-                <StarBorder
-                  as="button"
-                  onClick={handleSubmit}
-                  disabled={submitting||Object.keys(answers).length<questions.length}
-                  color="rgba(78,205,196,0.9)"
-                  speed="3.5s"
-                  thickness={1}
-                  style={{
-                    opacity:(submitting||Object.keys(answers).length<questions.length)?0.38:1,
-                    cursor:(submitting||Object.keys(answers).length<questions.length)?'not-allowed':'pointer',
-                    borderRadius: 9,
-                  }}
-                >
-                  <span className="btn btn-primary" style={{ padding:'8px 20px', display:'flex', alignItems:'center', gap:6, border:'none', background:'none', boxShadow:'none' }}>
-                    {submitting && <Loader2 size={13} className="animate-spin" />} Submit
-                  </span>
-                </StarBorder>
-              </>
-            ) : (
-              <div style={{ display:'flex', gap:10 }}>
-                <button onClick={onClose} style={{
-                  padding:'8px 20px', borderRadius:9, fontWeight:600, cursor:'pointer',
-                  background: 'none',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--text-secondary)',
-                }} className="text-xs">
-                  Close
-                </button>
-                {result.passed ? (
-                  <button onClick={() => {
-                    if (nextModule) {
-                      window.location.href = `/course/${nextModule}`
-                    } else {
-                      onClose()
-                    }
-                  }} style={{
-                    padding:'8px 20px', borderRadius:9, fontWeight:700, cursor:'pointer',
-                    background: 'rgba(110,201,160,0.12)',
-                    border: '1px solid rgba(110,201,160,0.35)',
-                    color: 'var(--ac-mint)',
-                  }} className="text-xs">
-                    {nextModule ? 'Proceed to Next Module →' : 'Course Completed!'}
-                  </button>
+                      <div style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: '#111827', // gray-900
+                        padding: '20px',
+                        borderRadius: '8px',
+                        border: '1px solid #374151', // gray-700
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        fontSize: '12.5px',
+                        color: '#d1d5db', // gray-300
+                        marginBottom: '32px',
+                        lineHeight: 1.5
+                      }}>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <span style={{ color: '#ef4444', fontWeight: 700 }}>1.</span>
+                          <div><strong style={{ color: '#ffffff' }}>Camera & Mic:</strong> Evaluates local AI to confirm only 1 person faces the screen. If flagged locally, specific images are securely sent to our Tier-2 AI (Claude) for secondary review. </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <span style={{ color: '#ef4444', fontWeight: 700 }}>2.</span>
+                          <div><strong style={{ color: '#ffffff' }}>Focus Mode:</strong> Keep this window active. Switching tabs or capturing screenshots will log a violation.</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          <span style={{ color: '#ef4444', fontWeight: 700 }}>3.</span>
+                          <div><strong style={{ color: '#ffffff' }}>Privacy & Appeals:</strong> Tier-2 images are retained for 30 days for appeal review and then securely deleted. Only authorized instructors can review flags. If you lack a second device, please contact support for an alternative arrangement.</div>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={handleAgreeProctoring}
+                        style={{
+                          width: '100%',
+                          background: '#ef4444', // red-500
+                          color: '#ffffff', // white
+                          fontWeight: 600,
+                          padding: '12px 24px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          transition: 'background 0.2s'
+                        }}
+                        onMouseOver={e => e.currentTarget.style.background = '#dc2626'}
+                        onMouseOut={e => e.currentTarget.style.background = '#ef4444'}
+                      >
+                        I Agree, Start Knowledge Check
+                      </button>
+                    </div>
+                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live') ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff', background: '#1f2937', borderRadius: 12, marginTop: 40 }}>
+                      <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>📱 Link Your Phone to Continue</h2>
+                      <p style={{ color: '#9ca3af', marginBottom: 24 }}>Mobile camera monitoring is required for this exam.</p>
+                      <div style={{ display: 'inline-block', textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: 20, borderRadius: 8 }}>
+                        <ol style={{ margin: 0, paddingLeft: 20, color: '#d1d5db', lineHeight: 1.6 }}>
+                          <li>Open the <strong>LMS Mobile App</strong> on your phone</li>
+                          <li>Tap <strong>Scan Desktop QR Code</strong></li>
+                          <li>Scan the QR code shown in the sidebar</li>
+                          <li>Position your phone behind you, facing your screen</li>
+                        </ol>
+                      </div>
+                    </div>
+                  ) : (
+                    <AntiCheatWrapper 
+                      isViolatingProctoring={isViolatingProctoring}
+                      proctoringWarning={proctoringWarning}
+                      sessionId={proctorSessionId || undefined}
+                    >
+                      <div 
+                        className="section-content-html"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} 
+                      />
+                    </AntiCheatWrapper>
+                  )
                 ) : (
-                  <button onClick={onClose} style={{
-                    padding:'8px 20px', borderRadius:9, fontWeight:700, cursor:'pointer',
-                    background: 'rgba(196,123,138,0.08)',
-                    border: '1px solid rgba(196,123,138,0.25)',
-                    color: 'var(--ac-rose)',
-                  }} className="text-xs">
-                    Try again later
-                  </button>
+                  <div 
+                    className="section-content-html"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} 
+                  />
                 )}
               </div>
+            </div>
+            
+            {/* AI Zone */}
+            {currentSection && contentHtml && !loading && currentSection.aiPractice && (
+              <AiZone 
+                sectionTitle={currentSection.section_title}
+                contentHtml={contentHtml}
+                preGeneratedData={currentSection.aiPractice}
+              />
             )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
-    </div>
-  )
-}
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   PAGE SKELETON
-   ══════════════════════════════════════════════════════════════════════════════ */
-function PageSkeleton() {
-  return (
-    <div style={{
-      width: '100%', height: '100vh',
-      background: 'var(--bg-base)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      fontFamily: "'Inter', system-ui, sans-serif",
-    }}>
-      {/* HUD bar */}
-      <header style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 18px', height: 52, flexShrink: 0,
-        background: 'var(--glass-lg)',
-        borderBottom: '1px solid var(--border-subtle)',
+      {/* ─ Navigation bar ─ */}
+      <div id="nav-bar" style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '14px 40px', background: 'var(--bg-alt)', borderTop: '1px solid var(--line-soft)',
+        position: 'sticky', bottom: 0, zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="skeleton" style={{ width: 60, height: 22 }} />
-          <div className="skeleton" style={{ width: 160, height: 28 }} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div className="skeleton" style={{ width: 160, height: 16, borderRadius: 99 }} />
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <div className="skeleton" style={{ width: 72, height: 28 }} />
-          <div className="skeleton" style={{ width: 72, height: 28 }} />
-          <div className="skeleton" style={{ width: 32, height: 28 }} />
-        </div>
-      </header>
+        <button
+          id="btn-prev"
+          onClick={handlePrev}
+          disabled={currentIdx === 0 && moduleNumber === 1}
+          style={{
+            background: 'transparent', border: '1px solid var(--line)', color: 'var(--ink-soft)',
+            padding: '9px 20px', borderRadius: 4, fontSize: 14, fontWeight: 600,
+            cursor: 'pointer', fontFamily: '"Inter", sans-serif', transition: '0.15s',
+            opacity: (currentIdx === 0 && moduleNumber === 1) ? 0.3 : 1,
+          }}
+          onMouseOver={e => { if (!(currentIdx === 0 && moduleNumber === 1)) e.currentTarget.style.borderColor = 'var(--accent-2)' }}
+          onMouseOut={e => e.currentTarget.style.borderColor = 'var(--line)'}
+        >
+          ← Back
+        </button>
 
-      {/* 3-col body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* left col */}
-        <div style={{
-          width: 220, flexShrink: 0,
-          background: 'linear-gradient(180deg, rgba(11,15,28,0.97) 0%, rgba(8,11,22,0.98) 100%)',
-          borderRight: '1px solid var(--border-subtle)',
-          padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 8,
-        }}>
-          <div className="skeleton" style={{ width: '55%', height: 14 }} />
-          {[90, 140, 110, 125, 105, 145].map((w, i) => (
-            <div key={i} className="skeleton" style={{ width: w, height: 34, borderRadius: 9 }} />
+        {/* Section dots */}
+        <div id="nav-dots" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {moduleData?.sections.map((sec, idx) => (
+            <div
+              key={sec.section_id}
+              style={{
+                width: idx === currentIdx ? 22 : 7,
+                height: 7, borderRadius: 4,
+                background: idx === currentIdx ? 'var(--accent)' : idx < currentIdx ? '#94a3b8' : 'var(--line)',
+                cursor: 'pointer', transition: 'all 0.25s ease',
+              }}
+              title={sec.section_title}
+              onClick={() => {
+                setCurrentIdx(idx)
+                loadSectionContent(moduleId, moduleData.sections[idx].section_id)
+                window.scrollTo(0, 0)
+              }}
+            />
           ))}
         </div>
 
-        {/* centre col */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {/* orb zone */}
-          <div style={{
-            flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            paddingTop: 22, paddingBottom: 18, gap: 12,
-            borderBottom: '1px solid rgba(78,205,196,0.12)',
-          }}>
-            <div className="skeleton" style={{ width: 220, height: 220, borderRadius: '50%' }} />
-            <div className="skeleton" style={{ width: 240, height: 52, borderRadius: 6 }} />
-          </div>
-
-          {/* messages area */}
-          <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9 }}>
-              <div className="skeleton" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
-              <div className="skeleton" style={{ width: '65%', height: 68, borderRadius: '14px 14px 14px 3px' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div className="skeleton" style={{ width: '45%', height: 44, borderRadius: '14px 14px 3px 14px' }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 9 }}>
-              <div className="skeleton" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
-              <div className="skeleton" style={{ width: '72%', height: 88, borderRadius: '14px 14px 14px 3px' }} />
-            </div>
-          </div>
-
-          {/* input bar */}
-          <div style={{
-            padding: '10px 16px', flexShrink: 0,
-            background: 'var(--glass-lg)',
-            borderTop: '1px solid var(--border-subtle)',
-            display: 'flex', gap: 8, alignItems: 'center',
-          }}>
-            <div className="skeleton" style={{ flex: 1, height: 42, borderRadius: 12 }} />
-            <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 11 }} />
-            <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 11 }} />
-          </div>
-        </div>
-
+        <button
+          id="btn-next"
+          onClick={handleMarkDone}
+          style={{
+            background: 'var(--accent-2)', color: '#fff', border: 'none',
+            padding: '9px 24px', borderRadius: 4, fontSize: 14, fontWeight: 700,
+            cursor: 'pointer', fontFamily: '"Inter", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#1e3a8a'}
+          onMouseOut={e => e.currentTarget.style.background = 'var(--accent-2)'}
+        >
+          {currentIdx === (moduleData?.sections.length || 0) - 1 ? 'Finish Module →' : 'Continue →'}
+        </button>
       </div>
     </div>
-  )
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════
-   MAIN PAGE
-   ══════════════════════════════════════════════════════════════════════════════ */
-export default function CourseModulePage() {
-  const params   = useParams()
-  const router   = useRouter()
-  const moduleId = params.moduleId as string
-  const supabase = createClientComponentClient()
-
-  const [moduleTitle, setModuleTitle] = useState(moduleId.toUpperCase())
-  const [partNumber,  setPartNumber]  = useState(1)
-  const [partTitle,   setPartTitle]   = useState('')
-  const [nextModule,  setNextModule]  = useState<string|null>(null)
-
-  const [sections,          setSections]          = useState<Section[]>([])
-  const [sectionsLoaded,    setSectionsLoaded]    = useState(false)
-  const [currentSectionIdx, setCurrentSectionIdx] = useState(0)
-  const currentSection = sections[currentSectionIdx] ?? null
-
-  const [sectionProgress, setSectionProgress] = useState<SectionProgress[]>([])
-  const currentProgress = sectionProgress.find(p => p.section_id === currentSection?.section_id) ?? null
-  const isModuleComplete = sections.length > 0 && sections.every(s => sectionProgress.find(p => p.section_id === s.section_id)?.status === 'completed')
-
-
-  const CHAT_KEY = `chat_history_${moduleId}`
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = localStorage.getItem(`chat_history_${moduleId}`)
-      return saved ? (JSON.parse(saved) as Message[]) : []
-    } catch { return [] }
-  })
-  const [input,         setInput]         = useState('')
-  const [streaming,     setStreaming]      = useState(false)
-  const [sessionId,     setSessionId]     = useState<string|undefined>()
-  const [exchangeCount, setExchangeCount] = useState(0)
-  const [showQuiz,      setShowQuiz]      = useState(false)
-  const [quizPassed,    setQuizPassed]    = useState(false)
-  const [moduleAlreadyCompleted, setModuleAlreadyCompleted] = useState(false)
-
-  // Persist chat history to localStorage on every change (skip empty streaming placeholder)
-  useEffect(() => {
-    if (messages.length === 0) return
-    try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)) } catch { /* quota exceeded */ }
-  }, [messages, CHAT_KEY])
-
-  const [audioEnabled,    setAudioEnabled]    = useState(true)
-  const [micActive,       setMicActive]       = useState(false)
-  const [isSpeaking,      setIsSpeaking]      = useState(false)
-  const [userActivated,   setUserActivated]   = useState(false)
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
-
-  const [sessionKP,      setSessionKP]      = useState<string[]>([])
-  const [teachingPoints, setTeachingPoints] = useState<TeachingPoint[]>([])
-  const [currentPtIdx,   setCurrentPtIdx]   = useState(0)
-  const tpRef    = useRef<TeachingPoint[]>([])
-  const tpIdxRef = useRef(0)
-  useEffect(() => { tpRef.current    = teachingPoints }, [teachingPoints])
-  useEffect(() => { tpIdxRef.current = currentPtIdx   }, [currentPtIdx])
-
-  type TPhase = 'PRE_NOTES'|'EXPLAIN'|'CONFIRM'|'POST_NOTES'|'CHECK'|'WRAP'
-  const [tPhase,  setTPhase]  = useState<TPhase>('PRE_NOTES')
-  const tPhaseRef = useRef<TPhase>('PRE_NOTES')
-  useEffect(() => { tPhaseRef.current = tPhase }, [tPhase])
-
-
-  const chatEndRef     = useRef<HTMLDivElement>(null)
-  const msgsRef        = useRef<Message[]>([])
-  const streamRef      = useRef(false)
-  const abortRef       = useRef<AbortController|null>(null)
-  const sidRef         = useRef<string|undefined>()
-  const mTitleRef      = useRef(moduleId.toUpperCase())
-  const pNumRef        = useRef(1)
-  const pTitleRef      = useRef('')
-  const audioRef       = useRef(true)
-  const bufRef         = useRef('')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recRef         = useRef<any>(null)
-  const hasStarted     = useRef(false)
-  const micRef         = useRef(false)
-  const autoMicTimer   = useRef<ReturnType<typeof setTimeout>|null>(null)
-  const startMicRef    = useRef<()=>void>(()=>{})
-  const micStoppedRef  = useRef(false)
-  const micManualRef   = useRef(false)
-  const speakRef       = useRef<(t:string)=>void>(()=>{})
-  const activatedRef   = useRef(false)
-  const playingRef     = useRef(false)
-  const analyserRef    = useRef<AnalyserNode|null>(null)
-  const secRef         = useRef<Section|null>(null)
-  const doneSecsRef    = useRef<string[]>([])
-  const voiceRef       = useRef<SpeechSynthesisVoice|null>(null)
-
-  useEffect(()=>{ msgsRef.current    = messages   },[messages])
-  useEffect(()=>{ streamRef.current  = streaming  },[streaming])
-  useEffect(()=>{ sidRef.current     = sessionId  },[sessionId])
-  useEffect(()=>{ mTitleRef.current  = moduleTitle},[moduleTitle])
-  useEffect(()=>{ pNumRef.current    = partNumber },[partNumber])
-  useEffect(()=>{ pTitleRef.current  = partTitle  },[partTitle])
-  useEffect(()=>{ audioRef.current   = audioEnabled},[audioEnabled])
-  useEffect(()=>{ micRef.current     = micActive  },[micActive])
-  useEffect(()=>{ activatedRef.current = userActivated},[userActivated])
-  useEffect(()=>{ secRef.current     = currentSection},[currentSection])
-  useEffect(()=>{ doneSecsRef.current = sectionProgress.filter(p=>p.status==='completed').map(p=>p.section_id) },[sectionProgress])
-  useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:'smooth'}) },[messages,streaming])
-
-  /* ── Audio ── */
-  useEffect(()=>{
-    if (typeof window==='undefined'||!('speechSynthesis' in window)) return
-    const pick=()=>{
-      const vs=[...window.speechSynthesis.getVoices().filter(v=>v.lang==='en-GB'),
-                ...window.speechSynthesis.getVoices().filter(v=>v.lang!=='en-GB'&&v.lang.startsWith('en'))]
-      setAvailableVoices(vs)
-      if (!voiceRef.current) voiceRef.current=vs[0]??null
-    }
-    pick(); window.speechSynthesis.addEventListener('voiceschanged',pick)
-    return ()=>window.speechSynthesis.removeEventListener('voiceschanged',pick)
-  },[])
-
-  const initAudioCtx = useCallback(()=>{},[])
-
-  const speakText = useCallback((text: string, onFinished?: ()=>void)=>{
-    if (!audioRef.current) return
-    if (typeof window==='undefined'||!('speechSynthesis' in window)) return
-    if (micRef.current){recRef.current?.stop();setMicActive(false)}
-    playingRef.current=true; setIsSpeaking(true)
-    const u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=1.05
-    if (voiceRef.current) u.voice=voiceRef.current
-    u.onend=()=>{ if (!window.speechSynthesis.speaking){playingRef.current=false;setIsSpeaking(false)}; onFinished?.() }
-    u.onerror=()=>{ if (!window.speechSynthesis.speaking){playingRef.current=false;setIsSpeaking(false)}; onFinished?.() }
-    window.speechSynthesis.speak(u)
-  },[])
-
-  const cancelSpeech = useCallback(()=>{
-    playingRef.current=false; setIsSpeaking(false)
-    if (typeof window!=='undefined'&&'speechSynthesis' in window) window.speechSynthesis.cancel()
-    bufRef.current=''
-  },[])
-
-  const speakFinal = useCallback((text:string,onFinished?:()=>void)=>{
-    if (!audioRef.current){onFinished?.();return}
-    if (typeof window==='undefined'||!('speechSynthesis' in window)){onFinished?.();return}
-    if (!text){onFinished?.();return}
-    const u=new SpeechSynthesisUtterance(text); u.lang='en-GB'; u.rate=1.05
-    if (voiceRef.current) u.voice=voiceRef.current
-    u.onend=()=>{playingRef.current=false;setIsSpeaking(false);onFinished?.()}
-    u.onerror=()=>{playingRef.current=false;setIsSpeaking(false);onFinished?.()}
-    window.speechSynthesis.speak(u)
-  },[])
-
-  const feedToken = useCallback((tok:string)=>{
-    if (!audioRef.current) return
-    bufRef.current+=tok
-    // Once any ::: block or :::VISUAL signal starts, stop feeding to speech
-    const blockStart = bufRef.current.search(/\n?:::(?:VISUAL|PILLARS|STEPS|TERMS|MCQ)/)
-    const speech = blockStart >= 0 ? bufRef.current.slice(0, blockStart) : bufRef.current
-    if (blockStart >= 0) { bufRef.current = speech; return }
-    const sm=speech.match(/^([\s\S]*[.!?])\s+(.*)/)
-    if (sm){speakText(sm[1]);bufRef.current=sm[2];return}
-    const cm=speech.match(/^((?:\S+\s+){5,}[\s\S]*?[,;:])\s+(.*)/)
-    if (cm){speakText(cm[1]);bufRef.current=cm[2]}
-  },[speakText])
-
-  const flushSpeech = useCallback(()=>{
-    // Strip :::VISUAL signal and all :::BLOCK::: content — only speak plain text
-    const stripped = bufRef.current.replace(/:::VISUAL\n?/g, '').replace(/\n?:::[A-Z]+\n[\s\S]*?:::/g, '').trim()
-    const r=stripped; bufRef.current=''
-    const maybeRestartMic=()=>{ if (!micStoppedRef.current&&micManualRef.current) startMicRef.current() }
-    if (audioRef.current&&r){
-      speakFinal(r,()=>{ maybeRestartMic() })
-    } else {
-      const wait=()=>{
-        if (window.speechSynthesis.speaking) setTimeout(wait,200)
-        else { playingRef.current=false; setIsSpeaking(false); maybeRestartMic() }
-      }
-      if (typeof window!=='undefined'&&window.speechSynthesis.speaking) wait()
-      else { maybeRestartMic() }
-    }
-  },[speakFinal])
-
-  useEffect(()=>{ speakRef.current=speakText },[speakText])
-
-  /* ── Full cleanup on page leave ── */
-  useEffect(()=>()=>{
-    // Cancel TTS
-    if (typeof window!=='undefined'&&'speechSynthesis' in window) window.speechSynthesis.cancel()
-    // Abort any in-flight fetch stream
-    abortRef.current?.abort()
-    abortRef.current = null
-    // Stop mic
-    recRef.current?.stop()
-    // Clear auto-mic restart timer
-    if (autoMicTimer.current) clearTimeout(autoMicTimer.current)
-  },[])
-
-  /* ── stopAll — cancel streaming + speech + mic ── */
-  const stopAll = useCallback(()=>{
-    abortRef.current?.abort()
-    abortRef.current = null
-    cancelSpeech()
-    setStreaming(false)
-    bufRef.current = ''
-    micStoppedRef.current = true
-    micManualRef.current = false
-    if (autoMicTimer.current){clearTimeout(autoMicTimer.current);autoMicTimer.current=null}
-    recRef.current?.stop()
-    setMicActive(false)
-  },[cancelSpeech])
-
-  /* ── doSend ── */
-  const doSend = useCallback(async(text:string, silent:boolean)=>{
-    if (streamRef.current) return
-    if (autoMicTimer.current){clearTimeout(autoMicTimer.current);autoMicTimer.current=null}
-    if (micRef.current){recRef.current?.stop();setMicActive(false)}
-    cancelSpeech(); setStreaming(true)
-    const abort = new AbortController()
-    abortRef.current = abort
-    if (!silent){
-      setExchangeCount(n=>n+1)
-      setMessages(prev=>[...prev,{role:'user',content:text,timestamp:new Date().toISOString()}])
-    }
-    setMessages(prev=>[...prev,{role:'assistant',content:'',timestamp:new Date().toISOString()}])
-    try {
-      const pts=tpRef.current; const ptIdx=tpIdxRef.current; const cp=pts[ptIdx]??null
-      const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-        signal: abort.signal,
-        body:JSON.stringify({message:text,moduleId,sessionId:sidRef.current,
-          moduleTitle:mTitleRef.current,partNumber:pNumRef.current,partTitle:pTitleRef.current,
-          currentSection:secRef.current ? {sectionId:secRef.current.section_id,sectionTitle:secRef.current.section_title,sectionOrder:secRef.current.section_order} : undefined,
-          completedSections:doneSecsRef.current,
-          teachingPointIdx:ptIdx,teachingPointTitle:cp?.title??null,
-          teachingPointContent:cp?.content??null,
-          totalTeachingPoints:pts.length,allTeachingPoints:pts.map(p=>p.title),phase:tPhaseRef.current})})
-      if (!res.body) throw new Error('no body')
-      const reader=res.body.getReader(); const dec=new TextDecoder()
-      let lb='',full=''
-      while (true){
-        const {done,value}=await reader.read(); if (done) break
-        lb+=dec.decode(value,{stream:true})
-        const lines=lb.split('\n'); lb=lines.pop()??''
-        for (const line of lines){
-          if (!line.startsWith('data: ')) continue
-          try {
-            const p=JSON.parse(line.slice(6)) as {token?:string;done?:boolean;sessionId?:string}
-            if (p.token){const tok=p.token;full+=tok;setMessages(prev=>{const u=[...prev];u[u.length-1]={...u[u.length-1],content:full};return u});feedToken(tok)}
-            if (p.sessionId) setSessionId(p.sessionId)
-            if (p.done) flushSpeech()
-          } catch{/* ignore */}
-        }
-      }
-      flushSpeech()
-
-      if (full.trim()) {
-        const msgIdx = msgsRef.current.length - 1
-
-        // Extract MCQ correct answer
-        const mcqCorM = full.match(/:::MCQ[\s\S]*?CORRECT:\s*([A-D])[\s\S]*?:::/)
-        const mcqCorrectLetter = mcqCorM ? mcqCorM[1] : undefined
-
-        // Detect if visual is warranted — AI marks it with :::VISUAL or content has structured data
-        const wantsVisual = /:::VISUAL/.test(full) ||
-          /:::(?:PILLARS|STEPS|TERMS)/.test(full) ||
-          /(?:three|four|five|2|3|4|5)\s+(?:pillars?|steps?|stages?|types?|principles?|rules?|rates?)/i.test(full) ||
-          /£[\d,]+|[\d.]+%/.test(full)
-
-        // PRE-GENERATE visual BEFORE showing message — await so image is ready when message appears
-        let svg: string | null = null
-        if (wantsVisual) {
-          try {
-            const vr = await fetch('/api/visual', { method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({ content: full.replace(/:::VISUAL/g,'').slice(0, 800) }) })
-            const vd = await vr.json() as { svg: string | null }
-            svg = vd.svg ?? null
-          } catch { svg = null }
-        }
-
-        // Now reveal the message with visual already attached (no patch needed)
-        setMessages(prev => {
-          const u = [...prev]
-          if (u[msgIdx]) u[msgIdx] = {
-            ...u[msgIdx],
-            ...(svg ? { visual: svg } : {}),
-            ...(mcqCorrectLetter ? { mcqCorrect: mcqCorrectLetter } : {}),
-          }
-          return u
-        })
-      }
-
-      if (!silent&&full.trim()){
-        const plainFull=full.replace(/:::VISUAL\n?/g,'').replace(/\n?:::[A-Z]+\n[\s\S]*?:::/g,'').trim()
-        const pts2=plainFull.match(/[^.!?]+[.!?]/g)??[]
-        const kps=pts2.map(s=>s.trim()).filter(s=>s.length>20&&s.length<200).slice(0,3)
-        if (kps.length){
-          setSessionKP(prev=>{const c=[...new Set([...prev,...kps])].slice(0,10)
-            if (secRef.current) void fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({moduleId,sectionId:secRef.current.section_id,sectionTitle:secRef.current.section_title,keyPoints:c,status:'in_progress'})})
-            return c})
-          setSectionProgress(prev=>{ const ex=prev.find(p=>p.section_id===secRef.current?.section_id)
-            if (!ex||!secRef.current) return prev
-            return prev.map(p=>p.section_id===secRef.current!.section_id
-              ?{...p,key_points:[...new Set([...p.key_points,...kps])].slice(0,10)}:p)})
-        }
-      }
-
-      if (full.trim()){
-        const ph=tPhaseRef.current
-        // Phase flow: PRE_NOTES → EXPLAIN → CONFIRM → POST_NOTES(MCQ) → CHECK → advance → PRE_NOTES
-        if (ph==='PRE_NOTES'||text==='__AUTO_START__') setTPhase('EXPLAIN')
-        else if (ph==='EXPLAIN') setTPhase('CONFIRM')      // teach done → wait for student to confirm ready
-        else if (ph==='CONFIRM') setTPhase('POST_NOTES')   // student confirmed → show MCQ
-        else if (ph==='POST_NOTES') setTPhase('CHECK')     // MCQ shown → wait for answer
-        else if (ph==='CHECK') {
-          // Wrong-answer branch: Alex explained the mistake → advance topic
-          const pts3=tpRef.current; const idx=tpIdxRef.current; const isLast=idx>=pts3.length-1
-          const updated=pts3.map((p,ii)=>ii===idx?{...p,done:true}:p)
-          setTeachingPoints(updated)
-          const nextIdx=isLast?idx:idx+1
-          setCurrentPtIdx(nextIdx)
-          setTPhase(isLast?'WRAP':'PRE_NOTES')
-          if (secRef.current) void fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({moduleId,sectionId:secRef.current.section_id,sectionTitle:secRef.current.section_title,
-              status:'in_progress',teachingPointIdx:nextIdx,teachingPoints:updated})})
-        }
-      }
-    } catch(err) {
-      if ((err as {name?:string})?.name !== 'AbortError') {
-        setMessages(prev=>{const u=[...prev];u[u.length-1]={...u[u.length-1],content:'Sorry, something went wrong.'};return u})
-      }
-    } finally { setStreaming(false); abortRef.current=null }
-  },[moduleId,cancelSpeech,feedToken,flushSpeech])
-
-  /* ── advanceTopic — move to next teaching point, called after correct MCQ answer ── */
-  const advanceTopic = useCallback((speakFeedback: string) => {
-    const pts = tpRef.current
-    const idx = tpIdxRef.current
-    const isLast = idx >= pts.length - 1
-
-    // Mark current topic done
-    const updated = pts.map((p, i) => i === idx ? { ...p, done: true } : p)
-    setTeachingPoints(updated)
-
-    const nextIdx = isLast ? idx : idx + 1
-    setCurrentPtIdx(nextIdx)
-    setTPhase(isLast ? 'WRAP' : 'PRE_NOTES')
-
-    if (secRef.current) {
-      void fetch('/api/notes', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ moduleId, sectionId: secRef.current.section_id,
-          sectionTitle: secRef.current.section_title, status:'in_progress',
-          teachingPointIdx: nextIdx, teachingPoints: updated }) })
-    }
-
-    // Speak the brief correct-answer feedback then auto-continue
-    if (speakFeedback) {
-      const u = new SpeechSynthesisUtterance(speakFeedback)
-      u.lang = 'en-GB'; u.rate = 1.05
-      if (voiceRef.current) u.voice = voiceRef.current
-      u.onend = () => { void doSend('__AUTO_START__', true) }
-      u.onerror = () => { void doSend('__AUTO_START__', true) }
-      window.speechSynthesis.speak(u)
-    } else {
-      void doSend('__AUTO_START__', true)
-    }
-  }, [moduleId, doSend])
-
-  /* ── data loading ── */
-  useEffect(()=>{
-    const n=parseInt(moduleId.replace('m',''),10); if (n<87) setNextModule(`m${String(n+1).padStart(2,'0')}`)
-    Promise.all([
-      fetch(`/api/module-meta?moduleId=${moduleId}`).then(r=>r.json() as Promise<{module_title:string;part_number:number;part_title:string}|null>),
-      fetch('/api/progress').then(r=>r.json() as Promise<{completedModules:string[]}>),
-    ]).then(([m,pg])=>{
-      if (m){setModuleTitle(m.module_title??moduleId.toUpperCase());setPartNumber(m.part_number??1);setPartTitle(m.part_title??'')}
-      if (pg?.completedModules?.includes(moduleId)) setModuleAlreadyCompleted(true)
-    }).catch(()=>{})
-  },[moduleId])
-
-  useEffect(()=>{
-    fetch(`/api/sections?moduleId=${moduleId}`)
-      .then(r=>r.json() as Promise<{sections:Section[]}>)
-      .then(d=>{if (d.sections?.length) setSections(d.sections);setSectionsLoaded(true)})
-      .catch(()=>setSectionsLoaded(true))
-  },[moduleId])
-
-  useEffect(()=>{
-    fetch(`/api/notes?moduleId=${moduleId}`)
-      .then(r=>r.json() as Promise<{progress:SectionProgress[]}>)
-      .then(d=>{if (d.progress) setSectionProgress(d.progress)})
-      .catch(()=>{})
-  },[moduleId])
-
-  // Auto-resume: jump to the last in-progress section (or first incomplete) on load
-  const didAutoResume = useRef(false)
-  useEffect(()=>{
-    if (didAutoResume.current) return
-    if (!sectionsLoaded || sections.length === 0 || sectionProgress.length === 0) return
-    didAutoResume.current = true
-    // Find the last section that has been started but not completed
-    const inProgressIdx = sections.reduce<number>((found, s, i) => {
-      const p = sectionProgress.find(p => p.section_id === s.section_id)
-      return p && p.status !== 'completed' ? i : found
-    }, -1)
-    if (inProgressIdx > 0) {
-      setCurrentSectionIdx(inProgressIdx)
-      return
-    }
-    // No in-progress — find first section without a completed record
-    const firstIncompleteIdx = sections.findIndex(s =>
-      sectionProgress.find(p => p.section_id === s.section_id)?.status !== 'completed'
-    )
-    if (firstIncompleteIdx > 0) setCurrentSectionIdx(firstIncompleteIdx)
-  },[sectionsLoaded, sections, sectionProgress])
-
-  useEffect(()=>{
-    if (!currentSection) return
-    // 1. Restore from DB (sectionProgress loaded on mount)
-    const sv=sectionProgress.find(p=>p.section_id===currentSection.section_id)
-    if (sv?.teaching_points?.length){
-      // DB stores {title,done} — re-merge with full content from API
-      void fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${currentSection.section_id}`)
-        .then(r=>r.json() as Promise<{points:string[];pointContents:string[]}>)
-        .then(d=>{
-          const merged = (sv.teaching_points ?? []).map((p,i)=>({
-            title: p.title,
-            content: d.pointContents?.[i] ?? '',
-            done: p.done,
-          }))
-          setTeachingPoints(merged)
-          setCurrentPtIdx(sv.teaching_point_idx ?? 0)
-          setTPhase((sv.t_phase as TPhase) ?? 'PRE_NOTES')
-        })
-        .catch(()=>{})
-      return
-    }
-    // 2. Fresh start — fetch from API
-    void fetch(`/api/teaching-points?moduleId=${moduleId}&sectionId=${currentSection.section_id}`)
-      .then(r=>r.json() as Promise<{points:string[];pointContents:string[]}>)
-      .then(d=>{
-        if (d.points?.length){
-          setTeachingPoints(d.points.map((t,i)=>({title:t,content:d.pointContents?.[i]??'',done:false})))
-          setCurrentPtIdx(0)
-          setTPhase('PRE_NOTES')
-        }
-      })
-      .catch(()=>{})
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[currentSection?.section_id,moduleId,sectionProgress])
-
-  useEffect(()=>{
-    if (sessionKP.length&&currentSection){
-      setSectionProgress(prev=>{
-        const ex=prev.find(p=>p.section_id===currentSection.section_id)
-        if (ex) return prev.map(p=>p.section_id===currentSection.section_id?{...p,key_points:sessionKP}:p)
-        return [...prev,{section_id:currentSection.section_id,section_title:currentSection.section_title,status:'in_progress',notes:'',key_points:sessionKP}]
-      })
-    }
-  },[sessionKP,currentSection])
-
-
-  // Auto-start removed — student taps "Start Lesson" to begin
-
-  const switchSection = useCallback((idx:number)=>{
-    if (idx===currentSectionIdx) return
-    // Clear chat history for the old section
-    const oldSectionId = sections[currentSectionIdx]?.section_id ?? ''
-    if (oldSectionId) try { localStorage.removeItem(`tp_progress_${moduleId}_${oldSectionId}`) } catch { /* ignore */ }
-    setCurrentSectionIdx(idx); setMessages([]); setSessionKP([])
-    setTeachingPoints([]); setCurrentPtIdx(0); setTPhase('PRE_NOTES')
-    hasStarted.current=false; cancelSpeech()
-  },[currentSectionIdx, sections, moduleId, cancelSpeech])
-
-  const completeSection = useCallback(()=>{
-    if (!currentSection) return
-    setSectionProgress(prev=>{
-      const ex=prev.find(p=>p.section_id===currentSection.section_id)
-      const upd:SectionProgress=ex?{...ex,status:'completed'}:{section_id:currentSection.section_id,section_title:currentSection.section_title,status:'completed',notes:'',key_points:sessionKP}
-      void fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({moduleId,sectionId:currentSection.section_id,sectionTitle:currentSection.section_title,status:'completed',keyPoints:sessionKP})})
-      return ex?prev.map(p=>p.section_id===currentSection.section_id?upd:p):[...prev,upd]
-    })
-    setSectionCompleted(true)
-    if (currentSectionIdx<sections.length-1) {
-      setShowAdvancePrompt(true)
-      setTimeout(()=>{ setShowAdvancePrompt(false); setSectionCompleted(false); switchSection(currentSectionIdx+1) }, 2800)
-    }
-  },[currentSection,currentSectionIdx,sections.length,switchSection,sessionKP,moduleId])
-
-  /* ── mic ── */
-  const startMicImpl = useCallback(()=>{
-    if (!activatedRef.current||micRef.current||streamRef.current) return
-    if (typeof window==='undefined') return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR=(window as any).SpeechRecognition??(window as any).webkitSpeechRecognition
-    if (!SR) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec=new SR() as any; rec.lang='en-GB'; rec.continuous=false; rec.interimResults=true
-    let got=false
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onresult=(ev:any)=>{
-      const t=Array.from(ev.results as ArrayLike<{0:{transcript:string};isFinal:boolean}>).map(r=>r[0].transcript).join('')
-      setInput(t)
-      if ((ev.results as ArrayLike<{isFinal:boolean}>)[ev.results.length-1].isFinal){got=true;setMicActive(false);setInput('');if (t.trim()) void doSend(t.trim(),false)}
-    }
-    const restart=(ms:number)=>{
-      if (streamRef.current||playingRef.current||micStoppedRef.current||!micManualRef.current) return
-      autoMicTimer.current=setTimeout(()=>{if (!streamRef.current&&!playingRef.current&&!micStoppedRef.current&&micManualRef.current) startMicRef.current()},ms)
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    rec.onerror=(ev:any)=>{setMicActive(false);if (ev.error==='no-speech'||ev.error==='audio-capture') restart(500)}
-    rec.onend=()=>{setMicActive(false);if (!got) restart(300)}
-    rec.start(); recRef.current=rec; setMicActive(true)
-  },[doSend])
-  useEffect(()=>{ startMicRef.current=startMicImpl },[startMicImpl])
-
-  const toggleMic = useCallback(()=>{
-    if (micActive){micStoppedRef.current=true;micManualRef.current=false;recRef.current?.stop();setMicActive(false);return}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (!(window as any).SpeechRecognition&&!(window as any).webkitSpeechRecognition){alert('Speech recognition not supported. Try Chrome or Edge.');return}
-    micStoppedRef.current=false;micManualRef.current=true; startMicImpl()
-  },[micActive,startMicImpl])
-
-  const completedCount = sectionProgress.filter(p=>p.status==='completed').length
-  const totalSections  = sections.length
-  const progressPct    = totalSections>0 ? Math.round(completedCount/totalSections*100) : 0
-  const canGoNext      = quizPassed||moduleAlreadyCompleted
-  const [showKeyboardHelp,   setShowKeyboardHelp]   = useState(false)
-  const [sectionCompleted,   setSectionCompleted]   = useState(false)
-  const [showAdvancePrompt,  setShowAdvancePrompt]  = useState(false)
-
-  /* ── keyboard shortcuts ── */
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // Escape: stop everything
-      if (e.key === 'Escape') { stopAll(); return }
-      // Alt+N: next section
-      if (e.altKey && e.key === 'n') { e.preventDefault(); if (currentSectionIdx < sections.length - 1) completeSection(); return }
-      // Alt+Q: open quiz
-      if (e.altKey && e.key === 'q') { e.preventDefault(); setShowQuiz(true); return }
-      // Alt+M: toggle mic
-      if (e.altKey && e.key === 'm') { e.preventDefault(); toggleMic(); return }
-      // Alt+A: toggle audio
-      if (e.altKey && e.key === 'a') { e.preventDefault(); setAudioEnabled(v => !v); return }
-      // Alt+K: toggle keyboard help
-      if (e.altKey && e.key === 'k') { e.preventDefault(); setShowKeyboardHelp(v => !v); return }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [stopAll, completeSection, currentSectionIdx, sections.length, toggleMic])
-
-  /* ── shared button styles ── */
-  const hudBtn = (active: boolean, accent = 'var(--ac-cyan)', accentRgb = '126,207,206'): React.CSSProperties => ({
-    padding: '5px 11px', borderRadius: 8, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: 5, fontWeight: 600,
-    background: active ? `rgba(${accentRgb},0.12)` : 'rgba(255,255,255,0.03)',
-    border: `1px solid ${active ? `rgba(${accentRgb},0.30)` : 'var(--border-subtle)'}`,
-    color: active ? accent : 'var(--text-secondary)',
-    boxShadow: active ? `var(--shadow-sm), 0 0 12px rgba(${accentRgb},0.1)` : 'var(--shadow-sm)',
-    transition: 'all 0.18s ease',
-    letterSpacing: '0.04em',
-  })
-
-  /* ══ RENDER ══ */
-  if (!sectionsLoaded) return <PageSkeleton />
-
-  return (
-    <div style={{
-      width: '100%', height: '100vh',
-      background: 'var(--bg-base)',
-      display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      fontFamily: "'Inter', system-ui, sans-serif",
-      position: 'relative',
-    }}>
-      {/* ── Section advance toast ── */}
-      <AnimatePresence>
-        {showAdvancePrompt && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            style={{
-              position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 200, pointerEvents: 'none',
-              background: 'linear-gradient(135deg, rgba(82,217,139,0.15), rgba(78,205,196,0.1))',
-              border: '1px solid rgba(82,217,139,0.4)',
-              borderRadius: 14, padding: '12px 20px',
-              display: 'flex', alignItems: 'center', gap: 12,
-              backdropFilter: 'blur(20px)',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 20px rgba(82,217,139,0.15)',
-            }}>
-            <CheckCircle2 size={18} color="#52D98B" />
-            <div>
-              <p style={{ color: '#52D98B', fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 2 }} className="text-tiny">SECTION COMPLETE</p>
-              <p style={{ color: 'var(--text-primary)', fontWeight: 600 }} className="text-small">
-                Moving to next section…
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Keyboard shortcuts help panel ── */}
-      <AnimatePresence>
-        {showKeyboardHelp && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -8 }}
-            onClick={() => setShowKeyboardHelp(false)}
-            style={{
-              position: 'fixed', top: 62, right: 16, zIndex: 150,
-              background: 'rgba(9,13,26,0.96)', border: '1px solid rgba(78,205,196,0.2)',
-              borderRadius: 14, padding: '16px 18px', minWidth: 240,
-              backdropFilter: 'blur(20px)', boxShadow: 'var(--shadow-lg)',
-              cursor: 'pointer',
-            }}>
-            <p style={{ color: 'rgba(78,205,196,0.7)', fontFamily: 'monospace', letterSpacing: '0.14em', marginBottom: 12 }} className="text-tiny">KEYBOARD SHORTCUTS</p>
-            {[
-              { key: 'Alt+N', label: 'Next section' },
-              { key: 'Alt+Q', label: 'Open quiz' },
-              { key: 'Alt+M', label: 'Toggle mic' },
-              { key: 'Alt+A', label: 'Toggle audio' },
-              { key: 'Alt+K', label: 'This help panel' },
-              { key: 'Escape', label: 'Stop speaking' },
-              { key: 'Enter', label: 'Send message' },
-              { key: 'Shift+Enter', label: 'New line' },
-            ].map(({ key, label }) => (
-              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                <span style={{ color: '#8EA8CC' }} className="text-xs">{label}</span>
-                <kbd style={{ fontFamily: 'monospace', color: '#4ECDC4', background: 'rgba(78,205,196,0.1)', border: '1px solid rgba(78,205,196,0.25)', borderRadius: 5, padding: '2px 7px' }} className="text-micro">{key}</kbd>
-              </div>
-            ))}
-            <p style={{ color: '#4A6285', fontFamily: 'monospace', marginTop: 8, textAlign: 'center' }} className="text-[9px]">click to close</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── HUD BAR ── */}
-      <header style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 18px', height: 52, flexShrink: 0, zIndex: 10,
-        background: 'var(--glass-lg)',
-        borderBottom: '1px solid var(--border-subtle)',
-        backdropFilter: 'blur(24px) saturate(150%)',
-        boxShadow: '0 1px 0 rgba(255,255,255,0.04), var(--shadow-sm)',
+    
+    {/* Voice Assistant Sidebar or Proctoring */}
+    {currentSection?.section_title === 'Knowledge Check' ? (
+      <div style={{ 
+        width: '320px', 
+        borderLeft: '1px solid var(--line-soft)', 
+        background: 'var(--bg-alt)',
+        display: 'flex', 
+        flexDirection: 'column', 
+        padding: '24px' 
       }}>
-        {/* left */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 6px', borderRadius: 7, transition: 'color 0.18s' }}
-            onMouseEnter={e=>(e.currentTarget as HTMLElement).style.color='var(--text-primary)'}
-            onMouseLeave={e=>(e.currentTarget as HTMLElement).style.color='var(--text-tertiary)'}>
-            <ChevronLeft size={15} />
-            <span style={{ letterSpacing: '0.08em', fontFamily: 'monospace' }} className="text-tiny">BACK</span>
-          </button>
-          <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
-          <div>
-            <p style={{ fontFamily: 'monospace', letterSpacing: '0.16em', color: 'var(--ac-cyan)', opacity: 0.75 }} className="text-[9px]">PART {partNumber} · {moduleId.toUpperCase()}</p>
-            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: 1, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-xs">
-              <DecryptedText text={moduleTitle} animateOn="view" sequential={true} revealDirection="start" speed={28} className="aurora-text" encryptedClassName="aurora-text" />
-            </p>
-          </div>
-        </div>
-
-        {/* centre — progress */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div>
-            <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.12em', marginBottom: 3, textAlign: 'right' }} className="text-[9px]">
-              {completedCount}/{totalSections} sections
-            </p>
-            <div style={{ width: 160, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 99,
-              overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              <div className="aurora-progress-fill" style={{ height: '100%', width: `${progressPct}%`, transition: 'width 0.55s ease' }} />
-            </div>
-          </div>
-          {currentSection && (
-            <div className="depth-pill" style={{ padding: '3px 10px' }}>
-              <p style={{ color: 'var(--ac-cyan)', fontFamily: 'monospace', letterSpacing: '0.08em' }} className="text-micro">§ {currentSection.section_id}</p>
-            </div>
-          )}
-        </div>
-
-        {/* right controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => { setAudioEnabled(v=>!v); if (audioEnabled) cancelSpeech() }} style={hudBtn(audioEnabled)} className="text-tiny">
-            {audioEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-            <span style={{ fontFamily: 'monospace' }}>{audioEnabled ? 'AUDIO' : 'MUTED'}</span>
-          </button>
-
-          {availableVoices.length > 1 && (
-            <select onChange={e => { const v=availableVoices.find(v=>v.name===e.target.value); if (v) voiceRef.current=v }}
-              defaultValue={voiceRef.current?.name ?? ''}
-              style={{ padding: '4px 7px', borderRadius: 7, fontFamily: 'monospace',
-                background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-subtle)',
-                color: 'var(--text-secondary)', cursor: 'pointer', maxWidth: 145, outline: 'none' }} className="text-tiny">
-              {availableVoices.map(v=>(
-                <option key={v.name} value={v.name} style={{ background: '#0C1020', color: '#D8E4F0' }}>
-                  {v.name.replace(/Microsoft |Google /,'').slice(0,18)} ({v.lang})
-                </option>
-              ))}
-            </select>
-          )}
-
-          {currentSection && currentProgress?.status !== 'completed' && (
-            <button onClick={completeSection} style={hudBtn(false,'var(--ac-mint)','110,201,160')} className="text-tiny">
-              <Check size={12} /> Mark Done
-            </button>
-          )}
-          {currentSection && currentProgress?.status === 'completed' && (
-            <div style={{ ...hudBtn(true,'var(--ac-mint)','110,201,160'), cursor: 'default', opacity: 0.6 }} className="text-tiny">
-              <CheckCircle2 size={12} /> Done
-            </div>
-          )}
-
-          {exchangeCount >= 4 && (
-            <StarBorder
-              as="button"
-              onClick={()=>setShowQuiz(true)}
-              color="rgba(155,111,208,0.85)"
-              speed="4s"
-              thickness={1}
-              style={{
-                ...hudBtn(false,'var(--ac-violet)','139,126,200'),
-                padding: '0',
-                borderRadius: 8,
-              }}
-            >
-              <span style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px' }}>
-                <Brain size={12} /> Quiz
-              </span>
-            </StarBorder>
-          )}
-
-          {canGoNext && nextModule && (
-            <button onClick={()=>router.push(`/course/${nextModule}`)} style={hudBtn(true,'var(--ac-mint)','110,201,160')} className="text-tiny">
-              Next <ChevronRight size={12} />
-            </button>
-          )}
-          {!canGoNext && nextModule && exchangeCount > 0 && (
-            <div title="Pass the quiz to unlock" style={{ ...hudBtn(false), opacity: 0.4, cursor: 'default' }} className="text-tiny">
-              <Lock size={10} /> Next
-            </div>
-          )}
-
-          <div style={{ width: 1, height: 18, background: 'var(--border-subtle)' }} />
-          <button onClick={()=>setShowKeyboardHelp(v=>!v)} style={hudBtn(showKeyboardHelp)} title="Keyboard shortcuts (Alt+K)" className="text-tiny">
-            <Keyboard size={13} />
-          </button>
-        </div>
-      </header>
-
-      {/* ── MAIN 3-COL ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', zIndex: 5 }}>
-
-        {/* COL 1 — Sections */}
-        <div style={{
-            width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column',
-            background: 'var(--sidebar-bg)',
-            borderRight: '1px solid var(--border-subtle)',
-            boxShadow: 'var(--shadow-md)',
-          }}>
-            <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-              <p style={{ fontFamily: 'monospace', color: 'var(--ac-cyan)', letterSpacing: '0.16em', marginBottom: 3, opacity: 0.7 }} className="text-[9px]">
-                M{moduleId.replace('m','').padStart(2,'0')} · TOPICS
-              </p>
-              <p style={{ fontWeight: 600, color: 'var(--text-secondary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="text-tiny">
-                {moduleTitle}
-              </p>
-            </div>
-
-            {sections.length > 0 ? (
-              <SectionTrail
-                sections={sections}
-                currentIdx={currentSectionIdx}
-                progress={sectionProgress}
-                quizUnlocked={isModuleComplete}
-                onSelect={switchSection}
-                onStartFinalQuiz={() => setShowQuiz(true)}
-              />
-            ) : !sectionsLoaded ? (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:8 }}>
-                <Loader2 size={17} color="var(--ac-cyan)" className="animate-spin" style={{ opacity:0.5 }} />
-                <p style={{ color:'var(--text-tertiary)' }} className="text-tiny">Loading…</p>
-              </div>
-            ) : (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <p style={{ color:'var(--text-tertiary)', padding:'0 12px', textAlign:'center' }} className="text-tiny">No sections found</p>
+        <h3 style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>Exam Integrity</h3>
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 8, marginBottom: 24, lineHeight: 1.5 }}>
+          Your camera is active to ensure academic integrity. Please face the screen during the entire Knowledge Check.
+        </p>
+        {(isProctoringAgreed || config.gates.bypassIntegrityAgreement) ? (
+          <>
+            {proctorSessionId && !config.gates.bypassMobileCameraRequired && (
+              <div style={{ marginBottom: 20 }}>
+                <MobileDeviceStatus 
+                  sessionId={proctorSessionId} 
+                  onStatusChange={setMobileStatus} 
+                />
               </div>
             )}
-
-
-            {/* module-end items — always shown at the very bottom */}
-            <div style={{ borderTop: '1px solid var(--border-subtle)', flexShrink: 0, padding: '7px 8px 4px' }}>
-              {[
-                { label: `Module ${parseInt(moduleId.replace('m',''),10)} — Summary`,               done: moduleAlreadyCompleted },
-                { label: `Module ${parseInt(moduleId.replace('m',''),10)} — End-of-Section MCQ (10 questions)`, done: quizPassed || moduleAlreadyCompleted },
-              ].map((item, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '5px 8px', borderRadius: 8, marginBottom: 3,
-                  background: item.done ? 'rgba(110,201,160,0.05)' : 'rgba(255,255,255,0.02)',
-                  border: item.done ? '1px solid rgba(110,201,160,0.18)' : '1px solid rgba(255,255,255,0.05)',
-                }}>
-                  <div style={{
-                    width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: item.done ? 'rgba(110,201,160,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: item.done ? '1px solid rgba(110,201,160,0.45)' : '1px solid rgba(255,255,255,0.1)',
-                  }}>
-                    {item.done
-                      ? <Check size={9} color="var(--ac-mint)" />
-                      : <span style={{ color: 'var(--text-tertiary)', fontWeight: 700 }} className="text-[6px]">{i === 0 ? '★' : '?'}</span>
-                    }
-                  </div>
-                  <span style={{
-                    lineHeight: 1.4, flex: 1,
-                    color: item.done ? 'var(--ac-mint)' : 'var(--text-tertiary)',
-                    textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.65 : 1,
-                  }} className="text-micro">{item.label}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* theme toggle */}
-            <div style={{ padding: '12px' }}>
-              <ThemeToggle />
-            </div>
-
-            {/* module nav */}
-            <div style={{ padding:'9px 12px',borderTop:'1px solid var(--border-subtle)',display:'flex',justifyContent:'space-between',flexShrink:0 }}>
-              <button onClick={()=>{const n=parseInt(moduleId.replace('m',''),10);if(n>1)router.push(`/course/m${String(n-1).padStart(2,'0')}`)}}
-                style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }} className="text-micro">
-                <ChevronLeft size={12} /> PREV
-              </button>
-              {nextModule&&(canGoNext
-                ?<button onClick={()=>router.push(`/course/${nextModule}`)} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-tertiary)',display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em' }} className="text-micro">
-                    NEXT <ChevronRight size={12} />
-                  </button>
-                :<span style={{ color:'var(--text-tertiary)',display:'flex',alignItems:'center',gap:3,fontFamily:'monospace',letterSpacing:'0.08em',opacity:0.45 }} className="text-micro">
-                    <Lock size={9} /> NEXT
-                  </span>
-              )}
-            </div>
-          </div>
-
-        {/* COL 2 — Avatar + Chat */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, position:'relative' }}>
-
-          {/* ── AVATAR ZONE ── */}
+            <ProctoringCamera onViolation={handleProctoringViolation} sessionId={proctorSessionId || undefined} qrValue={proctorQrValue || undefined} />
+          </>
+        ) : (
           <div style={{
-            flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            paddingTop: 18, paddingBottom: 14,
-            borderBottom: '1px solid rgba(78,205,196,0.12)',
-            boxShadow: 'var(--shadow-lg)',
-            position: 'relative', zIndex: 1,
-            overflow: 'hidden',
-            minHeight: 200,
+            background: 'rgba(15, 23, 42, 0.5)',
+            border: '1px dashed #334155',
+            borderRadius: '8px',
+            padding: '24px',
+            textAlign: 'center',
+            fontSize: '12px',
+            color: '#64748b',
+            lineHeight: 1.4
           }}>
-
-            {/* SoftAurora — audio-visualizer avatar */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
-              <SoftAurora
-                isSpeaking={isSpeaking || streaming}
-                speed={0.45}
-                scale={1.3}
-                brightness={1.1}
-                color1="#4ecdc4"
-                color2="#9b6fd0"
-                noiseFrequency={2.0}
-                noiseAmplitude={0.7}
-                bandHeight={0.5}
-                bandSpread={0.9}
-                octaveDecay={0.12}
-                layerOffset={0.9}
-                colorSpeed={0.7}
-                enableMouseInteraction={true}
-                mouseInfluence={0.18}
-              />
-            </div>
-
-            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 8 }}>
-
-              {/* section label */}
-              {currentSection && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <div style={{
-                    width: 5, height: 5, borderRadius: '50%',
-                    background: isSpeaking ? 'var(--ac-cyan)' : 'var(--border-medium)',
-                    boxShadow: isSpeaking ? 'var(--glow-cyan)' : 'none',
-                    transition: 'all 0.4s', animation: isSpeaking ? 'onlinePulse 2s infinite' : 'none',
-                  }} />
-                  <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace' }} className="text-micro">
-                    <span style={{ color: 'var(--ac-cyan)', marginRight: 5 }}>§{currentSection.section_id}</span>
-                    {currentSection.section_title.length > 38 ? currentSection.section_title.slice(0,36)+'…' : currentSection.section_title}
-                  </p>
-                </div>
-              )}
-
-              <AuroraStatus speaking={isSpeaking} />
-
-            </div>
+            Camera activation pending integrity agreement.
           </div>
-
-          {/* notes prompt banner */}
-          {teachingPoints.length > 0 && (
-            <NotesPromptBanner phase={tPhase} topicTitle={teachingPoints[currentPtIdx]?.title??null} topicIdx={currentPtIdx} total={teachingPoints.length} />
-          )}
-
-          {/* ── MESSAGES ── */}
-          <div className="chat-messages" style={{ flex:1, overflowY:'auto', padding:'16px 18px 8px', display:'flex', flexDirection:'column', gap:4, position:'relative', zIndex:1 } as React.CSSProperties}>
-
-            {/* top fade mask */}
-            <div style={{ position:'sticky', top:0, left:0, right:0, height:28, marginBottom:-28, pointerEvents:'none', zIndex:2,
-              background:'linear-gradient(to bottom, var(--bg-base) 0%, transparent 100%)', flexShrink:0 }} />
-
-            {messages.length === 0 && !streaming && (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <div style={{
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:20,
-                  background:'var(--card-bg)', border:'1px solid var(--card-border)',
-                  borderRadius:20, padding:'32px 36px', maxWidth:320, textAlign:'center',
-                  boxShadow:'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)',
-                  backdropFilter:'blur(16px)',
-                }}>
-                  {/* Alex avatar */}
-                  <div style={{ position:'relative' }}>
-                    <div style={{
-                      width:64, height:64, borderRadius:'50%',
-                      background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.22))',
-                      border:'2px solid rgba(78,205,196,0.4)',
-                      display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, color:'var(--ac-cyan)',
-                      boxShadow:'0 0 32px rgba(78,205,196,0.2)',
-                    }} className="text-2xl">A</div>
-                    <div style={{ position:'absolute', bottom:2, right:2, width:14, height:14, borderRadius:'50%', background:'#22c55e', border:'2px solid rgba(10,14,28,0.9)', boxShadow:'0 0 8px #22c55e' }} />
-                  </div>
-
-                  {/* Intro text */}
-                  <div>
-                    <p style={{ fontWeight:700, color:'var(--text-primary)', margin:'0 0 6px' }} className="text-base">
-                      Hi, I&apos;m Alex
-                    </p>
-                    <p style={{ color:'var(--text-secondary)', lineHeight:1.7, margin:0 }} className="text-xs">
-                      Your AI tutor for<br/>
-                      <span style={{ color:'var(--ac-cyan)', fontWeight:600 }}>
-                        {currentSection?.section_title ?? moduleTitle}
-                      </span>
-                    </p>
-                    {currentSection && (
-                      <p style={{ color:'var(--text-tertiary)', marginTop:8, lineHeight:1.6 }} className="text-tiny">
-                        Select a topic from the left panel,<br/>then tap <strong style={{ color:'var(--ac-cyan)' }}>Start Lesson</strong> to begin.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Start Lesson button */}
-                  <button
-                    onClick={() => {
-                      setUserActivated(true)
-                      hasStarted.current = true
-                      setTPhase('PRE_NOTES')
-                      void doSend('__AUTO_START__', true)
-                    }}
-                    style={{
-                      display:'flex', alignItems:'center', gap:8,
-                      padding:'12px 28px', borderRadius:13,
-                      background:'linear-gradient(135deg, #4ECDC4 0%, #52D98B 100%)',
-                      border:'none', cursor:'pointer', fontWeight:700, color:'#050810',
-                      boxShadow:'0 4px 20px rgba(78,205,196,0.3)',
-                      transition:'box-shadow 0.18s, transform 0.18s',
-                    }}
-                    onMouseEnter={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 6px 28px rgba(78,205,196,0.45)'; (e.currentTarget as HTMLElement).style.transform='translateY(-1px)' }}
-                    onMouseLeave={e=>{ (e.currentTarget as HTMLElement).style.boxShadow='0 4px 20px rgba(78,205,196,0.3)'; (e.currentTarget as HTMLElement).style.transform='none' }} className="text-sm"
-                  >
-                    <Brain size={16} />
-                    Start Lesson
-                  </button>
-
-                  {/* Or ask a question */}
-                  <p style={{ color:'var(--text-tertiary)', margin:0 }} className="text-tiny">
-                    or type a question below
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* date/session divider shown once above first message */}
-            {messages.length > 0 && (
-              <div style={{ display:'flex', alignItems:'center', gap:10, margin:'8px 0 12px', flexShrink:0 }}>
-                <div style={{ flex:1, height:1, background:'var(--border-subtle)' }} />
-                <span style={{ fontFamily:'monospace', letterSpacing:'0.12em', color:'var(--text-tertiary)', whiteSpace:'nowrap' }} className="text-[9px]">
-                  SESSION · {new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
-                </span>
-                <div style={{ flex:1, height:1, background:'var(--border-subtle)' }} />
-              </div>
-            )}
-
-            {messages.map((msg, i) => {
-              const isLastAss = msg.role==='assistant' && i===messages.length-1
-              const isUser    = msg.role==='user'
-              // Group: show avatar only on first message of a consecutive run
-              const prevSameRole = i > 0 && messages[i-1].role === msg.role
-              const nextSameRole = i < messages.length-1 && messages[i+1].role === msg.role
-
-              // Bubble radius logic: squish corners between grouped messages
-              let radius: string
-              if (isUser) {
-                radius = prevSameRole
-                  ? nextSameRole ? '14px 4px 4px 14px' : '14px 4px 14px 14px'
-                  : nextSameRole ? '14px 14px 4px 14px' : '14px 14px 4px 14px'
-              } else {
-                radius = prevSameRole
-                  ? nextSameRole ? '4px 14px 14px 4px' : '4px 14px 14px 14px'
-                  : nextSameRole ? '14px 14px 14px 4px' : '16px 16px 16px 4px'
-              }
-
-              return (
-                <div key={i} className="message-enter"
-                  style={{
-                    display:'flex', alignItems:'flex-end', gap:8,
-                    flexDirection: isUser ? 'row-reverse' : 'row',
-                    marginBottom: nextSameRole ? 2 : 10,
-                  }}>
-
-                  {/* Avatar — only on last of a group */}
-                  {!isUser && (
-                    <div style={{
-                      width:30, height:30, borderRadius:'50%', flexShrink:0,
-                      visibility: nextSameRole ? 'hidden' : 'visible',
-                      background:'linear-gradient(135deg,rgba(78,205,196,0.18),rgba(155,111,208,0.18))',
-                      border:'1.5px solid rgba(78,205,196,0.32)',
-                      display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, color:'var(--ac-cyan)',
-                      boxShadow: isSpeaking && isLastAss ? '0 0 14px rgba(78,205,196,0.4)' : '0 0 8px rgba(78,205,196,0.12)',
-                      transition:'box-shadow 0.4s ease',
-                    }} className="text-tiny">A</div>
-                  )}
-
-                  <div style={{ display:'flex', flexDirection:'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap:2, maxWidth: isUser ? '74%' : '88%' }}>
-                    <div style={{
-                      padding: isUser ? '9px 14px' : '10px 15px', lineHeight:1.75,
-                      borderRadius: radius,
-                      background: isUser
-                        ? 'linear-gradient(135deg, rgba(91,110,175,0.28), rgba(155,111,208,0.20))'
-                        : 'var(--card-bg)',
-                      border: isUser
-                        ? '1px solid rgba(155,111,208,0.30)'
-                        : '1px solid rgba(78,205,196,0.10)',
-                      borderLeft: !isUser ? '2px solid rgba(78,205,196,0.28)' : undefined,
-                      color: 'var(--text-primary)',
-                      backdropFilter:'blur(16px)',
-                      boxShadow: isUser
-                        ? '0 2px 12px rgba(155,111,208,0.15)'
-                        : isSpeaking && isLastAss
-                          ? '0 2px 12px rgba(78,205,196,0.12), inset 0 1px 0 rgba(255,255,255,0.04)'
-                          : 'var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.03)',
-                      transition:'box-shadow 0.4s ease',
-                    }} className="text-small">
-                      {isUser
-                        ? (msg.content || null)
-                        : msg.content
-                          ? <AssistantMessage
-                              content={msg.content}
-                              svg={msg.visual}
-                              answeredMcq={msg.mcqAnswer ?? null}
-                              isStreaming={isLastAss && streaming}
-                              animate={isLastAss}
-                              onAnswer={(letter, fullText) => {
-                                if (msg.mcqAnswer) return // already answered
-                                // Lock the MCQ immediately
-                                setMessages(prev => prev.map((m, mi) => mi === i ? { ...m, mcqAnswer: letter } : m))
-                                const correct = msg.mcqCorrect
-                                if (correct && letter === correct) {
-                                  // Correct — advance to next topic directly, no AI call
-                                  advanceTopic('Correct! Well done.')
-                                } else {
-                                  // Wrong — ask Alex for explanation, then advance
-                                  void doSend(fullText, false)
-                                }
-                              }}
-                            />
-                          : <span style={{ color:'var(--text-tertiary)', fontStyle:'italic' }} className="text-xs">…</span>
-                      }
-                    </div>
-
-                    {/* Timestamp — only on last of a group */}
-                    {!nextSameRole && (
-                      <span style={{
-                        color:'var(--text-tertiary)', fontFamily:'monospace',
-                        letterSpacing:'0.06em', paddingLeft: isUser ? 0 : 4, paddingRight: isUser ? 4 : 0,
-                        opacity:0.6,
-                      }} className="text-[9px]">
-                        {new Date(msg.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-
-            {streaming && messages[messages.length-1]?.role!=='assistant' && <TypingIndicator />}
-
-            {isModuleComplete && !showQuiz && (
-              <div style={{ display:'flex', justifyContent:'center', padding:'30px 0 10px' }}>
-                {(quizPassed || moduleAlreadyCompleted) && nextModule ? (
-                  <button
-                    onClick={() => router.push(`/course/${nextModule}`)}
-                    style={{
-                      padding:'12px 24px', borderRadius:12, fontWeight:700, cursor:'pointer',
-                      background:'var(--ac-mint)', color:'#000', border:'none',
-                      boxShadow:'0 4px 20px rgba(82,217,139,0.3)',
-                      display:'flex', alignItems:'center', gap:8
-                    }} className="text-small"
-                  >
-                    Proceed to Next Module <ChevronRight size={16} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShowQuiz(true)}
-                    style={{
-                      padding:'12px 24px', borderRadius:12, fontWeight:700, cursor:'pointer',
-                      background:'var(--ac-cyan)', color:'#000', border:'none',
-                      boxShadow:'0 4px 20px rgba(78,205,196,0.3)',
-                      display:'flex', alignItems:'center', gap:8
-                    }} className="text-small"
-                  >
-                    <Brain size={16} /> Take Module Quiz
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div ref={chatEndRef} style={{ height:8 }} />
-          </div>
-
-          {/* ── INPUT BAR ── */}
-          <div style={{
-            padding:'10px 14px 12px', flexShrink:0,
-            background:'var(--glass-lg)',
-            borderTop:'1px solid var(--border-subtle)',
-            backdropFilter:'blur(24px) saturate(150%)',
-            boxShadow:'0 -1px 0 rgba(255,255,255,0.03)',
-          }}>
-            <div style={{
-              display:'flex', alignItems:'flex-end', gap:8,
-              background:'var(--input-bg)',
-              border:`1px solid ${micActive ? 'rgba(232,80,122,0.35)' : streaming ? 'rgba(78,205,196,0.18)' : 'var(--input-border)'}`,
-              borderRadius:14, padding:'8px 8px 8px 14px',
-              boxShadow: 'var(--shadow-sm)',
-              transition:'border-color 0.22s',
-            }}>
-              <textarea
-                value={input}
-                onChange={e=>setInput(e.target.value)}
-                onKeyDown={e=>{ if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();const t=input.trim();if (!t||streamRef.current) return;setInput('');void doSend(t,false)} }}
-                disabled={streaming} rows={1}
-                placeholder={micActive ? '🎤  Listening…' : streaming ? 'Alex is responding…' : `Message Alex…`}
-                className="aurora-input text-small"
-                style={{
-                  flex:1, resize:'none',
-                  background:'transparent',
-                  border:'none',
-                  padding:'4px 0',
-                  color: micActive ? 'var(--ac-rose)' : 'var(--text-primary)',
-                  outline:'none', maxHeight:110,
-                  lineHeight:1.6, fontFamily:'inherit', transition:'color 0.2s',
-                  boxShadow:'none',
-                }}
-              />
-
-              {/* mic */}
-              <button onClick={toggleMic} disabled={streaming} title={micActive ? 'Stop mic' : 'Use mic'} style={{
-                width:34, height:34, borderRadius:9, cursor:'pointer', flexShrink:0,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                background: micActive ? 'rgba(232,80,122,0.14)' : 'transparent',
-                border: `1px solid ${micActive ? 'rgba(232,80,122,0.35)' : 'transparent'}`,
-                color: micActive ? 'var(--ac-rose)' : 'var(--text-tertiary)',
-                animation: micActive ? 'tapPulse 1s ease-in-out infinite' : 'none',
-                transition:'all 0.2s',
-              }}>
-                {micActive ? <MicOff size={15} /> : <Mic size={15} />}
-              </button>
-
-              {/* stop (visible while streaming or speaking) */}
-              {(streaming || isSpeaking) ? (
-                <button onClick={stopAll} title="Stop" style={{
-                  width:34, height:34, borderRadius:9, flexShrink:0, cursor:'pointer',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  background:'rgba(232,80,122,0.14)',
-                  border:'1px solid rgba(232,80,122,0.35)',
-                  color:'var(--ac-rose)',
-                  boxShadow:'0 0 10px rgba(232,80,122,0.15)',
-                  transition:'all 0.18s',
-                }}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                    <rect x="1" y="1" width="10" height="10" rx="2"/>
-                  </svg>
-                </button>
-              ) : (
-                /* send */
-                <button
-                  onClick={()=>{const t=input.trim();if (!t||streamRef.current) return;setInput('');void doSend(t,false)}}
-                  disabled={!input.trim()}
-                  style={{
-                    width:34, height:34, borderRadius:9, flexShrink:0, cursor:'pointer',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    background: !input.trim()
-                      ? 'rgba(255,255,255,0.04)'
-                      : 'linear-gradient(135deg,rgba(78,205,196,0.25),rgba(155,111,208,0.20))',
-                    border:`1px solid ${!input.trim() ? 'transparent' : 'rgba(78,205,196,0.30)'}`,
-                    color: !input.trim() ? 'var(--text-tertiary)' : 'var(--ac-cyan)',
-                    boxShadow: !input.trim() ? 'none' : '0 0 10px rgba(78,205,196,0.15)',
-                    transition:'all 0.18s',
-                  }}
-                >
-                  <Send size={15} />
-                </button>
-              )}
-            </div>
-
-            {micActive && (
-              <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:6, paddingLeft:2 }}>
-                <span style={{ width:5, height:5, borderRadius:'50%', background:'var(--ac-rose)', animation:'tapPulse 0.9s ease-in-out infinite', boxShadow:'0 0 6px var(--ac-rose)' }} />
-                <span style={{ color:'var(--ac-rose)', fontFamily:'monospace', letterSpacing:'0.1em', opacity:0.85 }} className="text-micro">LISTENING…</span>
-              </div>
-            )}
-          </div>
-        </div>
-
+        )}
       </div>
+    ) : (
+      <VoiceAssistantSidebar
+        moduleId={moduleId}
+        moduleTitle={moduleData?.module_title}
+        partNumber={partNumber}
+        partTitle={partTitle}
+        currentSection={currentSection ? {
+          sectionId: currentSection.section_id,
+          sectionTitle: currentSection.section_title,
+          sectionOrder: currentSection.section_order,
+        } : undefined}
+      />
+    )}
+  </div>
 
-      {/* quiz modal */}
-      {showQuiz && (
-        <QuizModal moduleId={moduleId} moduleTitle={moduleTitle} partNumber={partNumber} partTitle={partTitle} nextModule={nextModule}
-          onClose={()=>setShowQuiz(false)}
-          onComplete={(passed)=>{setQuizPassed(passed)}}
-        />
-      )}
-
-      <style>{`
-        @keyframes tapPulse { 0%,100%{opacity:0.45} 50%{opacity:1} }
-        @keyframes onlinePulse {
-          0%,100%{transform:scale(1); box-shadow:0 0 5px rgba(126,207,206,0.4)}
-          50%{transform:scale(1.4); box-shadow:0 0 12px rgba(126,207,206,0.7)}
-        }
-      `}</style>
-    </div>
+  {/* Dev Proctoring Floating Toolbar */}
+  <DevProctoringToolbar onSimulateViolation={handleProctoringViolation} />
+</div>
   )
 }
