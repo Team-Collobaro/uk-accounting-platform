@@ -7,9 +7,10 @@ type Status = 'not_linked' | 'paired' | 'reconnecting' | 'live' | 'degraded' | '
 interface MobileDeviceStatusProps {
   sessionId: string
   onStatusChange?: (status: Status) => void
+  onViolation?: (isViolating: boolean, message: string) => void
 }
 
-export default function MobileDeviceStatus({ sessionId, onStatusChange }: MobileDeviceStatusProps) {
+export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolation }: MobileDeviceStatusProps) {
   const [status, setStatus] = useState<Status>('not_linked')
   const [reconnectingSeconds, setReconnectingSeconds] = useState(0)
 
@@ -48,6 +49,27 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
         })
         .on('broadcast', { event: 'error' }, () => {
           updateStatus('technical_issue')
+        })
+        .on('broadcast', { event: 'second_phone' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Secondary phone detected')
+        })
+        .on('broadcast', { event: 'second_monitor' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Secondary monitor detected')
+        })
+        .on('broadcast', { event: 'suspicious_object' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Suspicious object detected')
+        })
+        .on('broadcast', { event: 'second_person' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Another person detected')
+        })
+        .on('broadcast', { event: 'student_missing' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Student not visible or camera blocked')
+        })
+        .on('broadcast', { event: 'static_image_spoof' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Static image spoofing detected')
+        })
+        .on('broadcast', { event: 'clear' }, () => {
+          onViolation?.(false, '')
         })
         .subscribe()
 

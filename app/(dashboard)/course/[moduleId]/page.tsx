@@ -607,6 +607,7 @@ export default function CourseLessonPage() {
                 <MobileDeviceStatus 
                   sessionId={proctorSessionId} 
                   onStatusChange={setMobileStatus} 
+                  onViolation={handleProctoringViolation}
                 />
               </div>
             )}
