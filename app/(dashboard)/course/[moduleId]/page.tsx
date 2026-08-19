@@ -56,29 +56,37 @@ export default function CourseLessonPage() {
   }, [])
 
   const handleAgreeProctoring = async () => {
-    try {
-      const res = await fetch('/api/proctor-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId })
-      })
-      const data = await res.json()
-      if (data.sessionId) {
-        setProctorSessionId(data.sessionId)
-        setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+    // BUG 1 FIX: Skip POST if session already exists (avoid duplicate creation)
+    if (!proctorSessionId) {
+      try {
+        const res = await fetch('/api/proctor-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moduleId })
+        })
+        const data = await res.json()
+        if (data.sessionId) {
+          setProctorSessionId(data.sessionId)
+          setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+          // If already paired (reused session), advance immediately
+          if (data.status === 'paired') {
+            setMobileStatus('paired')
+          }
+        }
+      } catch (e) {
+        console.error('Failed to get proctor session', e)
       }
-    } catch (e) {
-      console.error('Failed to get proctor session', e)
     }
     setIsProctoringAgreed(true)
   }
 
+  // BUG 1 FIX: Only reset proctoring state when moduleId changes, NOT on section navigation
   useEffect(() => {
     setIsProctoringAgreed(false)
     setProctorSessionId(null)
     setProctorQrValue(null)
     setMobileStatus('not_linked')
-  }, [currentIdx, moduleId])
+  }, [moduleId])
 
   useEffect(() => {
     if (currentSection?.section_title === 'Knowledge Check' && !proctorSessionId) {
@@ -92,11 +100,35 @@ export default function CourseLessonPage() {
           if (data.sessionId) {
             setProctorSessionId(data.sessionId)
             setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+            // If reused session is already paired, advance immediately
+            if (data.status === 'paired') {
+              setMobileStatus('paired')
+            }
           }
         })
         .catch(err => console.error('Failed to auto-init proctor session:', err))
     }
   }, [currentSection?.section_title, moduleId, proctorSessionId])
+
+  // BUG 3 FIX: Poll session status every 2s to detect pairing
+  useEffect(() => {
+    if (!proctorSessionId) return
+    if (mobileStatus === 'live' || mobileStatus === 'paired') return
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/proctor-session?sessionId=${proctorSessionId}`)
+        const data = await res.json()
+        if (data.status === 'paired' || data.status === 'active') {
+          setMobileStatus('paired')
+        }
+      } catch (err) {
+        console.error('Polling error:', err)
+      }
+    }, 2000)
+
+    return () => clearInterval(pollInterval)
+  }, [proctorSessionId, mobileStatus])
 
   useEffect(() => {
     fetch(`/api/sections?moduleId=${moduleId}`)
@@ -449,7 +481,7 @@ export default function CourseLessonPage() {
                         I Agree, Start Knowledge Check
                       </button>
                     </div>
-                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live') ? (
+                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live' && mobileStatus !== 'paired') ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff', background: '#1f2937', borderRadius: 12, marginTop: 40 }}>
                       <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>📱 Link Your Phone to Continue</h2>
                       <p style={{ color: '#9ca3af', marginBottom: 24 }}>Mobile camera monitoring is required for this exam.</p>
