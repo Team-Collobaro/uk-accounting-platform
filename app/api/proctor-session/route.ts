@@ -68,6 +68,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'moduleId required' }, { status: 400 })
     }
 
+    // BUG 6 FIX: Reuse existing pending/paired session for this user+module
+    const now = new Date().toISOString()
+    const { data: existingSession } = await supabaseAdmin
+      .from('proctor_sessions')
+      .select('id, token, status')
+      .eq('user_id', user.id)
+      .eq('module_id', moduleId)
+      .in('status', ['pending', 'paired'])
+      .gt('expires_at', now)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (existingSession) {
+      const qrPayload = `lms://proctor/${existingSession.token}`
+      return NextResponse.json({
+        sessionId: existingSession.id,
+        qrPayload,
+        status: existingSession.status,
+        reused: true,
+      })
+    }
+
     const pairingToken = generatePairingToken()
     // Token expires in 15 minutes
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
@@ -91,7 +114,7 @@ export async function POST(req: NextRequest) {
     const newSessionId = insertedSession.id
     const qrPayload = `lms://proctor/${pairingToken}`
 
-    return NextResponse.json({ sessionId: newSessionId, qrPayload })
+    return NextResponse.json({ sessionId: newSessionId, qrPayload, status: 'pending' })
 
   } catch (err) {
     console.error('[proctor-session] POST error:', err)
@@ -112,9 +135,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'sessionId required' }, { status: 400 })
     }
 
+    // BUG 2 FIX: Select status so web can detect pairing
     const { data: session } = await supabaseAdmin
       .from('proctor_sessions')
-      .select('id')
+      .select('id, status')
       .eq('id', sessionId)
       .eq('user_id', user.id)
       .maybeSingle()
@@ -132,6 +156,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       sessionId,
+      status: session.status,
       violationCount: data?.count ?? 0,
     })
 

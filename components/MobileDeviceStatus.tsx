@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 
-type Status = 'not_linked' | 'reconnecting' | 'live' | 'degraded' | 'technical_issue'
+type Status = 'not_linked' | 'paired' | 'reconnecting' | 'live' | 'degraded' | 'technical_issue'
 
 interface MobileDeviceStatusProps {
   sessionId: string
@@ -51,6 +51,18 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
         })
         .subscribe()
 
+      // BUG 3 FIX: Poll session status on mount to catch 'paired' before first heartbeat
+      const pollForPairing = async () => {
+        try {
+          const res = await fetch(`/api/proctor-session?sessionId=${sessionId}`)
+          const data = await res.json()
+          if (data.status === 'paired' || data.status === 'active') {
+            updateStatus('paired')
+          }
+        } catch (_) {}
+      }
+      pollForPairing()
+
       // Heartbeat watchdog — check every 5 seconds
       const watchdog = setInterval(() => {
         if (lastHeartbeatRef.current === null) return // Wait for initial connection
@@ -81,6 +93,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
     not_linked: {
       color: '#E8507A', bg: 'rgba(232,80,122,0.08)', border: 'rgba(232,80,122,0.25)',
       icon: '📵', label: 'Mobile Not Linked', sub: 'Scan QR code to continue',
+    },
+    paired: {
+      color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)',
+      icon: '🔗', label: 'Phone Paired', sub: 'Waiting for camera to go live',
     },
     reconnecting: {
       color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)',
@@ -118,10 +134,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
           {c.sub}
         </div>
       </div>
-      {status === 'live' && (
+      {(status === 'live' || status === 'paired') && (
         <div style={{
           width: 7, height: 7, borderRadius: '50%',
-          background: '#52D98B',
+          background: status === 'live' ? '#52D98B' : '#F59E0B',
           animation: 'pulse 1.5s infinite',
           flexShrink: 0,
         }} />
