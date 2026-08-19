@@ -46,7 +46,10 @@ export default function CourseLessonPage() {
   const [isProctoringAgreed, setIsProctoringAgreed] = useState(false)
   const [proctorSessionId, setProctorSessionId] = useState<string | null>(null)
   const [proctorQrValue, setProctorQrValue] = useState<string | null>(null)
+  const [proctorExpiresAt, setProctorExpiresAt] = useState<string | null>(null)
   const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
+
+  const sessionKey = `proctor-session:${moduleId}`
 
   const { config } = useProctoringConfig()
 
@@ -68,6 +71,7 @@ export default function CourseLessonPage() {
         if (data.sessionId) {
           setProctorSessionId(data.sessionId)
           setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+          if (data.expiresAt) setProctorExpiresAt(data.expiresAt)
           // If already paired (reused session), advance immediately
           if (data.status === 'paired') {
             setMobileStatus('paired')
@@ -80,13 +84,48 @@ export default function CourseLessonPage() {
     setIsProctoringAgreed(true)
   }
 
-  // BUG 1 FIX: Only reset proctoring state when moduleId changes, NOT on section navigation
+  const handleRegenerateQr = async () => {
+    try {
+      const res = await fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId, forceNew: true })
+      })
+      const data = await res.json()
+      if (data.sessionId) {
+        setProctorSessionId(data.sessionId)
+        setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+        if (data.expiresAt) setProctorExpiresAt(data.expiresAt)
+        setMobileStatus('not_linked')
+      }
+    } catch (e) {
+      console.error('Failed to regenerate proctor session', e)
+    }
+  }
+
+  // BUG 1 FIX: Only reset proctoring state when moduleId changes, NOT on section navigation.
+  // Also persist the active session across component re-renders so the link survives
+  // a route refresh or a temporary state reset.
   useEffect(() => {
+    const storedSessionId = sessionStorage.getItem(sessionKey)
+    if (storedSessionId) {
+      setProctorSessionId(storedSessionId)
+      setMobileStatus('not_linked')
+      return
+    }
+
     setIsProctoringAgreed(false)
     setProctorSessionId(null)
     setProctorQrValue(null)
+    setProctorExpiresAt(null)
     setMobileStatus('not_linked')
-  }, [moduleId])
+  }, [moduleId, sessionKey])
+
+  useEffect(() => {
+    if (proctorSessionId) {
+      sessionStorage.setItem(sessionKey, proctorSessionId)
+    }
+  }, [proctorSessionId, sessionKey])
 
   useEffect(() => {
     if (currentSection?.section_title === 'Knowledge Check' && !proctorSessionId) {
@@ -100,6 +139,7 @@ export default function CourseLessonPage() {
           if (data.sessionId) {
             setProctorSessionId(data.sessionId)
             setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+            if (data.expiresAt) setProctorExpiresAt(data.expiresAt)
             // If reused session is already paired, advance immediately
             if (data.status === 'paired') {
               setMobileStatus('paired')
@@ -611,7 +651,13 @@ export default function CourseLessonPage() {
                 />
               </div>
             )}
-            <ProctoringCamera onViolation={handleProctoringViolation} sessionId={proctorSessionId || undefined} qrValue={proctorQrValue || undefined} />
+            <ProctoringCamera 
+              onViolation={handleProctoringViolation} 
+              sessionId={proctorSessionId || undefined} 
+              qrValue={proctorQrValue || undefined} 
+              expiresAt={proctorExpiresAt || undefined}
+              onRegenerateQr={handleRegenerateQr}
+            />
           </>
         ) : (
           <div style={{

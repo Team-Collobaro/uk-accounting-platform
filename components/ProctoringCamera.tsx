@@ -9,9 +9,11 @@ interface ProctoringCameraProps {
   onViolation: (isViolating: boolean, message: string) => void
   sessionId?: string
   qrValue?: string
+  expiresAt?: string
+  onRegenerateQr?: () => void
 }
 
-export default function ProctoringCamera({ onViolation, sessionId, qrValue }: ProctoringCameraProps) {
+export default function ProctoringCamera({ onViolation, sessionId, qrValue, expiresAt, onRegenerateQr }: ProctoringCameraProps) {
   const { config } = useProctoringConfig()
   const configRef = useRef(config)
   useEffect(() => {
@@ -22,6 +24,30 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue }: Pr
   const audioBarRef = useRef<HTMLDivElement>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'disabled'>('loading')
   const [errorMessage, setErrorMessage] = useState('')
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setTimeRemaining(null)
+      return
+    }
+    
+    const updateCountdown = () => {
+      const now = new Date().getTime()
+      const end = new Date(expiresAt).getTime()
+      const diff = end - now
+      
+      if (diff <= 0) {
+        setTimeRemaining(0)
+      } else {
+        setTimeRemaining(Math.floor(diff / 1000))
+      }
+    }
+    
+    updateCountdown()
+    const timer = setInterval(updateCountdown, 1000)
+    return () => clearInterval(timer)
+  }, [expiresAt])
 
   useEffect(() => {
     // If dev explicitly disabled laptop camera feed, skip media capture entirely
@@ -439,6 +465,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue }: Pr
               border: '1px solid rgba(78,205,196,0.2)',
               borderRadius: 10,
               padding: 10,
+              position: 'relative',
             }}
           >
             <div
@@ -449,6 +476,8 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue }: Pr
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                opacity: timeRemaining === 0 ? 0.2 : 1,
+                transition: 'opacity 0.3s',
               }}
             >
               <QRCode
@@ -458,7 +487,32 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue }: Pr
                 viewBox={`0 0 100 100`}
               />
             </div>
+            
+            {timeRemaining === 0 && (
+              <div style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(15, 23, 42, 0.8)',
+                borderRadius: 10,
+              }}>
+                <div style={{ color: '#f87171', fontSize: 12, fontWeight: 'bold', marginBottom: 8 }}>QR Expired</div>
+                <button
+                  onClick={onRegenerateQr}
+                  style={{
+                    background: '#ef4444', color: 'white',
+                    border: 'none', padding: '6px 12px',
+                    borderRadius: 4, fontSize: 10,
+                    cursor: 'pointer', fontWeight: 'bold'
+                  }}
+                >
+                  Regenerate QR
+                </button>
+              </div>
+            )}
           </div>
+          
           <div
             style={{
               fontSize: 10,
@@ -468,11 +522,35 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue }: Pr
               padding: '0 8px',
             }}
           >
+            {timeRemaining !== null && timeRemaining > 0 && (
+              <div style={{ color: timeRemaining < 60 ? '#f87171' : '#4ECDC4', marginBottom: 4, fontWeight: 'bold' }}>
+                Expires in {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+              </div>
+            )}
             Scan with LMS Mobile to activate rear-camera monitoring.
             <br />
             <span style={{ color: '#4ECDC4', fontWeight: 500 }}>
               Prop your phone ~1 meter behind you so it can see your back, desk, and screen.
             </span>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              padding: '8px 12px',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: 6,
+              border: '1px solid rgba(255,255,255,0.05)',
+              fontSize: 9,
+              color: 'rgba(255,255,255,0.3)',
+              fontFamily: 'monospace',
+              textAlign: 'left',
+              width: '100%',
+            }}
+          >
+            <div style={{ fontWeight: 'bold', marginBottom: 4, color: 'rgba(255,255,255,0.5)' }}>Diagnostic Info</div>
+            <div>Session ID: {sessionId?.substring(0, 8)}...{sessionId?.substring(sessionId.length - 4)}</div>
+            <div>Token Suffix: {qrValue?.substring(qrValue.length - 6) || sessionId?.substring(sessionId.length - 6)}</div>
           </div>
         </div>
       )}

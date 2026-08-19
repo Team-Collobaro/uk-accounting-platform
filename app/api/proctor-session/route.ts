@@ -19,28 +19,63 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { moduleId, action, token, sessionId } = await req.json() as { moduleId?: string, action?: string, token?: string, sessionId?: string }
+    const body = await req.json().catch(() => ({})) as { moduleId?: string, action?: string, token?: string, sessionId?: string, forceNew?: boolean }
+    const { action, token, sessionId } = body
 
     if (action === 'verify') {
       // Mobile app claiming a session
       if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 })
 
       const now = new Date().toISOString()
-      const { data: session, error: claimError } = await supabaseAdmin
+      
+      // 1. Fetch the session by token first to check identity
+      const { data: session, error: fetchError } = await supabaseAdmin
         .from('proctor_sessions')
-        .update({ status: 'paired' })
+        .select('id, user_id, status')
         .eq('token', token)
-        .eq('user_id', user.id)
-        .eq('status', 'pending')
         .gt('expires_at', now)
-        .select('id')
         .single()
 
-      if (claimError || !session) {
-        return NextResponse.json({ error: 'Invalid, expired, or already-used token' }, { status: 400 })
+      if (fetchError || !session) {
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 })
       }
 
-      return NextResponse.json({ success: true, sessionId: session.id })
+      // 2. Identity Check
+      if (session.user_id !== user.id) {
+        return NextResponse.json({ 
+          error: 'identity_mismatch',
+          message: 'Account mismatch. Please ensure you are logged into the same account on both your phone and laptop.'
+        }, { status: 403 })
+      }
+
+      // 3. Status check
+      if (session.status !== 'pending') {
+        return NextResponse.json({ error: 'Token already used or session inactive' }, { status: 400 })
+      }
+
+      // 4. Update to paired
+      const { error: claimError } = await supabaseAdmin
+        .from('proctor_sessions')
+        .update({ status: 'paired' })
+        .eq('id', session.id)
+
+      if (claimError) {
+        return NextResponse.json({ error: 'Failed to pair session' }, { status: 500 })
+      }
+
+      // Notify the web client immediately so the pairing state is not stuck waiting on a slow poll.
+      const pairChannel = supabaseAdmin.channel(`proctor:${session.id}`)
+      await pairChannel.send({
+        type: 'broadcast',
+        event: 'paired',
+        payload: {
+          sessionId: session.id,
+          status: 'paired',
+          timestamp: new Date().toISOString(),
+        },
+      })
+
+      return NextResponse.json({ success: true, sessionId: session.id, status: 'paired' })
     }
 
     if (action && ['start', 'pause', 'end'].includes(action)) {
@@ -63,32 +98,48 @@ export async function POST(req: NextRequest) {
       
       return NextResponse.json({ success: true, status: newStatus })
     }
+    const moduleId = body.moduleId
+    const forceNew = body.forceNew === true
 
     if (!moduleId) {
       return NextResponse.json({ error: 'moduleId required' }, { status: 400 })
     }
 
-    // BUG 6 FIX: Reuse existing pending/paired session for this user+module
     const now = new Date().toISOString()
-    const { data: existingSession } = await supabaseAdmin
-      .from('proctor_sessions')
-      .select('id, token, status')
-      .eq('user_id', user.id)
-      .eq('module_id', moduleId)
-      .in('status', ['pending', 'paired'])
-      .gt('expires_at', now)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    
+    // If forceNew is true, expire existing pending sessions for this user/module
+    if (forceNew) {
+      await supabaseAdmin
+        .from('proctor_sessions')
+        .update({ status: 'expired' })
+        .eq('user_id', user.id)
+        .eq('module_id', moduleId)
+        .eq('status', 'pending')
+    }
 
-    if (existingSession) {
-      const qrPayload = `lms://proctor/${existingSession.token}`
-      return NextResponse.json({
-        sessionId: existingSession.id,
-        qrPayload,
-        status: existingSession.status,
-        reused: true,
-      })
+    // BUG 6 FIX: Reuse existing pending/paired session for this user+module
+    if (!forceNew) {
+      const { data: existingSession } = await supabaseAdmin
+        .from('proctor_sessions')
+        .select('id, token, status, expires_at')
+        .eq('user_id', user.id)
+        .eq('module_id', moduleId)
+        .in('status', ['pending', 'paired'])
+        .gt('expires_at', now)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingSession) {
+        const qrPayload = `lms://proctor/${existingSession.token}`
+        return NextResponse.json({
+          sessionId: existingSession.id,
+          qrPayload,
+          status: existingSession.status,
+          expiresAt: existingSession.expires_at,
+          reused: true,
+        })
+      }
     }
 
     const pairingToken = generatePairingToken()
@@ -114,7 +165,12 @@ export async function POST(req: NextRequest) {
     const newSessionId = insertedSession.id
     const qrPayload = `lms://proctor/${pairingToken}`
 
-    return NextResponse.json({ sessionId: newSessionId, qrPayload, status: 'pending' })
+    return NextResponse.json({ 
+      sessionId: newSessionId, 
+      qrPayload, 
+      status: 'pending',
+      expiresAt 
+    })
 
   } catch (err) {
     console.error('[proctor-session] POST error:', err)

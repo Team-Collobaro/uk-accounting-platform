@@ -17,6 +17,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pausedTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -35,6 +36,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       const channel = supabase.channel(`proctor:${sessionId}`, { config: { private: true } })
 
       channel
+        .on('broadcast', { event: 'paired' }, () => {
+          lastHeartbeatRef.current = Date.now()
+          updateStatus('paired')
+        })
         .on('broadcast', { event: 'heartbeat' }, () => {
           lastHeartbeatRef.current = Date.now()
           if (reconnectTimerRef.current) {
@@ -71,6 +76,20 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         .on('broadcast', { event: 'clear' }, () => {
           onViolation?.(false, '')
         })
+        .on('broadcast', { event: 'paused' }, () => {
+          if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
+          onViolation?.(true, 'Mobile app moved to background. Please return to the LMS app on your phone within 30s.')
+          pausedTimerRef.current = setTimeout(() => {
+            onViolation?.(true, 'Mobile app was closed or sent to background for too long.')
+          }, 30000)
+        })
+        .on('broadcast', { event: 'resumed' }, () => {
+          if (pausedTimerRef.current) {
+            clearTimeout(pausedTimerRef.current)
+            pausedTimerRef.current = null
+          }
+          onViolation?.(false, '')
+        })
         .subscribe()
 
       // BUG 3 FIX: Poll session status on mount to catch 'paired' before first heartbeat
@@ -100,6 +119,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
       cleanup = () => {
         clearInterval(watchdog)
+        if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
         supabase.removeChannel(channel)
       }
     }
