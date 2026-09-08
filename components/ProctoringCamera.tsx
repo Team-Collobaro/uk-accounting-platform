@@ -10,7 +10,7 @@ interface ProctoringCameraProps {
   sessionId?: string
   qrValue?: string
   expiresAt?: string
-  onRegenerateQr?: () => void
+  onRegenerateQr?: () => void | Promise<void>
 }
 
 export default function ProctoringCamera({ onViolation, sessionId, qrValue, expiresAt, onRegenerateQr }: ProctoringCameraProps) {
@@ -25,6 +25,17 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'disabled'>('loading')
   const [errorMessage, setErrorMessage] = useState('')
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
+  const [isRegeneratingQr, setIsRegeneratingQr] = useState(false)
+
+  const regenerateQr = async () => {
+    if (!onRegenerateQr || isRegeneratingQr) return
+    setIsRegeneratingQr(true)
+    try {
+      await onRegenerateQr()
+    } finally {
+      setIsRegeneratingQr(false)
+    }
+  }
 
   useEffect(() => {
     if (!expiresAt) {
@@ -499,7 +510,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
               }}>
                 <div style={{ color: '#f87171', fontSize: 12, fontWeight: 'bold', marginBottom: 8 }}>QR Expired</div>
                 <button
-                  onClick={onRegenerateQr}
+                  onClick={regenerateQr}
                   style={{
                     background: '#ef4444', color: 'white',
                     border: 'none', padding: '6px 12px',
@@ -507,11 +518,32 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
                     cursor: 'pointer', fontWeight: 'bold'
                   }}
                 >
-                  Regenerate QR
+                  {isRegeneratingQr ? 'Generating…' : 'Generate New QR'}
                 </button>
               </div>
             )}
           </div>
+
+          {timeRemaining !== 0 && onRegenerateQr && (
+            <button
+              type="button"
+              onClick={regenerateQr}
+              disabled={isRegeneratingQr}
+              style={{
+                border: '1px solid rgba(78,205,196,0.45)',
+                background: 'rgba(78,205,196,0.10)',
+                color: '#4ecdc4',
+                borderRadius: 6,
+                padding: '7px 12px',
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: isRegeneratingQr ? 'wait' : 'pointer',
+                opacity: isRegeneratingQr ? 0.65 : 1,
+              }}
+            >
+              {isRegeneratingQr ? 'Generating New QR…' : 'Generate New QR'}
+            </button>
+          )}
           
           <div
             style={{

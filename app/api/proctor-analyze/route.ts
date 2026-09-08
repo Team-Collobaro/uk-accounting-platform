@@ -51,14 +51,11 @@ export async function POST(req: NextRequest) {
       .eq('id', sessionId)
       .eq('user_id', user.id)
       .in('status', ['paired', 'active', 'paused'])
+      .gt('session_expires_at', new Date().toISOString())
       .single()
 
     if (sessionError || !session) {
       return NextResponse.json({ error: 'Session not found or forbidden' }, { status: 403 })
-    }
-
-    if (new Date(session.expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Session expired' }, { status: 403 })
     }
 
     // 2. Rate limit check

@@ -19,6 +19,11 @@ interface ModuleData {
   sections: SectionMeta[]
 }
 
+interface MobileIncident {
+  message: string
+  severity: string
+}
+
 import { motion, AnimatePresence } from 'framer-motion'
 import DOMPurify from 'dompurify'
 import AiZone from '@/components/AiZone'
@@ -43,20 +48,43 @@ export default function CourseLessonPage() {
 
   const [isViolatingProctoring, setIsViolatingProctoring] = useState(false)
   const [proctoringWarning, setProctoringWarning] = useState('')
+  const [mobileIncidents, setMobileIncidents] = useState<Record<string, MobileIncident>>({})
   const [isProctoringAgreed, setIsProctoringAgreed] = useState(false)
   const [proctorSessionId, setProctorSessionId] = useState<string | null>(null)
   const [proctorQrValue, setProctorQrValue] = useState<string | null>(null)
   const [proctorExpiresAt, setProctorExpiresAt] = useState<string | null>(null)
   const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
+  const [showResumeNotice, setShowResumeNotice] = useState(false)
 
   const sessionKey = `proctor-session:${moduleId}`
+  const sectionKey = `exam-section:${moduleId}`
 
   const { config } = useProctoringConfig()
 
   const handleProctoringViolation = React.useCallback((isViolating: boolean, message: string) => {
     setIsViolatingProctoring(isViolating)
-    if (isViolating) setProctoringWarning(message)
+    setProctoringWarning(isViolating ? message : '')
   }, [])
+
+  const handleMobileProctoringViolation = React.useCallback((
+    isViolating: boolean,
+    message: string,
+    incidentType: string,
+    severity: string,
+  ) => {
+    setMobileIncidents((current) => {
+      if (!isViolating && incidentType === '*') return {}
+      const next = { ...current }
+      if (isViolating) next[incidentType] = { message, severity }
+      else delete next[incidentType]
+      return next
+    })
+  }, [])
+
+  const activeMobileIncidents = Object.entries(mobileIncidents)
+  const hardMobileIncident = activeMobileIncidents.find(([, incident]) => incident.severity === 'hard')
+  const isMobileViolating = activeMobileIncidents.length > 0
+  const mobileWarning = hardMobileIncident?.[1].message || activeMobileIncidents[0]?.[1].message || ''
 
   const handleAgreeProctoring = async () => {
     // BUG 1 FIX: Skip POST if session already exists (avoid duplicate creation)
@@ -82,6 +110,7 @@ export default function CourseLessonPage() {
       }
     }
     setIsProctoringAgreed(true)
+    sessionStorage.setItem(`proctor-agreed:${moduleId}`, 'true')
   }
 
   const handleRegenerateQr = async () => {
@@ -107,11 +136,60 @@ export default function CourseLessonPage() {
   // Also persist the active session across component re-renders so the link survives
   // a route refresh or a temporary state reset.
   useEffect(() => {
-    const storedSessionId = sessionStorage.getItem(sessionKey)
+    const storedSessionId = sessionStorage.getItem(sessionKey) || localStorage.getItem(sessionKey)
     if (storedSessionId) {
+      let cancelled = false
+      let retryTimer: ReturnType<typeof setTimeout> | undefined
       setProctorSessionId(storedSessionId)
       setMobileStatus('not_linked')
-      return
+
+      const clearStoredSession = () => {
+        sessionStorage.removeItem(sessionKey)
+        localStorage.removeItem(sessionKey)
+        setProctorSessionId(null)
+        setProctorQrValue(null)
+        setProctorExpiresAt(null)
+        setMobileStatus('not_linked')
+      }
+
+      const retryRestore = () => {
+        if (cancelled) return
+        setMobileStatus('reconnecting')
+        retryTimer = setTimeout(restoreStoredSession, 5_000)
+      }
+
+      // Restore the pending QR payload or the paired/active state. Previously
+      // only the UUID was restored, leaving the QR blank after a refresh.
+      const restoreStoredSession = async () => {
+        try {
+          const res = await fetch(`/api/proctor-session?sessionId=${storedSessionId}`)
+          if (cancelled) return
+          if (!res.ok) {
+            if ([400, 403, 404, 410].includes(res.status)) clearStoredSession()
+            else retryRestore()
+            return
+          }
+          const data = await res.json()
+          if (cancelled) return
+          if (data.qrPayload) setProctorQrValue(data.qrPayload)
+          if (data.expiresAt) setProctorExpiresAt(data.expiresAt)
+          if (['paired', 'active', 'paused'].includes(data.status)) {
+            setMobileStatus(data.status === 'active' ? 'reconnecting' : 'paired')
+            setIsProctoringAgreed(true)
+            sessionStorage.setItem(`proctor-agreed:${moduleId}`, 'true')
+            const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+            if (navigation?.type === 'reload') setShowResumeNotice(true)
+          }
+        } catch (_) {
+          retryRestore()
+        }
+      }
+
+      void restoreStoredSession()
+      return () => {
+        cancelled = true
+        if (retryTimer) clearTimeout(retryTimer)
+      }
     }
 
     setIsProctoringAgreed(false)
@@ -122,8 +200,31 @@ export default function CourseLessonPage() {
   }, [moduleId, sessionKey])
 
   useEffect(() => {
+    if (currentSection?.section_id) {
+      sessionStorage.setItem(sectionKey, currentSection.section_id)
+    }
+  }, [currentSection?.section_id, sectionKey])
+
+  useEffect(() => {
+    const shouldWarn = Boolean(
+      proctorSessionId &&
+      isProctoringAgreed &&
+      currentSection?.section_title === 'Knowledge Check'
+    )
+    if (!shouldWarn) return
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [proctorSessionId, isProctoringAgreed, currentSection?.section_title])
+
+  useEffect(() => {
     if (proctorSessionId) {
       sessionStorage.setItem(sessionKey, proctorSessionId)
+      localStorage.setItem(sessionKey, proctorSessionId)
     }
   }, [proctorSessionId, sessionKey])
 
@@ -176,13 +277,16 @@ export default function CourseLessonPage() {
       .then(data => {
         if (data.sections && data.sections.length > 0) {
           setModuleData(data)
-          loadSectionContent(moduleId, data.sections[0].section_id)
+          const storedSectionId = sessionStorage.getItem(sectionKey)
+          const restoredIndex = Math.max(0, data.sections.findIndex((section: SectionMeta) => section.section_id === storedSectionId))
+          setCurrentIdx(restoredIndex)
+          loadSectionContent(moduleId, data.sections[restoredIndex].section_id)
         } else {
           setLoading(false)
         }
       })
       .catch(console.error)
-  }, [moduleId])
+  }, [moduleId, sectionKey])
 
   const loadSectionContent = async (mId: string, sId: string) => {
     setLoading(true)
@@ -356,6 +460,35 @@ export default function CourseLessonPage() {
 
   return (
     <div id="lesson-screen" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', fontFamily: '"Charter", Georgia, serif' }}>
+      {showResumeNotice && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="resume-exam-title"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: 20,
+            background: 'rgba(15, 23, 42, 0.72)', backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div style={{ maxWidth: 460, borderRadius: 14, padding: 24, background: '#fff', boxShadow: '0 24px 60px rgba(0,0,0,.3)', fontFamily: 'Inter, sans-serif' }}>
+            <h2 id="resume-exam-title" style={{ margin: 0, color: '#0f172a', fontSize: 20 }}>Exam session restored</h2>
+            <p style={{ color: '#475569', fontSize: 14, lineHeight: 1.55, margin: '12px 0 8px' }}>
+              Your browser was reloaded, but you remain in the same proctoring session. A new QR code or exam session was not created.
+            </p>
+            <p style={{ color: '#b45309', fontSize: 13, lineHeight: 1.5, margin: '0 0 18px' }}>
+              Keep the LMS Mobile app open. The assessment will unlock automatically after the phone heartbeat reconnects.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowResumeNotice(false)}
+              style={{ width: '100%', border: 0, borderRadius: 9, padding: '11px 14px', background: '#1d4ed8', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+            >
+              Continue Same Session
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* ─ Top bar ─ */}
       <div id="lesson-topbar" style={{
@@ -521,7 +654,7 @@ export default function CourseLessonPage() {
                         I Agree, Start Knowledge Check
                       </button>
                     </div>
-                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live' && mobileStatus !== 'paired') ? (
+                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live') ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff', background: '#1f2937', borderRadius: 12, marginTop: 40 }}>
                       <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>📱 Link Your Phone to Continue</h2>
                       <p style={{ color: '#9ca3af', marginBottom: 24 }}>Mobile camera monitoring is required for this exam.</p>
@@ -536,8 +669,8 @@ export default function CourseLessonPage() {
                     </div>
                   ) : (
                     <AntiCheatWrapper 
-                      isViolatingProctoring={isViolatingProctoring}
-                      proctoringWarning={proctoringWarning}
+                      isViolatingProctoring={isViolatingProctoring || Boolean(hardMobileIncident)}
+                      proctoringWarning={hardMobileIncident ? `📱 Mobile Camera: ${hardMobileIncident[1].message}` : proctoringWarning}
                       sessionId={proctorSessionId || undefined}
                     >
                       <div 
@@ -647,8 +780,38 @@ export default function CourseLessonPage() {
                 <MobileDeviceStatus 
                   sessionId={proctorSessionId} 
                   onStatusChange={setMobileStatus} 
-                  onViolation={handleProctoringViolation}
+                  onViolation={handleMobileProctoringViolation}
                 />
+              </div>
+            )}
+            {isMobileViolating && mobileWarning && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  marginBottom: 20,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  border: '1px solid rgba(239, 68, 68, 0.55)',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
+                    Mobile Camera Warning
+                  </div>
+                  <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ink)' }}>
+                    {activeMobileIncidents.map(([type, incident]) => (
+                      <div key={type} style={{ marginBottom: 4 }}>{incident.message}</div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
             <ProctoringCamera 
@@ -656,7 +819,7 @@ export default function CourseLessonPage() {
               sessionId={proctorSessionId || undefined} 
               qrValue={proctorQrValue || undefined} 
               expiresAt={proctorExpiresAt || undefined}
-              onRegenerateQr={handleRegenerateQr}
+              onRegenerateQr={mobileStatus === 'not_linked' ? handleRegenerateQr : undefined}
             />
           </>
         ) : (

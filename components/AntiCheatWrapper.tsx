@@ -16,7 +16,6 @@ export default function AntiCheatWrapper({
   children,
   isViolatingProctoring = false,
   proctoringWarning = '',
-  sessionId,
 }: AntiCheatWrapperProps) {
   const { config } = useProctoringConfig()
   const configRef = useRef(config)
@@ -26,11 +25,6 @@ export default function AntiCheatWrapper({
 
   const [isBlurredBySystem, setIsBlurredBySystem] = useState(false)
   const [systemWarning, setSystemWarning] = useState('')
-  const [isTechnicalIssue, setIsTechnicalIssue] = useState(false)
-  const [techWarning, setTechWarning] = useState('')
-  const [isDegraded, setIsDegraded] = useState(false)
-  const [isReconnecting, setIsReconnecting] = useState(false)
-  const lastHeartbeat = useRef<number>(Date.now())
 
   // If proctoring is disabled in dev config, ignore laptop proctoring violation prop
   const effectiveIsViolating = isViolatingProctoring && config.laptop.cameraFeed
@@ -190,92 +184,6 @@ export default function AntiCheatWrapper({
       }
     }
   }, [systemWarning])
-
-  // ─── Mobile Proctoring Channel ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!sessionId || !config.mobile.supabaseBroadcast) return
-
-    let disposed = false
-    let cleanup: (() => void) | undefined
-
-    const run = async () => {
-      const { createClientComponentClient } = await import('@/lib/supabase')
-      if (disposed) return
-      const supabase = createClientComponentClient()
-      const channel = supabase.channel(`proctor:${sessionId}`, { config: { private: true } })
-
-      channel
-        .on('broadcast', { event: 'violation' }, (msg: any) => {
-          if (!configRef.current.mobile.supabaseBroadcast) return
-          const payload = msg.payload || msg
-          if (payload?.severity === 'hard') {
-            setIsBlurredBySystem(true)
-            setSystemWarning(`📱 Mobile Camera: ${payload?.description || 'Violation detected'}`)
-          }
-        })
-        .on('broadcast', { event: 'clear' }, () => {
-          setSystemWarning((prev) => {
-            if (prev.startsWith('📱')) {
-              setIsBlurredBySystem(false)
-              return ''
-            }
-            return prev
-          })
-        })
-        .on('broadcast', { event: 'heartbeat' }, () => {
-          lastHeartbeat.current = Date.now()
-          setIsReconnecting(false)
-          setIsTechnicalIssue(false)
-          setTechWarning('')
-        })
-        .on('broadcast', { event: 'paused' }, () => {
-          setIsBlurredBySystem(true)
-          setSystemWarning('📱 Mobile camera paused. Return to the LMS Mobile app to continue.')
-        })
-        .on('broadcast', { event: 'resumed' }, () => {
-          setSystemWarning((previous) => {
-            if (previous.startsWith('📱 Mobile camera paused')) {
-              setIsBlurredBySystem(false)
-              return ''
-            }
-            return previous
-          })
-        })
-        .on('broadcast', { event: 'tier2_unavailable' }, () => {
-          setIsDegraded(true)
-        })
-        .on('broadcast', { event: 'error' }, (msg: any) => {
-          const payload = msg.payload || msg
-          setIsTechnicalIssue(true)
-          setTechWarning(`⚙️ ${payload?.description ?? 'Technical issue on mobile device'} — not a violation`)
-        })
-        .subscribe()
-
-      // Heartbeat watchdog
-      const watchdog = setInterval(() => {
-        if (!configRef.current.mobile.heartbeatWatchdog) return
-        const elapsed = Date.now() - lastHeartbeat.current
-        if (elapsed > 10_000 && elapsed < 60_000) {
-          setIsReconnecting(true)
-        } else if (elapsed >= 60_000) {
-          setIsTechnicalIssue(true)
-          setTechWarning('📱 Mobile camera disconnected — please reconnect your phone')
-          setIsReconnecting(false)
-        }
-      }, 5_000)
-
-      cleanup = () => {
-        clearInterval(watchdog)
-        supabase.removeChannel(channel)
-      }
-    }
-
-    run()
-    return () => {
-      disposed = true
-      cleanup?.()
-    }
-  }, [sessionId, config.mobile.supabaseBroadcast])
 
   return (
     <div className="anti-cheat-container no-copy relative">
