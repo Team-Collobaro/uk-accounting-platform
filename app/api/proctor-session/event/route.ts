@@ -75,9 +75,9 @@ export async function POST(req: NextRequest) {
       'second_phone', 'second_monitor', 'second_person', 'notes_visible',
       'student_missing', 'student_returned', 'second_person_cleared', 'suspicious_object',
       'static_image_spoof', 'student_mismatch', 'distance_invalid', 'camera_moved',
-      'technical_error', 'clear',
+      'camera_obstructed', 'technical_error', 'clear',
     ])
-    const allowedSeverities = new Set(['info', 'soft', 'hard', 'technical'])
+    const allowedSeverities = new Set(['info', 'soft', 'warning', 'hard', 'technical'])
 
     if (typeof type !== 'string' || !allowedTypes.has(type)) {
       return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })

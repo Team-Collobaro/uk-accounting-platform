@@ -378,11 +378,11 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
           <span className="text-xs font-semibold text-slate-300">Laptop Camera Feed Disabled</span>
           <span className="text-[11px] text-slate-500">Dev mode active via proctoring.config.json</span>
         </div>
-        {sessionId && config.mobile.cameraFeed && (
+        {sessionId && qrValue && config.mobile.cameraFeed && (
           <div className="border-t border-white/5 pt-3">
             <div className="text-[11px] font-semibold text-cyan-400 mb-2">📱 Mobile Camera QR</div>
             <div className="bg-white p-2 rounded inline-block mx-auto">
-              <QRCode value={qrValue || `lms://proctor/${sessionId}`} size={90} />
+              <QRCode value={qrValue} size={90} />
             </div>
           </div>
         )}
@@ -439,7 +439,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
       </div>
 
       {/* ─── Mobile Camera QR Link Panel ─── */}
-      {sessionId && config.mobile.cameraFeed && (
+      {sessionId && qrValue && config.mobile.cameraFeed && (
         <div
           style={{
             borderTop: '1px solid rgba(255,255,255,0.07)',
@@ -492,7 +492,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
               }}
             >
               <QRCode
-                value={qrValue || `lms://proctor/${sessionId}`}
+                value={qrValue}
                 size={100}
                 style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
                 viewBox={`0 0 100 100`}
@@ -582,7 +582,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
           >
             <div style={{ fontWeight: 'bold', marginBottom: 4, color: 'rgba(255,255,255,0.5)' }}>Diagnostic Info</div>
             <div>Session ID: {sessionId?.substring(0, 8)}...{sessionId?.substring(sessionId.length - 4)}</div>
-            <div>Token Suffix: {qrValue?.substring(qrValue.length - 6) || sessionId?.substring(sessionId.length - 6)}</div>
+            <div>Token Suffix: {qrValue.substring(qrValue.length - 6)}</div>
           </div>
         </div>
       )}

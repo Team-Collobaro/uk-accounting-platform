@@ -26,6 +26,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const setupCheckTimerRef = useRef<NodeJS.Timeout | null>(null)
   const setupRequestIdRef = useRef<string | null>(null)
   const channelRef = useRef<any>(null)
+  const restoredIncidentTypesRef = useRef<Set<string>>(new Set())
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -48,14 +49,21 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           const res = await fetch(`/api/proctor-session/event?sessionId=${encodeURIComponent(sessionId)}`)
           if (!res.ok) return
           const data = await res.json()
+          const openTypes = new Set<string>()
           for (const incident of data.incidents || []) {
+            const incidentType = incident.event_type || 'mobile_violation'
+            openTypes.add(incidentType)
             onViolation?.(
               true,
               incident.metadata?.description || 'Mobile camera violation detected',
-              incident.event_type || 'mobile_violation',
+              incidentType,
               incident.severity || 'soft',
             )
           }
+          for (const incidentType of restoredIncidentTypesRef.current) {
+            if (!openTypes.has(incidentType)) onViolation?.(false, '', incidentType, 'info')
+          }
+          restoredIncidentTypesRef.current = openTypes
         } catch (_) {}
       }
 
@@ -107,6 +115,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         .on('broadcast', { event: 'camera_moved' }, (payload: any) => {
           const event = payload.payload || payload
           onViolation?.(true, event?.description || 'Phone position changed', 'camera_moved', event?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'camera_obstructed' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Mobile camera view is blocked', 'camera_obstructed', event?.severity || 'hard')
         })
         .on('broadcast', { event: 'notes_visible' }, (payload: any) => {
           onViolation?.(true, payload.payload?.description || 'Notes or written material detected', 'notes_visible', 'hard')
@@ -200,8 +212,13 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         }
       }, 5_000)
 
+      const incidentPoller = setInterval(() => {
+        void restoreOpenIncidents()
+      }, 5_000)
+
       cleanup = () => {
         clearInterval(watchdog)
+        clearInterval(incidentPoller)
         if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
         if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
         channelRef.current = null
