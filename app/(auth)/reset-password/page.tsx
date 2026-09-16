@@ -43,7 +43,7 @@ function ResetPasswordForm() {
     border: '1px solid var(--input-border)',
     borderRadius: 12, color: 'var(--text-primary)', outline: 'none',
     transition: 'border-color 0.2s, box-shadow 0.2s',
-    fontFamily: 'Inter, system-ui, sans-serif', boxSizing: 'border-box',
+    fontFamily: 'Montserrat, system-ui, sans-serif', boxSizing: 'border-box',
   }
   const labelStyle: React.CSSProperties = {
     display: 'block', fontWeight: 600, color: 'var(--text-tertiary)',
@@ -91,7 +91,7 @@ function ResetPasswordForm() {
         <motion.button type="submit" disabled={loading || success}
           whileHover={!loading && !success ? { scale: 1.02, boxShadow: '0 0 40px rgba(78,205,196,0.25)' } : {}}
           whileTap={!loading && !success ? { scale: 0.98 } : {}}
-          style={{ width: '100%', padding: '13px 24px', borderRadius: 12, border: `1px solid ${success ? 'rgba(82,217,139,0.5)' : 'rgba(78,205,196,0.45)'}`, background: success ? 'rgba(82,217,139,0.15)' : loading ? 'rgba(78,205,196,0.08)' : 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(91,120,216,0.22))', color: success ? '#52D98B' : loading ? 'rgba(78,205,196,0.5)' : '#4ECDC4', fontWeight: 700, cursor: loading || success ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '0.04em', transition: 'all 0.2s', fontFamily: 'Inter, system-ui, sans-serif' }} className="text-sm">
+          style={{ width: '100%', padding: '13px 24px', borderRadius: 12, border: `1px solid ${success ? 'rgba(82,217,139,0.5)' : 'rgba(78,205,196,0.45)'}`, background: success ? 'rgba(82,217,139,0.15)' : loading ? 'rgba(78,205,196,0.08)' : 'linear-gradient(135deg,rgba(78,205,196,0.22),rgba(91,120,216,0.22))', color: success ? '#52D98B' : loading ? 'rgba(78,205,196,0.5)' : '#4ECDC4', fontWeight: 700, cursor: loading || success ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, letterSpacing: '0.04em', transition: 'all 0.2s', fontFamily: 'Montserrat, system-ui, sans-serif' }} className="text-sm">
           {success ? (
             <><ArrowRight size={15} /> Sent</>
           ) : loading ? (

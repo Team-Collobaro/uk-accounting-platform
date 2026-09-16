@@ -20,6 +20,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
+  const subscribedAtRef = useRef<number | null>(null)
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pausedTimerRef = useRef<NodeJS.Timeout | null>(null)
   const setupCheckTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -63,7 +64,6 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
       channel
         .on('broadcast', { event: 'paired' }, () => {
-          lastHeartbeatRef.current = Date.now()
           updateStatus('paired')
         })
         .on('broadcast', { event: 'heartbeat' }, () => {
@@ -95,6 +95,18 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         })
         .on('broadcast', { event: 'student_missing' }, (payload: any) => {
           onViolation?.(true, payload.payload?.description || 'Student not visible or camera blocked', 'student_missing', 'hard')
+        })
+        .on('broadcast', { event: 'student_mismatch' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Visible student changed', 'student_mismatch', event?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'distance_invalid' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Phone distance is outside the approved range', 'distance_invalid', event?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'camera_moved' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Phone position changed', 'camera_moved', event?.severity || 'soft')
         })
         .on('broadcast', { event: 'notes_visible' }, (payload: any) => {
           onViolation?.(true, payload.payload?.description || 'Notes or written material detected', 'notes_visible', 'hard')
@@ -144,7 +156,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         })
         .subscribe((subscriptionStatus) => {
           if (subscriptionStatus === 'SUBSCRIBED') {
+            subscribedAtRef.current = Date.now()
             void restoreOpenIncidents()
+          } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(subscriptionStatus)) {
+            updateStatus('reconnecting')
           }
         })
 
@@ -162,7 +177,19 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
       // Heartbeat watchdog — check every 5 seconds
       const watchdog = setInterval(() => {
-        if (lastHeartbeatRef.current === null) return // Wait for initial connection
+        if (lastHeartbeatRef.current === null) {
+          const subscribedAt = subscribedAtRef.current
+          if (subscribedAt) {
+            const elapsed = Date.now() - subscribedAt
+            if (elapsed >= 60_000) {
+              updateStatus('technical_issue')
+            } else if (elapsed > 15_000) {
+              updateStatus('reconnecting')
+              setReconnectingSeconds(Math.floor(elapsed / 1000))
+            }
+          }
+          return
+        }
 
         const elapsed = Date.now() - lastHeartbeatRef.current
         if (elapsed > 10_000 && elapsed < 60_000) {
@@ -252,7 +279,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontFamily: '"Inter", system-ui, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontFamily: '"Montserrat", system-ui, sans-serif' }}>
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 8,
         background: c.bg, border: `1px solid ${c.border}`,

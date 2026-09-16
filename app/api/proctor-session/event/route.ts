@@ -74,7 +74,8 @@ export async function POST(req: NextRequest) {
     const allowedTypes = new Set([
       'second_phone', 'second_monitor', 'second_person', 'notes_visible',
       'student_missing', 'student_returned', 'second_person_cleared', 'suspicious_object',
-      'static_image_spoof', 'technical_error', 'clear',
+      'static_image_spoof', 'student_mismatch', 'distance_invalid', 'camera_moved',
+      'technical_error', 'clear',
     ])
     const allowedSeverities = new Set(['info', 'soft', 'hard', 'technical'])
 

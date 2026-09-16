@@ -48,7 +48,7 @@ export default function AiZone({ sectionTitle, contentHtml, preGeneratedData }: 
     return (
       <div className="ai-loading" style={{ margin: '12px 0 0', opacity: 0.5 }}>
         <span className="dot-pulse"><span></span><span></span><span></span></span>
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#7c3aed' }}>
+        <span style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 12, color: '#7c3aed' }}>
           analysing section...
         </span>
       </div>

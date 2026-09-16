@@ -219,7 +219,7 @@ export default function DevProctoringToolbar({ onSimulateViolation }: DevProctor
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 10000, fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 10000, fontFamily: 'Montserrat, sans-serif' }}>
       {/* ─── Floating Collapsed Button ─── */}
       {!isOpen && (
         <button

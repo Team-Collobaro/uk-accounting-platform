@@ -82,9 +82,9 @@ export default function CourseLessonPage() {
   }, [])
 
   const activeMobileIncidents = Object.entries(mobileIncidents)
-  const hardMobileIncident = activeMobileIncidents.find(([, incident]) => incident.severity === 'hard')
-  const isMobileViolating = activeMobileIncidents.length > 0
-  const mobileWarning = hardMobileIncident?.[1].message || activeMobileIncidents[0]?.[1].message || ''
+  const hardMobileIncidents = activeMobileIncidents.filter(([, incident]) => incident.severity === 'hard' || incident.severity === 'technical')
+  const warningMobileIncidents = activeMobileIncidents.filter(([, incident]) => incident.severity === 'warning' || incident.severity === 'soft')
+  const hardMobileIncident = hardMobileIncidents[0]
 
   const handleAgreeProctoring = async () => {
     // BUG 1 FIX: Skip POST if session already exists (avoid duplicate creation)
@@ -471,7 +471,7 @@ export default function CourseLessonPage() {
             background: 'rgba(15, 23, 42, 0.72)', backdropFilter: 'blur(6px)',
           }}
         >
-          <div style={{ maxWidth: 460, borderRadius: 14, padding: 24, background: '#fff', boxShadow: '0 24px 60px rgba(0,0,0,.3)', fontFamily: 'Inter, sans-serif' }}>
+          <div style={{ maxWidth: 460, borderRadius: 14, padding: 24, background: '#fff', boxShadow: '0 24px 60px rgba(0,0,0,.3)', fontFamily: 'Montserrat, sans-serif' }}>
             <h2 id="resume-exam-title" style={{ margin: 0, color: '#0f172a', fontSize: 20 }}>Exam session restored</h2>
             <p style={{ color: '#475569', fontSize: 14, lineHeight: 1.55, margin: '12px 0 8px' }}>
               Your browser was reloaded, but you remain in the same proctoring session. A new QR code or exam session was not created.
@@ -496,14 +496,14 @@ export default function CourseLessonPage() {
         padding: '12px 40px', borderBottom: '1px solid var(--line-soft)',
         background: 'var(--bg-alt)', zIndex: 10, flexShrink: 0,
       }}>
-        <div id="topbar-breadcrumb" style={{ fontFamily: '"Inter", sans-serif', fontSize: 12.5, color: 'var(--ink-faint)', letterSpacing: '0.02em' }}>
+        <div id="topbar-breadcrumb" style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 12.5, color: 'var(--ink-faint)', letterSpacing: '0.02em' }}>
           <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', marginRight: 8 }}>{partName}</span>
           <span style={{ color: 'var(--line)' }}>›</span>
           <strong style={{ color: 'var(--ink)', marginLeft: 8 }}>M{moduleNumber} · {moduleData?.module_title || 'Module'}</strong>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, color: 'var(--ink-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: 'var(--ink-faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
             Section {currentIdx + 1} / {moduleData?.sections.length || 0}
           </div>
           <button
@@ -512,7 +512,7 @@ export default function CourseLessonPage() {
               background: 'var(--accent-3)', color: '#fff', border: 'none',
               padding: '7px 16px', borderRadius: 4, fontSize: 12.5, fontWeight: 700,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              fontFamily: '"Inter", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+              fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
             }}
             onMouseOver={e => e.currentTarget.style.background = '#166534'}
             onMouseOut={e => e.currentTarget.style.background = 'var(--accent-3)'}
@@ -540,7 +540,7 @@ export default function CourseLessonPage() {
           {/* Lesson Body */}
           <div id="lesson-body" style={{ flex: 1, padding: '40px 60px 80px', maxWidth: 860, margin: '0 auto', width: '100%' }}>
         {loading && !moduleData ? (
-          <div style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 40, fontFamily: '"Inter", sans-serif' }}>Loading content...</div>
+          <div style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 40, fontFamily: '"Montserrat", sans-serif' }}>Loading content...</div>
         ) : (
           <>
             {currentIdx === 0 && moduleData && (
@@ -583,7 +583,7 @@ export default function CourseLessonPage() {
                       textAlign: 'center',
                       color: '#ffffff', // white
                       boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.5)',
-                      fontFamily: 'Inter, sans-serif'
+                      fontFamily: 'Montserrat, sans-serif'
                     }}>
                       <div style={{
                         width: '64px',
@@ -713,7 +713,7 @@ export default function CourseLessonPage() {
           style={{
             background: 'transparent', border: '1px solid var(--line)', color: 'var(--ink-soft)',
             padding: '9px 20px', borderRadius: 4, fontSize: 14, fontWeight: 600,
-            cursor: 'pointer', fontFamily: '"Inter", sans-serif', transition: '0.15s',
+            cursor: 'pointer', fontFamily: '"Montserrat", sans-serif', transition: '0.15s',
             opacity: (currentIdx === 0 && moduleNumber === 1) ? 0.3 : 1,
           }}
           onMouseOver={e => { if (!(currentIdx === 0 && moduleNumber === 1)) e.currentTarget.style.borderColor = 'var(--accent-2)' }}
@@ -749,7 +749,7 @@ export default function CourseLessonPage() {
           style={{
             background: 'var(--accent-2)', color: '#fff', border: 'none',
             padding: '9px 24px', borderRadius: 4, fontSize: 14, fontWeight: 700,
-            cursor: 'pointer', fontFamily: '"Inter", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+            cursor: 'pointer', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
           }}
           onMouseOver={e => e.currentTarget.style.background = '#1e3a8a'}
           onMouseOut={e => e.currentTarget.style.background = 'var(--accent-2)'}
@@ -769,7 +769,7 @@ export default function CourseLessonPage() {
         flexDirection: 'column', 
         padding: '24px' 
       }}>
-        <h3 style={{ fontFamily: 'Inter', fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>Exam Integrity</h3>
+        <h3 style={{ fontFamily: 'Montserrat', fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>Exam Integrity</h3>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 8, marginBottom: 24, lineHeight: 1.5 }}>
           Your camera is active to ensure academic integrity. Please face the screen during the entire Knowledge Check.
         </p>
@@ -784,30 +784,49 @@ export default function CourseLessonPage() {
                 />
               </div>
             )}
-            {isMobileViolating && mobileWarning && (
+            {hardMobileIncidents.length > 0 && (
               <div
                 role="alert"
                 aria-live="assertive"
                 style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  marginBottom: 20,
-                  padding: '12px 14px',
-                  borderRadius: 10,
-                  border: '1px solid rgba(239, 68, 68, 0.55)',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  color: '#ef4444',
-                  fontFamily: 'Inter, sans-serif',
+                  display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12,
+                  padding: '12px 14px', borderRadius: 10,
+                  border: '1px solid rgba(239, 68, 68, 0.55)', background: 'rgba(239, 68, 68, 0.12)',
+                  color: '#ef4444', fontFamily: 'Montserrat, sans-serif',
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>🛑</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
+                    Monitoring Incident (Exam Locked)
+                  </div>
+                  <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ink)' }}>
+                    {hardMobileIncidents.map(([type, incident]) => (
+                      <div key={type} style={{ marginBottom: 4 }}>{incident.message}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {warningMobileIncidents.length > 0 && (
+              <div
+                role="alert"
+                aria-live="polite"
+                style={{
+                  display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 20,
+                  padding: '12px 14px', borderRadius: 10,
+                  border: '1px solid rgba(245, 158, 11, 0.55)', background: 'rgba(245, 158, 11, 0.12)',
+                  color: '#d97706', fontFamily: 'Montserrat, sans-serif',
                 }}
               >
                 <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
-                    Mobile Camera Warning
+                    Provisional Warning
                   </div>
                   <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ink)' }}>
-                    {activeMobileIncidents.map(([type, incident]) => (
+                    {warningMobileIncidents.map(([type, incident]) => (
                       <div key={type} style={{ marginBottom: 4 }}>{incident.message}</div>
                     ))}
                   </div>

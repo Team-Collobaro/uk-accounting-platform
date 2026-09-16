@@ -209,7 +209,7 @@ export default function AntiCheatWrapper({
               borderRadius: '8px',
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              fontFamily: '"Inter", sans-serif',
+              fontFamily: '"Montserrat", sans-serif',
               fontSize: '14px',
               fontWeight: 600,
             }}
