@@ -7,15 +7,26 @@ type Status = 'not_linked' | 'paired' | 'reconnecting' | 'live' | 'degraded' | '
 interface MobileDeviceStatusProps {
   sessionId: string
   onStatusChange?: (status: Status) => void
+  onViolation?: (isViolating: boolean, message: string, incidentType: string, severity: string) => void
 }
 
-export default function MobileDeviceStatus({ sessionId, onStatusChange }: MobileDeviceStatusProps) {
+export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolation }: MobileDeviceStatusProps) {
   const [status, setStatus] = useState<Status>('not_linked')
   const [reconnectingSeconds, setReconnectingSeconds] = useState(0)
+  const [setupCheck, setSetupCheck] = useState<{ state: 'idle' | 'checking' | 'passed' | 'failed'; message: string }>({
+    state: 'idle',
+    message: '',
+  })
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
+  const subscribedAtRef = useRef<number | null>(null)
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pausedTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const setupCheckTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const setupRequestIdRef = useRef<string | null>(null)
+  const channelRef = useRef<any>(null)
+  const restoredIncidentTypesRef = useRef<Set<string>>(new Set())
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -31,9 +42,38 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
       if (disposed) return
       const supabase = createClientComponentClient()
 
+      // Reconcile persisted incidents whenever Realtime first connects or
+      // reconnects, so events raised during an outage still reach the UI.
+      const restoreOpenIncidents = async () => {
+        try {
+          const res = await fetch(`/api/proctor-session/event?sessionId=${encodeURIComponent(sessionId)}`)
+          if (!res.ok) return
+          const data = await res.json()
+          const openTypes = new Set<string>()
+          for (const incident of data.incidents || []) {
+            const incidentType = incident.event_type || 'mobile_violation'
+            openTypes.add(incidentType)
+            onViolation?.(
+              true,
+              incident.metadata?.description || 'Mobile camera violation detected',
+              incidentType,
+              incident.severity || 'soft',
+            )
+          }
+          for (const incidentType of restoredIncidentTypesRef.current) {
+            if (!openTypes.has(incidentType)) onViolation?.(false, '', incidentType, 'info')
+          }
+          restoredIncidentTypesRef.current = openTypes
+        } catch (_) {}
+      }
+
       const channel = supabase.channel(`proctor:${sessionId}`, { config: { private: true } })
+      channelRef.current = channel
 
       channel
+        .on('broadcast', { event: 'paired' }, () => {
+          updateStatus('paired')
+        })
         .on('broadcast', { event: 'heartbeat' }, () => {
           lastHeartbeatRef.current = Date.now()
           if (reconnectTimerRef.current) {
@@ -49,7 +89,91 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
         .on('broadcast', { event: 'error' }, () => {
           updateStatus('technical_issue')
         })
-        .subscribe()
+        .on('broadcast', { event: 'second_phone' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Secondary phone detected', 'second_phone', 'hard')
+        })
+        .on('broadcast', { event: 'second_monitor' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Secondary monitor detected', 'second_monitor', 'hard')
+        })
+        .on('broadcast', { event: 'suspicious_object' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Suspicious object detected', 'suspicious_object', 'hard')
+        })
+        .on('broadcast', { event: 'second_person' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Another person detected', 'second_person', 'hard')
+        })
+        .on('broadcast', { event: 'student_missing' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Student not visible or camera blocked', 'student_missing', 'hard')
+        })
+        .on('broadcast', { event: 'student_mismatch' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Visible student changed', 'student_mismatch', event?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'distance_invalid' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Phone distance is outside the approved range', 'distance_invalid', event?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'camera_moved' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Phone position changed', 'camera_moved', event?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'camera_obstructed' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Mobile camera view is blocked', 'camera_obstructed', event?.severity || 'hard')
+        })
+        .on('broadcast', { event: 'notes_visible' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Notes or written material detected', 'notes_visible', 'hard')
+        })
+        .on('broadcast', { event: 'violation' }, (message: any) => {
+          const payload = message.payload || message
+          onViolation?.(true, payload?.description || 'Mobile camera violation detected', payload?.type || 'mobile_violation', payload?.severity || 'soft')
+        })
+        .on('broadcast', { event: 'resolved' }, (message: any) => {
+          const payload = message.payload || message
+          onViolation?.(false, '', payload?.resolvesType || '*', 'info')
+        })
+        .on('broadcast', { event: 'setup_check_result' }, (message: any) => {
+          const payload = message.payload || message
+          if (!payload?.requestId || payload.requestId !== setupRequestIdRef.current) return
+          if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+          setupCheckTimerRef.current = null
+          setupRequestIdRef.current = null
+          setSetupCheck({
+            state: payload.passed ? 'passed' : 'failed',
+            message: payload.message || (payload.passed ? 'Setup looks good.' : 'Setup check failed.'),
+          })
+        })
+        .on('broadcast', { event: 'ended' }, () => {
+          updateStatus('technical_issue')
+          onViolation?.(true, 'Mobile monitoring session ended.', 'mobile_session_ended', 'technical')
+        })
+        .on('broadcast', { event: 'static_image_spoof' }, (payload: any) => {
+          onViolation?.(true, payload.payload?.description || 'Static image spoofing detected', 'static_image_spoof', 'hard')
+        })
+        .on('broadcast', { event: 'clear' }, () => {
+          onViolation?.(false, '', '*', 'info')
+        })
+        .on('broadcast', { event: 'paused' }, () => {
+          if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
+          onViolation?.(true, 'Mobile app moved to background. Please return to the LMS app on your phone within 30s.', 'mobile_paused', 'technical')
+          pausedTimerRef.current = setTimeout(() => {
+            onViolation?.(true, 'Mobile app was closed or sent to background for too long.', 'mobile_paused', 'hard')
+          }, 30000)
+        })
+        .on('broadcast', { event: 'resumed' }, () => {
+          if (pausedTimerRef.current) {
+            clearTimeout(pausedTimerRef.current)
+            pausedTimerRef.current = null
+          }
+          onViolation?.(false, '', 'mobile_paused', 'info')
+        })
+        .subscribe((subscriptionStatus) => {
+          if (subscriptionStatus === 'SUBSCRIBED') {
+            subscribedAtRef.current = Date.now()
+            void restoreOpenIncidents()
+          } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(subscriptionStatus)) {
+            updateStatus('reconnecting')
+          }
+        })
 
       // BUG 3 FIX: Poll session status on mount to catch 'paired' before first heartbeat
       const pollForPairing = async () => {
@@ -65,7 +189,19 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
 
       // Heartbeat watchdog — check every 5 seconds
       const watchdog = setInterval(() => {
-        if (lastHeartbeatRef.current === null) return // Wait for initial connection
+        if (lastHeartbeatRef.current === null) {
+          const subscribedAt = subscribedAtRef.current
+          if (subscribedAt) {
+            const elapsed = Date.now() - subscribedAt
+            if (elapsed >= 60_000) {
+              updateStatus('technical_issue')
+            } else if (elapsed > 15_000) {
+              updateStatus('reconnecting')
+              setReconnectingSeconds(Math.floor(elapsed / 1000))
+            }
+          }
+          return
+        }
 
         const elapsed = Date.now() - lastHeartbeatRef.current
         if (elapsed > 10_000 && elapsed < 60_000) {
@@ -76,8 +212,16 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
         }
       }, 5_000)
 
+      const incidentPoller = setInterval(() => {
+        void restoreOpenIncidents()
+      }, 5_000)
+
       cleanup = () => {
         clearInterval(watchdog)
+        clearInterval(incidentPoller)
+        if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
+        if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+        channelRef.current = null
         supabase.removeChannel(channel)
       }
     }
@@ -118,29 +262,91 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange }: Mobile
 
   const c = config[status]
 
+  const runSetupCheck = async () => {
+    const channel = channelRef.current
+    if (!channel || !['paired', 'live'].includes(status)) {
+      setSetupCheck({ state: 'failed', message: 'Link the phone and open its setup screen first.' })
+      return
+    }
+
+    const requestId = crypto.randomUUID()
+    setupRequestIdRef.current = requestId
+    setSetupCheck({ state: 'checking', message: 'Waiting for the phone camera analysis…' })
+
+    if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+    setupCheckTimerRef.current = setTimeout(() => {
+      if (setupRequestIdRef.current !== requestId) return
+      setupRequestIdRef.current = null
+      setSetupCheck({
+        state: 'failed',
+        message: 'No response from the phone. Keep the LMS Mobile setup screen open and try again.',
+      })
+    }, 15_000)
+
+    const response = await channel.send({
+      type: 'broadcast',
+      event: 'setup_check_request',
+      payload: { requestId, timestamp: new Date().toISOString() },
+    })
+    if (response !== 'ok') {
+      if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+      setupRequestIdRef.current = null
+      setSetupCheck({ state: 'failed', message: 'Could not send the setup request to the phone.' })
+    }
+  }
+
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 8,
-      background: c.bg, border: `1px solid ${c.border}`,
-      borderRadius: 10, padding: '7px 12px',
-      fontFamily: '"Inter", system-ui, sans-serif',
-    }}>
-      <span style={{ fontSize: 14 }}>{c.icon}</span>
-      <div>
-        <div style={{ color: c.color, fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>
-          {c.label}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontFamily: '"Montserrat", system-ui, sans-serif' }}>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        background: c.bg, border: `1px solid ${c.border}`,
+        borderRadius: 10, padding: '7px 12px',
+      }}>
+        <span style={{ fontSize: 14 }}>{c.icon}</span>
+        <div>
+          <div style={{ color: c.color, fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>
+            {c.label}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 1 }}>
+            {c.sub}
+          </div>
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, marginTop: 1 }}>
-          {c.sub}
-        </div>
+        {(status === 'live' || status === 'paired') && (
+          <div style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: status === 'live' ? '#52D98B' : '#F59E0B',
+            animation: 'pulse 1.5s infinite',
+            flexShrink: 0,
+          }} />
+        )}
       </div>
-      {(status === 'live' || status === 'paired') && (
-        <div style={{
-          width: 7, height: 7, borderRadius: '50%',
-          background: status === 'live' ? '#52D98B' : '#F59E0B',
-          animation: 'pulse 1.5s infinite',
-          flexShrink: 0,
-        }} />
+
+      <button
+        type="button"
+        onClick={runSetupCheck}
+        disabled={setupCheck.state === 'checking' || !['paired', 'live'].includes(status)}
+        style={{
+          width: '100%', border: 'none', borderRadius: 9, padding: '9px 12px',
+          background: setupCheck.state === 'passed' ? '#16a34a' : '#2563eb', color: '#fff',
+          fontSize: 12, fontWeight: 800, cursor: setupCheck.state === 'checking' ? 'wait' : 'pointer',
+          opacity: !['paired', 'live'].includes(status) ? 0.45 : 1,
+        }}
+      >
+        {setupCheck.state === 'checking' ? 'Checking Phone Setup…' : setupCheck.state === 'passed' ? '✓ Setup Passed — Check Again' : '📷 Check Setup'}
+      </button>
+
+      {setupCheck.message && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            borderRadius: 8, padding: '8px 10px', fontSize: 11, lineHeight: 1.4,
+            color: setupCheck.state === 'passed' ? '#166534' : setupCheck.state === 'failed' ? '#991b1b' : '#1e40af',
+            background: setupCheck.state === 'passed' ? '#dcfce7' : setupCheck.state === 'failed' ? '#fee2e2' : '#dbeafe',
+          }}
+        >
+          {setupCheck.message}
+        </div>
       )}
     </div>
   )

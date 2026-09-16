@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
 
 :root {
@@ -62,7 +62,7 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  font-family: "Charter","Georgia","Iowan Old Style","Source Serif Pro",serif;
+  font-family: "Source Sans 3", system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.7;
   color: var(--ink);
@@ -102,7 +102,7 @@ h1.book-title em { font-style: italic; color: var(--accent); font-weight: 400; }
   font-size: 12px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  font-family: "Inter",sans-serif;
+  font-family: "Montserrat",sans-serif;
   font-weight: 700;
   margin-bottom: 12px;
 }
@@ -114,7 +114,7 @@ h1.book-title em { font-style: italic; color: var(--accent); font-weight: 400; }
   color: #fff;
 }
 .part-header .part-meta {
-  font-family: "Inter",sans-serif;
+  font-family: "Montserrat",sans-serif;
   font-size: 13px;
   color: #94a3b8;
   letter-spacing: 0.05em;
@@ -128,7 +128,7 @@ h1.module-title {
   font-weight: 700;
 }
 .module-meta {
-  font-family: "Inter",sans-serif;
+  font-family: "Montserrat",sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -138,7 +138,7 @@ h1.module-title {
 }
 h2 { font-size: 24px; margin: 40px 0 14px; letter-spacing: -0.005em; color: var(--accent-2); font-weight: 700; }
 h3 { font-size: 19px; margin: 32px 0 10px; color: var(--ink); font-weight: 700; }
-h4 { font-size: 16px; margin: 24px 0 8px; color: var(--ink); font-family: "Inter",sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
+h4 { font-size: 16px; margin: 24px 0 8px; color: var(--ink); font-family: "Montserrat",sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
 h5 { font-size: 15px; margin: 18px 0 6px; color: var(--ink-soft); font-weight: 700; }
 p { margin: 0 0 16px; }
 ul, ol { margin: 0 0 18px; padding-left: 28px; }
@@ -168,7 +168,7 @@ td {
 th {
   background: var(--bg-dark);
   color: #fff;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -200,7 +200,7 @@ table.numeric td:not(:first-child) {
   font-size: 15.5px;
   line-height: 1.6;
 }
-.callout .label { font-family: "Inter",sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 6px; display: block; }
+.callout .label { font-family: "Montserrat",sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 6px; display: block; }
 .callout p:last-child { margin-bottom: 0; }
 .callout.warn { background: var(--warn-bg); border-color: var(--warn-bd); }
 .callout.warn .label { color: #92400e; }
@@ -210,7 +210,7 @@ table.numeric td:not(:first-child) {
 .callout.tip .label { color: #166534; }
 .callout.danger { background: var(--danger-bg); border-color: var(--danger-bd); }
 .callout.danger .label { color: #991b1b; }
-.callout.legal { background: #f1f5f9; border-color: #475569; font-family: "Inter",sans-serif; font-size: 14px; }
+.callout.legal { background: #f1f5f9; border-color: #475569; font-family: "Montserrat",sans-serif; font-size: 14px; }
 .callout.legal .label { color: #334155; }
 
 /* CARDS ---------------------------------------------------------- */
@@ -222,7 +222,7 @@ table.numeric td:not(:first-child) {
   margin: 20px 0;
   box-shadow: var(--shadow-sm);
 }
-.example-box .ex-tag { font-family: "Inter",sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent-3); font-weight: 700; }
+.example-box .ex-tag { font-family: "Montserrat",sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent-3); font-weight: 700; }
 .example-box h4 { margin-top: 6px; color: var(--accent-2); text-transform: none; letter-spacing: 0; font-family: "Charter",serif; font-size: 17px; }
 
 /* CODE / FORMULA ------------------------------------------------- */
@@ -231,9 +231,9 @@ pre { background: var(--code-bg); color: var(--code-ink); padding: 16px 20px; bo
 pre code { background: transparent; color: inherit; padding: 0; }
 
 /* Buttons & Links */
-.btn-primary { background: var(--accent-2); color: #fff; border: none; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-family: "Inter",sans-serif; font-weight: 600; cursor: pointer; width: 100%; transition: 0.15s; }
+.btn-primary { background: var(--accent-2); color: #fff; border: none; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-family: "Montserrat",sans-serif; font-weight: 600; cursor: pointer; width: 100%; transition: 0.15s; }
 .btn-primary:hover { background: #1e3a8a; filter: brightness(1.1); }
-.btn-start { display: inline-block; background: var(--accent); color: #fff; border: none; padding: 14px 36px; border-radius: 6px; font-size: 16px; font-family: "Inter",sans-serif; font-weight: 700; cursor: pointer; letter-spacing: 0.02em; text-decoration: none; transition: 0.15s; }
+.btn-start { display: inline-block; background: var(--accent); color: #fff; border: none; padding: 14px 36px; border-radius: 6px; font-size: 16px; font-family: "Montserrat",sans-serif; font-weight: 700; cursor: pointer; letter-spacing: 0.02em; text-decoration: none; transition: 0.15s; }
 .btn-start:hover { background: #991b1b; }
 
 /* LEARNING OBJECTIVES & SUMMARY --------------------------------- */
@@ -248,7 +248,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   margin: 0 0 10px;
   color: #6d28d9;
   font-size: 13px;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -291,7 +291,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 
 /* LESSON SCREEN & SECTION CARDS --------------------------------- */
 .lesson-module-badge {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 11px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -308,7 +308,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 }
 
 .lesson-module-meta {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 13px;
   color: var(--ink-faint);
   margin-bottom: 32px;
@@ -361,7 +361,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   background: #7c3aed;
   color: #fff;
   padding: 10px 20px;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -408,7 +408,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   padding: 10px 20px;
   border-radius: 6px;
   font-size: 14px;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
@@ -433,7 +433,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 
 .ai-loading {
   color: #7c3aed;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -482,7 +482,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 @media (max-width:700px) { .master-toc { column-count: 1; } }
 
 /* VISUAL MOCKUPS ------------------------------------------------- */
-.visual-block { background: #fafaf6; border-radius: 10px; padding: 24px; margin: 28px 0; border: 1px solid var(--line); font-family: "Inter", sans-serif; }
+.visual-block { background: #fafaf6; border-radius: 10px; padding: 24px; margin: 28px 0; border: 1px solid var(--line); font-family: "Montserrat", sans-serif; }
 .visual-block .vb-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); }
 .visual-block .vb-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 3px; font-weight: 700; }
 .visual-block h4.vb-title { font-family: "Charter", serif; font-size: 17px; font-weight: 700; margin: 0; color: var(--ink); text-transform: none; letter-spacing: 0; }
@@ -497,7 +497,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   box-shadow: var(--shadow-md);
 }
 .quiz-block .quiz-tag {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -521,7 +521,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   border: 1px solid #e2e8f0;
 }
 .quiz-q .q-num {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -545,7 +545,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   border-radius: 4px;
   cursor: pointer;
   font-size: 14.5px;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   transition: all 0.15s;
   text-align: left;
   width: 100%;
@@ -596,7 +596,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   border-radius: 6px;
   text-align: center;
   font-weight: 700;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   display: none;
 }
 .quiz-result.show {
@@ -616,7 +616,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   box-shadow: var(--shadow-md);
 }
 .scenario-card .sc-head {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -634,7 +634,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   border-radius: 0 4px 4px 0;
 }
 .disclosure-card .d-tag {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -657,7 +657,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   line-height: 1.6;
 }
 .journal .j-head {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -731,7 +731,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-weight: 700;
   font-size: 14px;
 }
@@ -745,7 +745,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   padding: 24px;
   margin: 28px 0;
   border: 1px solid var(--line);
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
 }
 .visual-block .vb-head {
   display: flex;
@@ -784,7 +784,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   border-bottom-width: 2px;
   border-radius: 3px;
   padding: 1px 5px;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 12px;
   color: #334155;
 }
@@ -793,7 +793,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   padding: 2px 8px;
   background: var(--accent);
   color: #fff;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -833,7 +833,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 .section-content-html h1 { font-size: 32px; margin: 48px 0 8px; padding-bottom: 12px; border-bottom: 3px double var(--accent); letter-spacing: -0.01em; font-weight: 700; }
 .section-content-html h2 { font-size: 24px; margin: 36px 0 14px; letter-spacing: -0.005em; color: var(--accent-2); font-weight: 700; }
 .section-content-html h3 { font-size: 19px; margin: 28px 0 10px; color: var(--ink); font-weight: 700; }
-.section-content-html h4 { font-size: 14px; margin: 20px 0 8px; color: var(--ink); font-family: "Inter", sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.section-content-html h4 { font-size: 14px; margin: 20px 0 8px; color: var(--ink); font-family: "Montserrat", sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
 .section-content-html h5 { font-size: 15px; margin: 16px 0 6px; color: var(--ink-soft); font-weight: 700; }
 .section-content-html p { margin: 0 0 16px; }
 .section-content-html ul, .section-content-html ol { margin: 0 0 18px; padding-left: 28px; }
@@ -868,7 +868,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   padding: 20px 28px;
   margin: 16px 0 32px;
 }
-.section-content-html .learning-obj h4 { margin: 0 0 10px; color: #6d28d9; font-size: 13px; font-family: "Inter", sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+.section-content-html .learning-obj h4 { margin: 0 0 10px; color: #6d28d9; font-size: 13px; font-family: "Montserrat", sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
 .section-content-html .learning-obj ul { margin: 0; padding-left: 20px; }
 .section-content-html .learning-obj li { margin: 4px 0; font-size: 15px; }
 .section-content-html .learning-obj li::marker { color: #6d28d9; }
@@ -889,15 +889,15 @@ pre code { background: transparent; color: inherit; padding: 0; }
 /* Tables inside content HTML */
 .section-content-html table { width: 100%; border-collapse: collapse; margin: 20px 0 28px; font-size: 15px; background: #fff; box-shadow: var(--shadow-sm); }
 .section-content-html th, .section-content-html td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
-.section-content-html th { background: var(--bg-dark); color: #fff; font-family: "Inter", sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.section-content-html th { background: var(--bg-dark); color: #fff; font-family: "Montserrat", sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
 .section-content-html tr:nth-child(even) td { background: #fafaf6; }
 .section-content-html table.compact th, .section-content-html table.compact td { padding: 6px 10px; font-size: 13px; }
 .section-content-html table.numeric td:not(:first-child) { font-variant-numeric: tabular-nums; text-align: right; font-family: "JetBrains Mono", "Consolas", monospace; }
 .section-content-html table.wp { width: 100%; border-collapse: collapse; font-size: 11px; font-family: "JetBrains Mono", "Consolas", monospace; }
-.section-content-html table.wp th { background: #1e3a8a; color: #fff; padding: 5px 7px; text-align: left; font-weight: 600; font-family: "Inter", sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.section-content-html table.wp th { background: #1e3a8a; color: #fff; padding: 5px 7px; text-align: left; font-weight: 600; font-family: "Montserrat", sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
 .section-content-html table.wp td { padding: 4px 7px; border-bottom: 1px solid #e2e8f0; font-variant-numeric: tabular-nums; }
 .section-content-html table.wp td.r { text-align: right; }
-.section-content-html table.wp td.lbl { font-family: "Inter", sans-serif; font-size: 11px; }
+.section-content-html table.wp td.lbl { font-family: "Montserrat", sans-serif; font-size: 11px; }
 .section-content-html table.wp tr.tot td { border-top: 2px solid #1e3a8a; font-weight: 700; background: #f1f5f9; }
 .section-content-html table.wp tr.subtot td { border-top: 1px solid #94a3b8; font-weight: 600; }
 .section-content-html table.wp tr.match td { background: #dcfce7; }
@@ -919,8 +919,8 @@ pre code { background: transparent; color: inherit; padding: 0; }
 .section-content-html .callout.info { background: var(--info-bg); border-color: var(--info-bd); }
 .section-content-html .callout.tip  { background: var(--tip-bg);  border-color: var(--tip-bd);  }
 .section-content-html .callout.danger { background: var(--danger-bg); border-color: var(--danger-bd); }
-.section-content-html .callout.legal { background: #f1f5f9; border-color: #475569; font-family: "Inter", sans-serif; font-size: 14px; }
-.section-content-html .callout .label { font-family: "Inter", sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 6px; display: block; }
+.section-content-html .callout.legal { background: #f1f5f9; border-color: #475569; font-family: "Montserrat", sans-serif; font-size: 14px; }
+.section-content-html .callout .label { font-family: "Montserrat", sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 6px; display: block; }
 .section-content-html .callout.warn .label { color: #92400e; }
 .section-content-html .callout.info .label { color: #1e3a8a; }
 .section-content-html .callout.tip .label { color: #166534; }
@@ -930,19 +930,19 @@ pre code { background: transparent; color: inherit; padding: 0; }
 /* Part header inside content HTML */
 .section-content-html .part-header { background: linear-gradient(135deg, var(--bg-dark) 0%, #0f172a 100%); color: #fff; padding: 40px 36px; margin: 48px -32px 28px; border-left: 6px solid var(--accent); position: relative; }
 .section-content-html .part-header h1 { font-size: 34px; margin: 0 0 6px; color: #fff; font-weight: 700; }
-.section-content-html .part-header .part-num { display: inline-block; background: var(--accent); color: #fff; padding: 3px 12px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-family: "Inter", sans-serif; font-weight: 700; margin-bottom: 10px; }
-.section-content-html .part-header .part-meta { font-family: "Inter", sans-serif; font-size: 12px; color: #94a3b8; letter-spacing: 0.05em; }
+.section-content-html .part-header .part-num { display: inline-block; background: var(--accent); color: #fff; padding: 3px 12px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; font-family: "Montserrat", sans-serif; font-weight: 700; margin-bottom: 10px; }
+.section-content-html .part-header .part-meta { font-family: "Montserrat", sans-serif; font-size: 12px; color: #94a3b8; letter-spacing: 0.05em; }
 
 /* Interactive Quiz Blocks inside content HTML */
 .section-content-html .quiz-block { background: #fff; border: 2px solid var(--accent-2); border-radius: 8px; padding: 28px 32px; margin: 40px 0; box-shadow: var(--shadow-md); }
-.section-content-html .quiz-block .quiz-tag { font-family: "Inter", sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--accent-2); font-weight: 700; }
+.section-content-html .quiz-block .quiz-tag { font-family: "Montserrat", sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--accent-2); font-weight: 700; }
 .section-content-html .quiz-block h3 { margin: 4px 0 8px; color: var(--accent-2); }
 .section-content-html .quiz-block .quiz-intro { font-size: 14px; color: var(--ink-faint); margin-bottom: 16px; }
 .section-content-html .quiz-q { margin: 18px 0; padding: 16px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; }
-.section-content-html .quiz-q .q-num { font-family: "Inter", sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 700; }
+.section-content-html .quiz-q .q-num { font-family: "Montserrat", sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 700; }
 .section-content-html .quiz-q .q-text { font-weight: 600; margin: 4px 0 12px; font-size: 15.5px; }
 .section-content-html .quiz-q .opts { display: grid; gap: 8px; }
-.section-content-html .quiz-q .opt { display: block; padding: 10px 14px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-size: 14.5px; font-family: "Inter", sans-serif; transition: all 0.15s; text-align: left; width: 100%; color: var(--ink); }
+.section-content-html .quiz-q .opt { display: block; padding: 10px 14px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-size: 14.5px; font-family: "Montserrat", sans-serif; transition: all 0.15s; text-align: left; width: 100%; color: var(--ink); }
 .section-content-html .quiz-q .opt:not(.disabled):hover { background: #f1f5f9; border-color: var(--accent-2); transform: translateX(2px); }
 .section-content-html .quiz-q .opt.correct { background: #dcfce7; border-color: var(--tip-bd); color: #166534; }
 .section-content-html .quiz-q .opt.wrong { background: #fee2e2; border-color: var(--danger-bd); color: #991b1b; }
@@ -950,7 +950,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 .section-content-html .quiz-q .opt.correct.disabled, .section-content-html .quiz-q .opt.wrong.disabled { opacity: 1; }
 .section-content-html .quiz-q .feedback { margin-top: 12px; padding: 10px 14px; background: #fffbeb; border-left: 3px solid var(--gold); font-size: 14px; font-style: italic; display: none; border-radius: 0 4px 4px 0; }
 .section-content-html .quiz-q .feedback.show { display: block; }
-.section-content-html .quiz-result { margin-top: 20px; padding: 16px; background: var(--info-bg); border-radius: 6px; text-align: center; font-weight: 700; font-family: "Inter", sans-serif; display: none; }
+.section-content-html .quiz-result { margin-top: 20px; padding: 16px; background: var(--info-bg); border-radius: 6px; text-align: center; font-weight: 700; font-family: "Montserrat", sans-serif; display: none; }
 .section-content-html .quiz-result.show { display: block; }
 
 /* ================================================================
@@ -1006,7 +1006,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
 .master-toc h2 { margin-top: 0; color: var(--accent-2); }
 .master-toc .toc-part-label {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--accent); margin: 20px 0 6px; font-family: "Inter", sans-serif; font-weight: 700;
+  color: var(--accent); margin: 20px 0 6px; font-family: "Montserrat", sans-serif; font-weight: 700;
   break-after: avoid;
 }
 .master-toc ul { padding-left: 16px; margin: 0 0 10px; list-style: none; }
@@ -1022,7 +1022,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   background: var(--accent);
   color: #fff;
   padding: 3px 12px;
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1040,7 +1040,7 @@ pre code { background: transparent; color: inherit; padding: 0; }
   border-bottom: 3px double var(--accent);
 }
 .lesson-module-meta {
-  font-family: "Inter", sans-serif;
+  font-family: "Montserrat", sans-serif;
   font-size: 12px;
   color: var(--accent);
   margin-bottom: 32px;
@@ -1052,14 +1052,14 @@ pre code { background: transparent; color: inherit; padding: 0; }
 /* ===================== PHASE 2: VISUAL MOCKUPS & UTILITIES ===================== */
 .section-content-html hr.sec { border: none; height: 1px; background: var(--line); margin: 32px 0; }
 .section-content-html hr.sec.thick { height: 3px; background: linear-gradient(90deg, var(--accent), transparent); }
-.section-content-html .legislation-ref { font-family: "Inter", sans-serif; font-size: 12px; color: var(--accent-2); font-weight: 600; }
+.section-content-html .legislation-ref { font-family: "Montserrat", sans-serif; font-size: 12px; color: var(--accent-2); font-weight: 600; }
 .section-content-html .figure { margin: 20px 0; padding: 16px; background: #fff; border: 1px solid var(--line); border-radius: 4px; text-align: center; }
 .section-content-html .figure .cap { font-size: 13px; color: var(--ink-faint); font-style: italic; margin-top: 8px; }
 .section-content-html .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 16px 0; }
 @media (max-width:700px) { .section-content-html .two-col { grid-template-columns: 1fr; } }
 
 /* Universal visual block */
-.section-content-html .visual-block { background: #fafaf6; border-radius: 10px; padding: 24px; margin: 28px 0; border: 1px solid var(--line); font-family: "Inter", sans-serif; }
+.section-content-html .visual-block { background: #fafaf6; border-radius: 10px; padding: 24px; margin: 28px 0; border: 1px solid var(--line); font-family: "Montserrat", sans-serif; }
 .section-content-html .visual-block .vb-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); }
 .section-content-html .visual-block .vb-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; padding: 4px 10px; background: var(--accent); color: #fff; border-radius: 3px; font-weight: 700; }
 .section-content-html .visual-block .vb-tag.xero { background: #1AB4D7; }
@@ -1140,11 +1140,11 @@ pre code { background: transparent; color: inherit; padding: 0; }
 
 /* BANK STATEMENT */
 .section-content-html .bank-stmt { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; font-family: "JetBrains Mono", monospace; font-size: 10px; padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow-sm); }
-.section-content-html .bank-stmt .stmt-head { border-bottom: 2px solid #1e3a8a; padding-bottom: 6px; margin-bottom: 8px; font-family: "Inter", sans-serif; display: flex; justify-content: space-between; }
+.section-content-html .bank-stmt .stmt-head { border-bottom: 2px solid #1e3a8a; padding-bottom: 6px; margin-bottom: 8px; font-family: "Montserrat", sans-serif; display: flex; justify-content: space-between; }
 .section-content-html .bank-stmt .bank-name { font-weight: 800; font-size: 13px; color: #1e3a8a; }
 .section-content-html .bank-stmt .acct-info { font-size: 9px; color: #6b6b6b; }
 .section-content-html .bank-stmt table { width: 100%; border-collapse: collapse; font-size: 10px; }
-.section-content-html .bank-stmt table th { text-align: left; font-weight: 700; border-bottom: 1px solid #cbd5e1; padding: 3px 4px; font-family: "Inter", sans-serif; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+.section-content-html .bank-stmt table th { text-align: left; font-weight: 700; border-bottom: 1px solid #cbd5e1; padding: 3px 4px; font-family: "Montserrat", sans-serif; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
 .section-content-html .bank-stmt table td { padding: 3px 4px; border-bottom: 1px dotted #e2e8f0; }
 .section-content-html .bank-stmt table td.amt { text-align: right; font-variant-numeric: tabular-nums; }
 .section-content-html .bank-stmt table td.amt.in { color: #15803d; }
@@ -1172,11 +1172,11 @@ pre code { background: transparent; color: inherit; padding: 0; }
 
 /* JOURNAL DISPLAY in visual blocks */
 .section-content-html .vjournal { background: #1e293b; color: #e2e8f0; border-radius: 6px; padding: 12px 16px; margin: 10px 0; font-family: "JetBrains Mono", monospace; font-size: 11.5px; }
-.section-content-html .vjournal .jh { font-family: "Inter", sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
+.section-content-html .vjournal .jh { font-family: "Montserrat", sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; font-weight: 700; margin-bottom: 5px; }
 .section-content-html .vjournal .jl { display: grid; grid-template-columns: 1fr 80px 80px; gap: 8px; padding: 2px 0; }
 .section-content-html .vjournal .jl.cr { padding-left: 20px; }
 .section-content-html .vjournal .jl.tot { border-top: 1px solid #475569; margin-top: 3px; padding-top: 3px; font-weight: 700; }
-.section-content-html .vjournal .narr { font-family: "Inter", sans-serif; font-style: italic; font-size: 10.5px; color: #94a3b8; margin-top: 5px; }
+.section-content-html .vjournal .narr { font-family: "Montserrat", sans-serif; font-style: italic; font-size: 10.5px; color: #94a3b8; margin-top: 5px; }
 
 /* TIE ARROW (WP ties to BS) */
 .section-content-html .tie-arrow { display: flex; align-items: center; gap: 8px; margin: 12px 0; padding: 10px 14px; background: linear-gradient(90deg, #dcfce7 0%, #fffbeb 100%); border-radius: 6px; font-size: 12px; font-weight: 600; color: #166534; }

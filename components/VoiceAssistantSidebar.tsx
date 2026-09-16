@@ -372,8 +372,8 @@ export default function VoiceAssistantSidebar({
       <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(148,163,184,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: isSpeaking ? '#10b981' : convState === 'listening' ? '#ef4444' : '#94a3b8', transition: 'background 0.3s' }} />
-          <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>AI Tutor</span>
-          {isStreaming && <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>typing…</span>}
+          <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>AI Tutor</span>
+          {isStreaming && <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>typing…</span>}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -383,7 +383,7 @@ export default function VoiceAssistantSidebar({
             </button>
           )}
           {!voiceSupported && (
-            <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 10 }}>
+            <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 10 }}>
               Voice input: Chrome only
             </span>
           )}
@@ -394,7 +394,7 @@ export default function VoiceAssistantSidebar({
       {!voiceUnlocked && (
         <div onClick={unlockAndStart} style={{ margin: '10px 12px 0', padding: '10px 14px', borderRadius: 10, background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Mic size={14} style={{ color: '#7c3aed', flexShrink: 0 }} />
-          <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 12, color: '#7c3aed', lineHeight: 1.4, fontWeight: 600 }}>
+          <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 12, color: '#7c3aed', lineHeight: 1.4, fontWeight: 600 }}>
             Tap to start voice conversation with your tutor
           </span>
         </div>
@@ -451,7 +451,7 @@ export default function VoiceAssistantSidebar({
             </div>
             
             {/* Status Text */}
-            <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em' }}>
+            <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em' }}>
               {isSpeechPaused ? 'Paused' : isSpeaking ? 'Speaking' : convState === 'processing' ? 'Thinking' : convState === 'listening' ? 'Listening...' : 'Tap to speak'}
             </span>
           </button>
@@ -461,14 +461,14 @@ export default function VoiceAssistantSidebar({
       {/* Live transcript while speaking */}
       {liveTranscript && (
         <div style={{ margin: '0 12px 6px', padding: '8px 12px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', flexShrink: 0 }}>
-          <span style={{ fontFamily: '"Inter", sans-serif', fontSize: 12, color: '#ef4444', fontStyle: 'italic' }}>"{liveTranscript}"</span>
+          <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 12, color: '#ef4444', fontStyle: 'italic' }}>"{liveTranscript}"</span>
         </div>
       )}
 
       {/* Messages */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {messages.length === 0 && !isStreaming && (
-          <p style={{ fontFamily: '"Inter", sans-serif', fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 12, fontStyle: 'italic' }}>
+          <p style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 12, fontStyle: 'italic' }}>
             Your AI tutor is starting up…
           </p>
         )}
@@ -481,7 +481,7 @@ export default function VoiceAssistantSidebar({
                 borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                 background: msg.role === 'user' ? '#7c3aed' : 'rgba(148,163,184,0.15)',
                 color: msg.role === 'user' ? '#fff' : 'var(--ink)',
-                fontFamily: '"Inter", sans-serif', fontSize: 13, lineHeight: 1.5,
+                fontFamily: '"Montserrat", sans-serif', fontSize: 13, lineHeight: 1.5,
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>
                 {msg.content === '' && isLast && isStreaming
@@ -502,7 +502,7 @@ export default function VoiceAssistantSidebar({
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleTextSend() } }}
           placeholder={voiceUnlocked ? 'Or type a reply…' : 'Type your reply…'}
           disabled={isStreaming}
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 18, border: '1px solid rgba(148,163,184,0.3)', background: 'var(--bg)', color: 'var(--ink)', fontFamily: '"Inter", sans-serif', fontSize: 12, outline: 'none', opacity: isStreaming ? 0.6 : 1 }}
+          style={{ flex: 1, padding: '8px 12px', borderRadius: 18, border: '1px solid rgba(148,163,184,0.3)', background: 'var(--bg)', color: 'var(--ink)', fontFamily: '"Montserrat", sans-serif', fontSize: 12, outline: 'none', opacity: isStreaming ? 0.6 : 1 }}
         />
         <button
           onClick={handleTextSend}

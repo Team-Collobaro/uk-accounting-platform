@@ -451,7 +451,7 @@ export default function DashboardPage() {
   const nearbyMods  = allModules.slice(Math.max(0, nextIdx - 1), nextIdx + 4).filter(m => m !== nextModule).slice(0, 3)
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)', fontFamily: '"Inter", system-ui, sans-serif', padding: '0 0 100px',
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)', fontFamily: '"Montserrat", system-ui, sans-serif', padding: '0 0 100px',
       // dashboard CSS overrides — map dark vars to old-HTML warm palette
       ['--card-bg' as string]: '#fff',
       ['--card-border' as string]: 'var(--line)',
@@ -486,13 +486,13 @@ export default function DashboardPage() {
           {/* greeting row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
             <div>
-              <div style={{ display: 'inline-block', background: 'var(--accent)', color: '#fff', padding: '3px 12px', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: '"Inter", sans-serif', fontWeight: 700, borderRadius: 2, marginBottom: 12 }}>
+              <div style={{ display: 'inline-block', background: 'var(--accent)', color: '#fff', padding: '3px 12px', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: '"Montserrat", sans-serif', fontWeight: 700, borderRadius: 2, marginBottom: 12 }}>
                 ACCA / ACA Grade
               </div>
               <div style={{ fontWeight: 800, letterSpacing: '-0.015em', color: '#fff', fontSize: 22, fontFamily: '"Charter", "Georgia", serif', marginBottom: 4, lineHeight: 1.2 }}>
                 <BlurText text={`Welcome back, ${studentName.split(' ')[0]}!`} className="aurora-text" delay={70} direction="top" stepDuration={0.15} />
               </div>
-              <p style={{ color: '#94a3b8', marginTop: 4, fontWeight: 400, fontSize: 14, lineHeight: 1.5, margin: '4px 0 0', fontFamily: '"Inter", sans-serif' }}>Ready to continue your studies? {completed} of 87 modules complete &mdash; {pct}% through the qualification.</p>
+              <p style={{ color: '#94a3b8', marginTop: 4, fontWeight: 400, fontSize: 14, lineHeight: 1.5, margin: '4px 0 0', fontFamily: '"Montserrat", sans-serif' }}>Ready to continue your studies? {completed} of 87 modules complete &mdash; {pct}% through the qualification.</p>
             </div>
           </div>
 
@@ -510,11 +510,11 @@ export default function DashboardPage() {
                 <Play size={20} color="var(--accent)" style={{ marginLeft: 2 }} />
               </motion.div>
               <div>
-                <p style={{ fontFamily: '"Inter", sans-serif', color: 'var(--accent)', letterSpacing: '0.15em', marginBottom: 4, opacity: 0.9, fontSize: 10, textTransform: 'uppercase', fontWeight: 700 }}>
+                <p style={{ fontFamily: '"Montserrat", sans-serif', color: 'var(--accent)', letterSpacing: '0.15em', marginBottom: 4, opacity: 0.9, fontSize: 10, textTransform: 'uppercase', fontWeight: 700 }}>
                   Continue Learning &middot; {nextPart ? `Part ${nextPart.number}` : ''}
                 </p>
                 <h2 style={{ fontWeight: 700, color: '#fff', margin: '0 0 2px', lineHeight: 1.2, fontSize: 18, fontFamily: '"Charter", "Georgia", serif' }}>{nextTitle}</h2>
-                <p style={{ color: '#64748b', margin: 0, fontSize: 12, fontFamily: '"Inter", sans-serif' }}>{nextModule.toUpperCase()} &middot; Alex is ready to guide you</p>
+                <p style={{ color: '#64748b', margin: 0, fontSize: 12, fontFamily: '"Montserrat", sans-serif' }}>{nextModule.toUpperCase()} &middot; Alex is ready to guide you</p>
               </div>
             </div>
 
@@ -527,7 +527,7 @@ export default function DashboardPage() {
                     padding: '11px 24px', borderRadius: 4,
                     background: 'var(--accent)',
                     border: 'none', cursor: 'pointer', fontWeight: 700, color: '#fff',
-                    fontFamily: '"Inter", sans-serif', fontSize: 14, letterSpacing: '0.02em',
+                    fontFamily: '"Montserrat", sans-serif', fontSize: 14, letterSpacing: '0.02em',
                   }}>
                   Start Now <ArrowRight size={15} />
                 </motion.button>

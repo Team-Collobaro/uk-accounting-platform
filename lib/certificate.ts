@@ -87,7 +87,7 @@ export function getCertificateHTML(cert: Certificate): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Certificate — ${cert.studentName}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@300;400;600&display=swap');
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -97,7 +97,7 @@ export function getCertificateHTML(cert: Certificate): string {
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Montserrat', sans-serif;
       padding: 2rem;
     }
 

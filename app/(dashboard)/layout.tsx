@@ -132,7 +132,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         width: 300, minWidth: 300, background: 'var(--bg-dark)', color: '#e8e4d6',
         display: 'flex', flexDirection: 'column', height: '100vh',
         borderRight: '1px solid #000',
-        fontFamily: '"Inter", "Helvetica Neue", sans-serif', fontSize: 14,
+        fontFamily: '"Montserrat", "Helvetica Neue", sans-serif', fontSize: 14,
       }}>
 
         {/* ─ Header ─ */}
@@ -302,7 +302,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               padding: '5px 14px 5px 24px',
                               cursor: 'pointer',
                               color: isActive ? '#fff' : isCompleted ? '#4ade80' : '#475569',
-                              fontSize: 12, fontFamily: '"Inter", sans-serif', lineHeight: 1.35,
+                              fontSize: 12, fontFamily: '"Montserrat", sans-serif', lineHeight: 1.35,
                               transition: 'all 0.15s',
                             }}
                           >
@@ -334,7 +334,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               padding: '9px 14px', background: 'rgba(255,255,255,0.03)',
               border: '1px solid rgba(255,255,255,0.07)', borderRadius: 4,
               cursor: 'pointer', color: '#475569', fontSize: 12.5, fontWeight: 500,
-              fontFamily: '"Inter", sans-serif', transition: 'all 0.15s',
+              fontFamily: '"Montserrat", sans-serif', transition: 'all 0.15s',
             }}
             onMouseOver={e => { e.currentTarget.style.color = '#cbd5e1'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)' }}
             onMouseOut={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}

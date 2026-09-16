@@ -1,35 +1,32 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import WatchSpinner from '@/components/WatchSpinner'
+import Image from 'next/image'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--auth-bg)',
+      background: '#f8f9fa', // Clean corporate background
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '24px',
-      fontFamily: 'Inter, system-ui, sans-serif',
+      fontFamily: 'Montserrat, system-ui, sans-serif',
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Grid overlay */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-        backgroundImage: 'linear-gradient(rgba(0,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,255,0.02) 1px,transparent 1px)',
-        backgroundSize: '60px 60px',
-      }} />
+      {/* Decorative background shapes */}
+      <div style={{ position: 'fixed', top: '-10%', left: '-5%', width: '50vw', height: '50vw', borderRadius: '50%', background: 'rgba(26,54,93,0.02)', pointerEvents: 'none' }} />
+      <div style={{ position: 'fixed', bottom: '-20%', right: '-10%', width: '60vw', height: '60vw', borderRadius: '50%', background: 'rgba(186,146,58,0.03)', pointerEvents: 'none' }} />
 
       <style>{`
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
-          -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
-          -webkit-text-fill-color: var(--text-primary) !important;
-          caret-color: var(--text-primary);
+          -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+          -webkit-text-fill-color: #1a1a1a !important;
+          caret-color: #1a1a1a;
         }
       `}</style>
 
@@ -40,26 +37,23 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}
       >
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <WatchSpinner size={36} />
-            <span style={{ fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }} className="text-xl">
-              UK Accounting <span style={{ color: 'var(--ac-cyan)' }}>Pro</span>
-            </span>
-          </div>
-          <p style={{ fontFamily: 'monospace', color: 'var(--text-tertiary)', letterSpacing: '0.2em' }} className="text-xs">
-            AI-POWERED · PROFESSIONAL LEARNING
+        <div style={{ textAlign: 'center', marginBottom: 36, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Image src="/ukati-logo.jpg" alt="UKATI Logo" width={80} height={80} style={{ objectFit: 'contain', marginBottom: 16, mixBlendMode: 'multiply' }} />
+          <h2 style={{ fontWeight: 800, color: '#1A365D', letterSpacing: '-0.02em', fontSize: 22, margin: '0 0 4px 0' }}>
+            UKATI Learning Portal
+          </h2>
+          <p style={{ color: '#6b6b6b', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: 12, margin: 0 }}>
+            By Team Collaboro
           </p>
         </div>
 
-        {/* Glass card */}
+        {/* Card */}
         <div style={{
-          background: 'var(--auth-card-bg)',
-          border: '1px solid var(--auth-card-border)',
+          background: '#ffffff',
+          border: '1px solid rgba(0,0,0,0.08)',
           borderRadius: 24,
-          padding: '36px 32px',
-          backdropFilter: 'blur(24px)',
-          boxShadow: 'var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.04)',
+          padding: '40px 32px',
+          boxShadow: '0 20px 40px rgba(26,54,93,0.06)',
         }}>
           {children}
         </div>

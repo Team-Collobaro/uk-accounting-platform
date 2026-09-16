@@ -86,7 +86,7 @@ export default function CoursesPage() {
         <div style={{
           display: 'inline-block', background: 'var(--accent)', color: '#fff',
           padding: '4px 14px', fontSize: 11, letterSpacing: '0.22em',
-          textTransform: 'uppercase', fontFamily: '"Inter", sans-serif', fontWeight: 700,
+          textTransform: 'uppercase', fontFamily: '"Montserrat", sans-serif', fontWeight: 700,
           marginBottom: 14, borderRadius: 2,
         }}>
           ACCA / ACA Grade
@@ -112,7 +112,7 @@ export default function CoursesPage() {
               borderRadius: 6, padding: '12px 20px', textAlign: 'center', minWidth: 88,
             }}>
               <div style={{ fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{num}</div>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#64748b', marginTop: 4, fontFamily: '"Inter", sans-serif' }}>{label}</div>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#64748b', marginTop: 4, fontFamily: '"Montserrat", sans-serif' }}>{label}</div>
             </div>
           ))}
         </div>
@@ -124,7 +124,7 @@ export default function CoursesPage() {
             display: 'inline-block', marginTop: 28,
             background: 'var(--accent)', color: '#fff',
             border: 'none', padding: '13px 32px', borderRadius: 4,
-            fontSize: 15, fontFamily: '"Inter", sans-serif', fontWeight: 700,
+            fontSize: 15, fontFamily: '"Montserrat", sans-serif', fontWeight: 700,
             cursor: 'pointer', letterSpacing: '0.02em', transition: '0.15s',
           }}
           onMouseOver={e => e.currentTarget.style.background = '#991b1b'}
@@ -156,7 +156,7 @@ export default function CoursesPage() {
                         onMouseOver={e => e.currentTarget.style.color = 'var(--accent)'}
                         onMouseOut={e => e.currentTarget.style.color = 'var(--ink)'}
                       >
-                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', fontFamily: '"Inter", sans-serif', letterSpacing: '0.04em', marginRight: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.04em', marginRight: 6 }}>
                           {mod.toUpperCase()}
                         </span>
                         {MODULE_TITLES[mod]}
@@ -185,7 +185,7 @@ export default function CoursesPage() {
               { label: 'Ask Alex for help', desc: 'The AI tutor is available in every section — ask a question or request an example.' },
             ].map(({ label, desc }) => (
               <div key={label}>
-                <div style={{ fontSize: 11, fontFamily: '"Inter", sans-serif', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 11, fontFamily: '"Montserrat", sans-serif', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
                 <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>{desc}</div>
               </div>
             ))}

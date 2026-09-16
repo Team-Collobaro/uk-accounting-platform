@@ -92,13 +92,17 @@ export const analyzeFrame = inngest.createFunction(
     // 3. Save outcome and broadcast
     await step.run('save-and-broadcast', async () => {
       if (claudeResult.violation) {
+        const incidentType = claudeResult.type === 'student_absent'
+          ? 'student_missing'
+          : claudeResult.type
+
         // Record event in database
         const { data: insertedEvent, error: insertError } = await supabaseAdmin
           .from('proctor_events')
           .insert({
             session_id: sessionId,
             user_id: userId,
-            event_type: claudeResult.type,
+            event_type: incidentType,
             severity: claudeResult.severity,
             confidence: claudeResult.confidence === 'high' ? 0.9 : claudeResult.confidence === 'medium' ? 0.6 : 0.3,
             source: 'claude_vision',
@@ -114,11 +118,13 @@ export const analyzeFrame = inngest.createFunction(
         if (insertError) throw new Error('Failed to insert proctor_event')
 
         // Broadcast to realtime
-        await supabaseAdmin.channel(`proctor:${sessionId}`).send({
+        await supabaseAdmin.channel(`proctor:${sessionId}`, {
+          config: { private: true },
+        }).send({
           type: 'broadcast',
           event: 'violation',
           payload: {
-            type: claudeResult.type,
+            type: incidentType,
             severity: claudeResult.severity,
             confidence: claudeResult.confidence,
             description: `📱 Mobile Camera (AI): ${claudeResult.description}`,
@@ -134,7 +140,9 @@ export const analyzeFrame = inngest.createFunction(
         })
       } else {
         // False alarm confirmed — broadcast clear
-        await supabaseAdmin.channel(`proctor:${sessionId}`).send({
+        await supabaseAdmin.channel(`proctor:${sessionId}`, {
+          config: { private: true },
+        }).send({
           type: 'broadcast',
           event: 'clear',
           payload: { source: 'claude_vision', description: claudeResult.description },

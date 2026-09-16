@@ -79,7 +79,7 @@ export default function ThemeToggle({ collapsed = false }: ThemeToggleProps) {
               border: 'none',
               cursor: 'pointer',
               fontWeight: active ? 700 : 400,
-              fontFamily: 'Inter, system-ui, sans-serif',
+              fontFamily: 'Montserrat, system-ui, sans-serif',
               letterSpacing: active ? '0.03em' : '0.01em',
               color: active ? 'var(--ac-cyan)' : 'var(--text-tertiary)',
               background: active ? 'rgba(78,205,196,0.13)' : 'transparent',
