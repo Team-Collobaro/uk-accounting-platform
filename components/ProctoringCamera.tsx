@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { FaceLandmarker, FilesetResolver, ObjectDetector } from '@mediapipe/tasks-vision'
 import QRCode from 'react-qr-code'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
+import { mobileAppDownload } from '@/lib/mobileAppDownload'
 
 interface ProctoringCameraProps {
   onViolation: (isViolating: boolean, message: string) => void
@@ -565,6 +566,19 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
               Prop your phone ~1 meter behind you so it can see your back, desk, and screen.
             </span>
           </div>
+
+          <a
+            href={mobileAppDownload.url}
+            style={{
+              width: '100%', border: '1px solid rgba(78,205,196,0.45)',
+              background: 'rgba(78,205,196,0.10)', color: '#4ECDC4',
+              borderRadius: 7, padding: '8px 10px', fontSize: 10,
+              fontWeight: 800, textAlign: 'center', textDecoration: 'none',
+            }}
+            aria-label={`Download LMS Mobile ${mobileAppDownload.version} for ${mobileAppDownload.platform}`}
+          >
+            ↓ Download LMS Mobile Android Beta
+          </a>
 
           <div
             style={{

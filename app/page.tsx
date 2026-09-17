@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowRight, BookOpen, Briefcase, ChevronDown, GraduationCap, Globe, Menu, Search, X } from 'lucide-react'
+import { ArrowRight, BookOpen, Briefcase, ChevronDown, Download, GraduationCap, Globe, Menu, Search, X } from 'lucide-react'
+import { mobileAppDownload } from '@/lib/mobileAppDownload'
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -300,6 +301,13 @@ export default function Home() {
               <Link href="/courses" style={{ textDecoration: 'none', color: '#073647', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 2px' }}>
                 View Courses <ArrowRight size={17} />
               </Link>
+              <a
+                href={mobileAppDownload.url}
+                style={{ textDecoration: 'none', color: '#073647', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 2px' }}
+                aria-label={`Download LMS Mobile ${mobileAppDownload.version} for ${mobileAppDownload.platform}`}
+              >
+                <Download size={18} /> Download Android Beta
+              </a>
             </div>
           </motion.div>
         </div>

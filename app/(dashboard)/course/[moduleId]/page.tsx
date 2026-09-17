@@ -34,6 +34,7 @@ import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
 import DevProctoringToolbar from '@/components/DevProctoringToolbar'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
 import { initAnimFactory } from '@/lib/animFactory'
+import { mobileAppDownload } from '@/lib/mobileAppDownload'
 
 export default function CourseLessonPage() {
   const params = useParams()
@@ -666,6 +667,17 @@ export default function CourseLessonPage() {
                           <li>Position your phone behind you, facing your screen</li>
                         </ol>
                       </div>
+                      <a
+                        href={mobileAppDownload.url}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          marginTop: 20, padding: '11px 18px', borderRadius: 8,
+                          background: '#0f766e', color: '#fff', fontWeight: 800,
+                          fontSize: 13, textDecoration: 'none',
+                        }}
+                      >
+                        ↓ Download LMS Mobile Android Beta
+                      </a>
                     </div>
                   ) : (
                     <AntiCheatWrapper 
