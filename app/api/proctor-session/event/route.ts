@@ -17,7 +17,11 @@ export async function GET(req: NextRequest) {
       .select('id')
       .eq('id', sessionId)
       .eq('user_id', user.id)
-      .in('status', ['paired', 'active', 'paused'])
+      // The desktop subscribes while the QR is still pending. Reading the
+      // owner's (empty) incident list during setup is safe and avoids a 403
+      // loop before the phone has paired. Event creation remains restricted
+      // to paired/active sessions in POST below.
+      .in('status', ['pending', 'paired', 'active', 'paused'])
       .gt('session_expires_at', new Date().toISOString())
       .maybeSingle()
 

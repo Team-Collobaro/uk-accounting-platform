@@ -17,6 +17,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     state: 'idle',
     message: '',
   })
+  const [monitoringStart, setMonitoringStart] = useState<'idle' | 'starting' | 'started' | 'failed'>('idle')
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
@@ -27,6 +28,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const setupRequestIdRef = useRef<string | null>(null)
   const channelRef = useRef<any>(null)
   const restoredIncidentTypesRef = useRef<Set<string>>(new Set())
+  const incidentPollingStoppedRef = useRef(false)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -34,6 +36,9 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   }
 
   useEffect(() => {
+    setSetupCheck({ state: 'idle', message: '' })
+    setMonitoringStart('idle')
+    incidentPollingStoppedRef.current = false
     let disposed = false
     let cleanup: (() => void) | undefined
 
@@ -45,8 +50,13 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       // Reconcile persisted incidents whenever Realtime first connects or
       // reconnects, so events raised during an outage still reach the UI.
       const restoreOpenIncidents = async () => {
+        if (incidentPollingStoppedRef.current) return
         try {
           const res = await fetch(`/api/proctor-session/event?sessionId=${encodeURIComponent(sessionId)}`)
+          if ([403, 404, 410].includes(res.status)) {
+            incidentPollingStoppedRef.current = true
+            return
+          }
           if (!res.ok) return
           const data = await res.json()
           const openTypes = new Set<string>()
@@ -69,12 +79,22 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
       const channel = supabase.channel(`proctor:${sessionId}`, { config: { private: true } })
       channelRef.current = channel
+      let pairingPoller: NodeJS.Timeout | null = null
+
+      const stopPairingPoller = () => {
+        if (pairingPoller) {
+          clearInterval(pairingPoller)
+          pairingPoller = null
+        }
+      }
 
       channel
         .on('broadcast', { event: 'paired' }, () => {
+          stopPairingPoller()
           updateStatus('paired')
         })
         .on('broadcast', { event: 'heartbeat' }, () => {
+          stopPairingPoller()
           lastHeartbeatRef.current = Date.now()
           if (reconnectTimerRef.current) {
             clearTimeout(reconnectTimerRef.current)
@@ -82,6 +102,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             setReconnectingSeconds(0)
           }
           updateStatus('live')
+          setMonitoringStart('started')
         })
         .on('broadcast', { event: 'tier2_unavailable' }, () => {
           updateStatus('degraded')
@@ -179,13 +200,16 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       const pollForPairing = async () => {
         try {
           const res = await fetch(`/api/proctor-session?sessionId=${sessionId}`)
+          if (!res.ok) return
           const data = await res.json()
           if (data.status === 'paired' || data.status === 'active') {
+            stopPairingPoller()
             updateStatus('paired')
           }
         } catch (_) {}
       }
-      pollForPairing()
+      void pollForPairing()
+      pairingPoller = setInterval(() => void pollForPairing(), 2_000)
 
       // Heartbeat watchdog — check every 5 seconds
       const watchdog = setInterval(() => {
@@ -219,6 +243,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       cleanup = () => {
         clearInterval(watchdog)
         clearInterval(incidentPoller)
+        stopPairingPoller()
         if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
         if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
         channelRef.current = null
@@ -271,6 +296,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
     const requestId = crypto.randomUUID()
     setupRequestIdRef.current = requestId
+    setMonitoringStart('idle')
     setSetupCheck({ state: 'checking', message: 'Waiting for the phone camera analysis…' })
 
     if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
@@ -292,6 +318,39 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
       setupRequestIdRef.current = null
       setSetupCheck({ state: 'failed', message: 'Could not send the setup request to the phone.' })
+    }
+  }
+
+  const startMonitoring = async () => {
+    const channel = channelRef.current
+    if (!channel || setupCheck.state !== 'passed') return
+
+    setMonitoringStart('starting')
+    try {
+      const response = await fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start', sessionId }),
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'The monitoring session could not be started.')
+      }
+
+      const realtimeResponse = await channel.send({
+        type: 'broadcast',
+        event: 'start_monitoring_request',
+        payload: { sessionId, timestamp: new Date().toISOString() },
+      })
+      if (realtimeResponse !== 'ok') {
+        throw new Error('The start request did not reach the phone.')
+      }
+    } catch (error) {
+      setMonitoringStart('failed')
+      setSetupCheck({
+        state: 'failed',
+        message: error instanceof Error ? error.message : 'Could not start monitoring.',
+      })
     }
   }
 
@@ -334,6 +393,27 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       >
         {setupCheck.state === 'checking' ? 'Checking Phone Setup…' : setupCheck.state === 'passed' ? '✓ Setup Passed — Check Again' : '📷 Check Setup'}
       </button>
+
+      {setupCheck.state === 'passed' && (
+        <button
+          type="button"
+          onClick={startMonitoring}
+          disabled={monitoringStart === 'starting' || monitoringStart === 'started'}
+          style={{
+            width: '100%', border: 'none', borderRadius: 9, padding: '10px 12px',
+            background: monitoringStart === 'started' ? '#16a34a' : '#0f766e', color: '#fff',
+            fontSize: 12, fontWeight: 800,
+            cursor: monitoringStart === 'starting' ? 'wait' : 'pointer',
+            opacity: monitoringStart === 'starting' ? 0.75 : 1,
+          }}
+        >
+          {monitoringStart === 'starting'
+            ? 'Starting Monitoring…'
+            : monitoringStart === 'started'
+              ? '✓ Monitoring Active'
+              : '▶ Start Monitoring'}
+        </button>
+      )}
 
       {setupCheck.message && (
         <div
