@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: 'UK Accounting Pro — AI-Powered Learning Platform',
   description:
     '150-hour professional UK bookkeeping, accounting and taxation course with AI tutor.',
-  icons: { icon: [] },
+  icons: { icon: '/ukati-logo.jpg' },
 }
 
 /**
@@ -50,4 +50,3 @@ export default function RootLayout({
     </html>
   )
 }
-
