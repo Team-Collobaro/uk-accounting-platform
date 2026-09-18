@@ -39,6 +39,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/dev-config') ||
     pathname.startsWith('/api/proctor-analyze') ||
     pathname.startsWith('/api/inngest') ||
+    pathname.startsWith('/downloads/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/reset-password') ||
