@@ -303,6 +303,7 @@ export default function Home() {
               </Link>
               <a
                 href={mobileAppDownload.url}
+                download={mobileAppDownload.fileName}
                 style={{ textDecoration: 'none', color: '#073647', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 2px' }}
                 aria-label={`Download LMS Mobile ${mobileAppDownload.version} for ${mobileAppDownload.platform}`}
               >

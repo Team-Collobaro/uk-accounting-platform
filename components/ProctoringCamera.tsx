@@ -569,6 +569,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
 
           <a
             href={mobileAppDownload.url}
+            download={mobileAppDownload.fileName}
             style={{
               width: '100%', border: '1px solid rgba(78,205,196,0.45)',
               background: 'rgba(78,205,196,0.10)', color: '#4ECDC4',

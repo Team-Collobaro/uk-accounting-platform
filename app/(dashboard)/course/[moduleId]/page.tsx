@@ -669,6 +669,7 @@ export default function CourseLessonPage() {
                       </div>
                       <a
                         href={mobileAppDownload.url}
+                        download={mobileAppDownload.fileName}
                         style={{
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           marginTop: 20, padding: '11px 18px', borderRadius: 8,
