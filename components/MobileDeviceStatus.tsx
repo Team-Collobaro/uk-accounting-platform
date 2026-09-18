@@ -19,6 +19,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     message: '',
   })
   const [monitoringStart, setMonitoringStart] = useState<'idle' | 'starting' | 'started' | 'failed'>('idle')
+  const [mobilePreview, setMobilePreview] = useState<string | null>(null)
+  const [mobilePreviewUpdatedAt, setMobilePreviewUpdatedAt] = useState<number | null>(null)
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
@@ -33,6 +35,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const sessionInvalidatedRef = useRef(false)
   const startAfterSetupRef = useRef(false)
   const startMonitoringRef = useRef<(() => Promise<void>) | null>(null)
+  const previewControlEnabledRef = useRef(true)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -42,6 +45,9 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   useEffect(() => {
     setSetupCheck({ state: 'idle', message: '' })
     setMonitoringStart('idle')
+    setMobilePreview(null)
+    setMobilePreviewUpdatedAt(null)
+    previewControlEnabledRef.current = true
     incidentPollingStoppedRef.current = false
     sessionInvalidatedRef.current = false
     lastHeartbeatRef.current = null
@@ -197,6 +203,13 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             startAfterSetupRef.current = false
           }
         })
+        .on('broadcast', { event: 'preview_frame' }, (message: any) => {
+          const payload = message.payload || message
+          if (payload?.sessionId !== sessionId || payload?.mimeType !== 'image/jpeg') return
+          if (typeof payload?.data !== 'string' || payload.data.length > 140_000) return
+          setMobilePreview(`data:image/jpeg;base64,${payload.data}`)
+          setMobilePreviewUpdatedAt(Date.now())
+        })
         .on('broadcast', { event: 'ended' }, () => {
           updateStatus('technical_issue')
           onViolation?.(true, 'Mobile monitoring session ended.', 'mobile_session_ended', 'technical')
@@ -281,9 +294,27 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         void restoreOpenIncidents()
       }, 5_000)
 
+      // Preview requests are idempotent. Repeating the small control message
+      // allows the phone to join after the browser observed database pairing.
+      const previewRequester = setInterval(() => {
+        if (!previewControlEnabledRef.current) return
+        void channel.send({
+          type: 'broadcast',
+          event: 'preview_start',
+          payload: { sessionId, timestamp: new Date().toISOString() },
+        })
+      }, 5_000)
+
       cleanup = () => {
+        previewControlEnabledRef.current = false
         clearInterval(watchdog)
         clearInterval(incidentPoller)
+        clearInterval(previewRequester)
+        void channel.send({
+          type: 'broadcast',
+          event: 'preview_stop',
+          payload: { sessionId, timestamp: new Date().toISOString() },
+        })
         stopPairingPoller()
         if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
         if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
@@ -389,6 +420,14 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (realtimeResponse !== 'ok') {
         throw new Error('The start request did not reach the phone.')
       }
+      previewControlEnabledRef.current = false
+      await channel.send({
+        type: 'broadcast',
+        event: 'preview_stop',
+        payload: { sessionId, timestamp: new Date().toISOString() },
+      })
+      setMobilePreview(null)
+      setMobilePreviewUpdatedAt(null)
       monitoringRequestedAtRef.current = Date.now()
     } catch (error) {
       setMonitoringStart('failed')
@@ -433,6 +472,32 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           }} />
         )}
       </div>
+
+      {['paired', 'reconnecting', 'technical_issue'].includes(status) && (
+        <div style={{
+          position: 'relative', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden',
+          borderRadius: 10, border: '1px solid rgba(15,118,110,0.35)', background: '#07131b',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {mobilePreview ? (
+            <img
+              src={mobilePreview}
+              alt="Live setup view from the linked mobile camera"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ color: '#94a3b8', fontSize: 11, textAlign: 'center', padding: 16 }}>
+              Waiting for mobile setup preview…
+            </div>
+          )}
+          <div style={{
+            position: 'absolute', left: 8, bottom: 7, borderRadius: 999, padding: '3px 7px',
+            background: 'rgba(2,6,23,0.78)', color: '#5eead4', fontSize: 9, fontWeight: 800,
+          }}>
+            MOBILE SETUP PREVIEW{mobilePreviewUpdatedAt ? ' · LOW RATE' : ''}
+          </div>
+        </div>
+      )}
 
       <button
         type="button"
