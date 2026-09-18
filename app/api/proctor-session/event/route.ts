@@ -7,10 +7,10 @@ export const runtime = 'nodejs'
 export async function GET(req: NextRequest) {
   try {
     const user = await getProctorRequestUser(req)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED', terminal: true }, { status: 401 })
 
     const sessionId = req.nextUrl.searchParams.get('sessionId')
-    if (!sessionId) return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 })
+    if (!sessionId) return NextResponse.json({ error: 'Missing sessionId', code: 'SESSION_ID_REQUIRED', terminal: true }, { status: 400 })
 
     const { data: session } = await supabaseAdmin
       .from('proctor_sessions')
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found, inactive, or forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Session not found, inactive, or forbidden', code: 'SESSION_INACTIVE', terminal: true }, { status: 403 })
     }
 
     const { data: incidents, error } = await supabaseAdmin
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('[proctor-event] restore error:', error)
-      return NextResponse.json({ error: 'Failed to restore incidents' }, { status: 400 })
+      return NextResponse.json({ error: 'Incident storage is temporarily unavailable', code: 'INCIDENT_STORE_UNAVAILABLE', terminal: false }, { status: 503 })
     }
 
     return NextResponse.json({ incidents: incidents || [] })
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getProctorRequestUser(req)
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED', terminal: true }, { status: 401 })
     }
 
     const {
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found, inactive, or forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Session not found, inactive, or forbidden', code: 'SESSION_INACTIVE', terminal: true }, { status: 403 })
     }
 
     if (type === 'student_returned' || type === 'second_person_cleared' || type === 'clear') {
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
 
       if (resolveError) {
         console.error('[proctor-event] resolve error:', resolveError)
-        return NextResponse.json({ error: 'Failed to resolve incident' }, { status: 400 })
+        return NextResponse.json({ error: 'Incident storage is temporarily unavailable', code: 'INCIDENT_STORE_UNAVAILABLE', terminal: false }, { status: 503 })
       }
 
       await supabaseAdmin.channel(`proctor:${sessionId}`, {
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
     }
     if (insertError) {
       console.error('[proctor-event] db error:', insertError)
-      return NextResponse.json({ error: 'Failed to record event' }, { status: 400 })
+      return NextResponse.json({ error: 'Incident storage is temporarily unavailable', code: 'INCIDENT_STORE_UNAVAILABLE', terminal: false }, { status: 503 })
     }
 
     // Also broadcast to the active realtime channel so desktop UI updates instantly

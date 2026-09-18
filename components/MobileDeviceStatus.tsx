@@ -8,9 +8,10 @@ interface MobileDeviceStatusProps {
   sessionId: string
   onStatusChange?: (status: Status) => void
   onViolation?: (isViolating: boolean, message: string, incidentType: string, severity: string) => void
+  onSessionInvalid?: (message: string) => void
 }
 
-export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolation }: MobileDeviceStatusProps) {
+export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolation, onSessionInvalid }: MobileDeviceStatusProps) {
   const [status, setStatus] = useState<Status>('not_linked')
   const [reconnectingSeconds, setReconnectingSeconds] = useState(0)
   const [setupCheck, setSetupCheck] = useState<{ state: 'idle' | 'checking' | 'passed' | 'failed'; message: string }>({
@@ -29,6 +30,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const channelRef = useRef<any>(null)
   const restoredIncidentTypesRef = useRef<Set<string>>(new Set())
   const incidentPollingStoppedRef = useRef(false)
+  const sessionInvalidatedRef = useRef(false)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -39,6 +41,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     setSetupCheck({ state: 'idle', message: '' })
     setMonitoringStart('idle')
     incidentPollingStoppedRef.current = false
+    sessionInvalidatedRef.current = false
     let disposed = false
     let cleanup: (() => void) | undefined
 
@@ -47,6 +50,14 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (disposed) return
       const supabase = createClientComponentClient()
 
+      const invalidateSession = (message: string) => {
+        if (disposed || sessionInvalidatedRef.current) return
+        sessionInvalidatedRef.current = true
+        incidentPollingStoppedRef.current = true
+        updateStatus('not_linked')
+        onSessionInvalid?.(message)
+      }
+
       // Reconcile persisted incidents whenever Realtime first connects or
       // reconnects, so events raised during an outage still reach the UI.
       const restoreOpenIncidents = async () => {
@@ -54,7 +65,12 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         try {
           const res = await fetch(`/api/proctor-session/event?sessionId=${encodeURIComponent(sessionId)}`)
           if ([403, 404, 410].includes(res.status)) {
+            invalidateSession('The previous mobile monitoring session expired. A new QR code has been generated.')
+            return
+          }
+          if (res.status === 400) {
             incidentPollingStoppedRef.current = true
+            updateStatus('technical_issue')
             return
           }
           if (!res.ok) return
@@ -199,7 +215,12 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       // BUG 3 FIX: Poll session status on mount to catch 'paired' before first heartbeat
       const pollForPairing = async () => {
         try {
-          const res = await fetch(`/api/proctor-session?sessionId=${sessionId}`)
+          const res = await fetch(`/api/proctor-session?sessionId=${encodeURIComponent(sessionId)}`)
+          if ([403, 404, 410].includes(res.status)) {
+            stopPairingPoller()
+            invalidateSession('The previous mobile monitoring session expired. A new QR code has been generated.')
+            return
+          }
           if (!res.ok) return
           const data = await res.json()
           if (data.status === 'paired' || data.status === 'active') {
@@ -256,7 +277,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       disposed = true
       cleanup?.()
     }
-  }, [sessionId])
+  }, [sessionId, onSessionInvalid])
 
   const config: Record<Status, { color: string; bg: string; border: string; icon: string; label: string; sub: string }> = {
     not_linked: {

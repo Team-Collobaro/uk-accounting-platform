@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getProctorRequestUser(req)
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized', code: 'AUTH_REQUIRED', terminal: true }, { status: 401 })
     }
 
     const body = await req.json().catch(() => ({})) as { moduleId?: string, action?: string, token?: string, sessionId?: string, forceNew?: boolean }
@@ -238,14 +238,14 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found or forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Session not found or forbidden', code: 'SESSION_NOT_FOUND', terminal: true }, { status: 403 })
     }
 
     const relevantExpiry = session.status === 'pending'
       ? session.pairing_expires_at
       : session.session_expires_at
     if (!relevantExpiry || Date.parse(relevantExpiry) <= Date.now()) {
-      return NextResponse.json({ error: 'Session expired' }, { status: 410 })
+      return NextResponse.json({ error: 'Session expired', code: 'SESSION_EXPIRED', terminal: true }, { status: 410 })
     }
 
     // Fetch violation count from Supabase (count only, no details per Q3)

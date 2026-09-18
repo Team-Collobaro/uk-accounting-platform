@@ -56,6 +56,8 @@ export default function CourseLessonPage() {
   const [proctorExpiresAt, setProctorExpiresAt] = useState<string | null>(null)
   const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
   const [showResumeNotice, setShowResumeNotice] = useState(false)
+  const [sessionNoticeKind, setSessionNoticeKind] = useState<'restored' | 'replaced'>('restored')
+  const sessionRecoveryRef = React.useRef(false)
 
   const sessionKey = `proctor-session:${moduleId}`
   const sectionKey = `exam-section:${moduleId}`
@@ -133,6 +135,42 @@ export default function CourseLessonPage() {
     }
   }
 
+  const handleInvalidProctorSession = React.useCallback(async (message: string) => {
+    if (sessionRecoveryRef.current) return
+    sessionRecoveryRef.current = true
+
+    sessionStorage.removeItem(sessionKey)
+    localStorage.removeItem(sessionKey)
+    setProctorSessionId(null)
+    setProctorQrValue(null)
+    setProctorExpiresAt(null)
+    setMobileStatus('not_linked')
+    setMobileIncidents({})
+
+    try {
+      const res = await fetch('/api/proctor-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.sessionId) {
+        throw new Error(data.error || 'Could not create a replacement monitoring session.')
+      }
+
+      setProctorSessionId(data.sessionId)
+      setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
+      setProctorExpiresAt(data.expiresAt || null)
+      setSessionNoticeKind('replaced')
+      setShowResumeNotice(true)
+    } catch (error) {
+      console.error('Failed to recover proctor session:', error)
+      setProctoringWarning(error instanceof Error ? error.message : 'Could not recover the monitoring session.')
+    } finally {
+      sessionRecoveryRef.current = false
+    }
+  }, [moduleId, sessionKey])
+
   // BUG 1 FIX: Only reset proctoring state when moduleId changes, NOT on section navigation.
   // Also persist the active session across component re-renders so the link survives
   // a route refresh or a temporary state reset.
@@ -179,7 +217,10 @@ export default function CourseLessonPage() {
             setIsProctoringAgreed(true)
             sessionStorage.setItem(`proctor-agreed:${moduleId}`, 'true')
             const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-            if (navigation?.type === 'reload') setShowResumeNotice(true)
+            if (navigation?.type === 'reload') {
+              setSessionNoticeKind('restored')
+              setShowResumeNotice(true)
+            }
           }
         } catch (_) {
           retryRestore()
@@ -230,7 +271,7 @@ export default function CourseLessonPage() {
   }, [proctorSessionId, sessionKey])
 
   useEffect(() => {
-    if (currentSection?.section_title === 'Knowledge Check' && !proctorSessionId) {
+    if (currentSection?.section_title === 'Knowledge Check' && !proctorSessionId && !sessionRecoveryRef.current) {
       fetch('/api/proctor-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,26 +292,6 @@ export default function CourseLessonPage() {
         .catch(err => console.error('Failed to auto-init proctor session:', err))
     }
   }, [currentSection?.section_title, moduleId, proctorSessionId])
-
-  // BUG 3 FIX: Poll session status every 2s to detect pairing
-  useEffect(() => {
-    if (!proctorSessionId) return
-    if (mobileStatus === 'live' || mobileStatus === 'paired') return
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/proctor-session?sessionId=${proctorSessionId}`)
-        const data = await res.json()
-        if (data.status === 'paired' || data.status === 'active') {
-          setMobileStatus('paired')
-        }
-      } catch (err) {
-        console.error('Polling error:', err)
-      }
-    }, 2000)
-
-    return () => clearInterval(pollInterval)
-  }, [proctorSessionId, mobileStatus])
 
   useEffect(() => {
     fetch(`/api/sections?moduleId=${moduleId}`)
@@ -473,19 +494,25 @@ export default function CourseLessonPage() {
           }}
         >
           <div style={{ maxWidth: 460, borderRadius: 14, padding: 24, background: '#fff', boxShadow: '0 24px 60px rgba(0,0,0,.3)', fontFamily: 'Montserrat, sans-serif' }}>
-            <h2 id="resume-exam-title" style={{ margin: 0, color: '#0f172a', fontSize: 20 }}>Exam session restored</h2>
+            <h2 id="resume-exam-title" style={{ margin: 0, color: '#0f172a', fontSize: 20 }}>
+              {sessionNoticeKind === 'replaced' ? 'New camera link required' : 'Exam session restored'}
+            </h2>
             <p style={{ color: '#475569', fontSize: 14, lineHeight: 1.55, margin: '12px 0 8px' }}>
-              Your browser was reloaded, but you remain in the same proctoring session. A new QR code or exam session was not created.
+              {sessionNoticeKind === 'replaced'
+                ? 'Your previous monitoring session expired. A fresh QR code is now available in the Exam Integrity panel.'
+                : 'Your browser was reloaded, but you remain in the same proctoring session. A new QR code or exam session was not created.'}
             </p>
             <p style={{ color: '#b45309', fontSize: 13, lineHeight: 1.5, margin: '0 0 18px' }}>
-              Keep the LMS Mobile app open. The assessment will unlock automatically after the phone heartbeat reconnects.
+              {sessionNoticeKind === 'replaced'
+                ? 'Open LMS Mobile and scan the new QR code before continuing the assessment.'
+                : 'Keep the LMS Mobile app open. The assessment will unlock automatically after the phone heartbeat reconnects.'}
             </p>
             <button
               type="button"
               onClick={() => setShowResumeNotice(false)}
               style={{ width: '100%', border: 0, borderRadius: 9, padding: '11px 14px', background: '#1d4ed8', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
             >
-              Continue Same Session
+              {sessionNoticeKind === 'replaced' ? 'Show New QR Code' : 'Continue Same Session'}
             </button>
           </div>
         </div>
@@ -794,6 +821,7 @@ export default function CourseLessonPage() {
                   sessionId={proctorSessionId} 
                   onStatusChange={setMobileStatus} 
                   onViolation={handleMobileProctoringViolation}
+                  onSessionInvalid={handleInvalidProctorSession}
                 />
               </div>
             )}
