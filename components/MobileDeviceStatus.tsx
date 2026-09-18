@@ -31,6 +31,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const restoredIncidentTypesRef = useRef<Set<string>>(new Set())
   const incidentPollingStoppedRef = useRef(false)
   const sessionInvalidatedRef = useRef(false)
+  const startAfterSetupRef = useRef(false)
+  const startMonitoringRef = useRef<(() => Promise<void>) | null>(null)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -170,14 +172,28 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         })
         .on('broadcast', { event: 'setup_check_result' }, (message: any) => {
           const payload = message.payload || message
-          if (!payload?.requestId || payload.requestId !== setupRequestIdRef.current) return
-          if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
-          setupCheckTimerRef.current = null
-          setupRequestIdRef.current = null
+          const requestedResult = Boolean(
+            payload?.requestId && payload.requestId === setupRequestIdRef.current,
+          )
+          const phoneInitiatedResult = Boolean(
+            !payload?.requestId && payload?.sessionId === sessionId,
+          )
+          if (!requestedResult && !phoneInitiatedResult) return
+          if (requestedResult) {
+            if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+            setupCheckTimerRef.current = null
+            setupRequestIdRef.current = null
+          }
           setSetupCheck({
             state: payload.passed ? 'passed' : 'failed',
             message: payload.message || (payload.passed ? 'Setup looks good.' : 'Setup check failed.'),
           })
+          if (payload.passed && startAfterSetupRef.current) {
+            startAfterSetupRef.current = false
+            void startMonitoringRef.current?.()
+          } else if (!payload.passed) {
+            startAfterSetupRef.current = false
+          }
         })
         .on('broadcast', { event: 'ended' }, () => {
           updateStatus('technical_issue')
@@ -308,7 +324,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
   const c = config[status]
 
-  const runSetupCheck = async () => {
+  const runSetupCheck = async (startWhenPassed = false) => {
     const channel = channelRef.current
     if (!channel || !['paired', 'live'].includes(status)) {
       setSetupCheck({ state: 'failed', message: 'Link the phone and open its setup screen first.' })
@@ -316,6 +332,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     }
 
     const requestId = crypto.randomUUID()
+    startAfterSetupRef.current = startWhenPassed
     setupRequestIdRef.current = requestId
     setMonitoringStart('idle')
     setSetupCheck({ state: 'checking', message: 'Waiting for the phone camera analysis…' })
@@ -324,6 +341,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     setupCheckTimerRef.current = setTimeout(() => {
       if (setupRequestIdRef.current !== requestId) return
       setupRequestIdRef.current = null
+      startAfterSetupRef.current = false
       setSetupCheck({
         state: 'failed',
         message: 'No response from the phone. Keep the LMS Mobile setup screen open and try again.',
@@ -338,13 +356,14 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     if (response !== 'ok') {
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
       setupRequestIdRef.current = null
+      startAfterSetupRef.current = false
       setSetupCheck({ state: 'failed', message: 'Could not send the setup request to the phone.' })
     }
   }
 
   const startMonitoring = async () => {
     const channel = channelRef.current
-    if (!channel || setupCheck.state !== 'passed') return
+    if (!channel) return
 
     setMonitoringStart('starting')
     try {
@@ -373,6 +392,15 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         message: error instanceof Error ? error.message : 'Could not start monitoring.',
       })
     }
+  }
+  startMonitoringRef.current = startMonitoring
+
+  const handleStartMonitoring = () => {
+    if (setupCheck.state === 'passed') {
+      void startMonitoring()
+      return
+    }
+    void runSetupCheck(true)
   }
 
   return (
@@ -403,7 +431,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
       <button
         type="button"
-        onClick={runSetupCheck}
+        onClick={() => void runSetupCheck(false)}
         disabled={setupCheck.state === 'checking' || !['paired', 'live'].includes(status)}
         style={{
           width: '100%', border: 'none', borderRadius: 9, padding: '9px 12px',
@@ -415,24 +443,26 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         {setupCheck.state === 'checking' ? 'Checking Phone Setup…' : setupCheck.state === 'passed' ? '✓ Setup Passed — Check Again' : '📷 Check Setup'}
       </button>
 
-      {setupCheck.state === 'passed' && (
+      {['paired', 'live'].includes(status) && (
         <button
           type="button"
-          onClick={startMonitoring}
-          disabled={monitoringStart === 'starting' || monitoringStart === 'started'}
+          onClick={handleStartMonitoring}
+          disabled={setupCheck.state === 'checking' || monitoringStart === 'starting' || monitoringStart === 'started'}
           style={{
             width: '100%', border: 'none', borderRadius: 9, padding: '10px 12px',
             background: monitoringStart === 'started' ? '#16a34a' : '#0f766e', color: '#fff',
             fontSize: 12, fontWeight: 800,
-            cursor: monitoringStart === 'starting' ? 'wait' : 'pointer',
-            opacity: monitoringStart === 'starting' ? 0.75 : 1,
+            cursor: setupCheck.state === 'checking' || monitoringStart === 'starting' ? 'wait' : 'pointer',
+            opacity: setupCheck.state === 'checking' || monitoringStart === 'starting' ? 0.75 : 1,
           }}
         >
           {monitoringStart === 'starting'
-            ? 'Starting Monitoring…'
+              ? 'Starting Monitoring…'
             : monitoringStart === 'started'
               ? '✓ Monitoring Active'
-              : '▶ Start Monitoring'}
+              : setupCheck.state === 'passed'
+                ? '▶ Start Monitoring'
+                : '▶ Verify Setup & Start Monitoring'}
         </button>
       )}
 
