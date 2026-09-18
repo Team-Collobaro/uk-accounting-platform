@@ -22,7 +22,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
-  const subscribedAtRef = useRef<number | null>(null)
+  const monitoringRequestedAtRef = useRef<number | null>(null)
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pausedTimerRef = useRef<NodeJS.Timeout | null>(null)
   const setupCheckTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -44,6 +44,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     setMonitoringStart('idle')
     incidentPollingStoppedRef.current = false
     sessionInvalidatedRef.current = false
+    lastHeartbeatRef.current = null
+    monitoringRequestedAtRef.current = null
     let disposed = false
     let cleanup: (() => void) | undefined
 
@@ -221,7 +223,6 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         })
         .subscribe((subscriptionStatus) => {
           if (subscriptionStatus === 'SUBSCRIBED') {
-            subscribedAtRef.current = Date.now()
             void restoreOpenIncidents()
           } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(subscriptionStatus)) {
             updateStatus('reconnecting')
@@ -251,9 +252,12 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       // Heartbeat watchdog — check every 5 seconds
       const watchdog = setInterval(() => {
         if (lastHeartbeatRef.current === null) {
-          const subscribedAt = subscribedAtRef.current
-          if (subscribedAt) {
-            const elapsed = Date.now() - subscribedAt
+          // Placement/setup can legitimately take several minutes and the
+          // phone does not emit monitoring heartbeats until the website starts
+          // the session. Only begin heartbeat enforcement after that handoff.
+          const monitoringRequestedAt = monitoringRequestedAtRef.current
+          if (monitoringRequestedAt) {
+            const elapsed = Date.now() - monitoringRequestedAt
             if (elapsed >= 60_000) {
               updateStatus('technical_issue')
             } else if (elapsed > 15_000) {
@@ -385,6 +389,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (realtimeResponse !== 'ok') {
         throw new Error('The start request did not reach the phone.')
       }
+      monitoringRequestedAtRef.current = Date.now()
     } catch (error) {
       setMonitoringStart('failed')
       setSetupCheck({
