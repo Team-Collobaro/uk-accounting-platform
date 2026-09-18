@@ -1,7 +1,7 @@
 export const mobileAppDownload = {
-  version: '1.0.4',
+  version: '1.0.5',
   platform: 'Android 64-bit',
-  fileName: 'lms-mobile-android-arm64-beta.apk',
-  url: '/downloads/lms-mobile-android-arm64-beta.apk',
-  sha256: 'be24e2e906d543f3ba0860c53b64c625c6cacd213df9610323488979ffc0da18',
+  fileName: 'LMS-Mobile-v1.0.5.apk',
+  url: '/downloads/LMS-Mobile-v1.0.5.apk',
+  sha256: '00abb468580dace4eee435bf8ced0a353c664f434d99625c57f5becdbab49418',
 } as const
