@@ -39,6 +39,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const previewControlEnabledRef = useRef(true)
   const realtimeStatusRef = useRef<'connecting' | 'subscribed' | 'error' | 'closed'>('connecting')
   const lastPhoneSetupStatusRef = useRef<{ state: string; message: string } | null>(null)
+  const setupStageRef = useRef<{ requestId: string; stage: string; message: string } | null>(null)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -58,6 +59,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     monitoringRequestedAtRef.current = null
     realtimeStatusRef.current = 'connecting'
     lastPhoneSetupStatusRef.current = null
+    setupStageRef.current = null
     let disposed = false
     let cleanup: (() => void) | undefined
 
@@ -80,11 +82,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         if (incidentPollingStoppedRef.current) return
         try {
           const res = await fetch(`/api/proctor-session/event?sessionId=${encodeURIComponent(sessionId)}`)
-          if ([403, 404, 410].includes(res.status)) {
-            invalidateSession('The previous mobile monitoring session expired. A new QR code has been generated.')
-            return
-          }
-          if (res.status === 400) {
+          // Incident history is supplementary. The authoritative session poll
+          // below owns invalidation so an event-store or query failure cannot
+          // replace a session that is still paired to the phone.
+          if ([400, 403, 404, 410].includes(res.status)) {
             incidentPollingStoppedRef.current = true
             return
           }
@@ -196,6 +197,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
             setupCheckTimerRef.current = null
             setupRequestIdRef.current = null
+            setupStageRef.current = null
           }
           setSetupCheck({
             state: payload.passed ? 'passed' : 'failed',
@@ -208,6 +210,21 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           } else if (!payload.passed) {
             startAfterSetupRef.current = false
           }
+        })
+        .on('broadcast', { event: 'setup_check_status' }, (message: any) => {
+          const payload = message.payload || message
+          if (
+            payload?.sessionId !== sessionId ||
+            payload?.requestId !== setupRequestIdRef.current ||
+            typeof payload?.stage !== 'string'
+          ) return
+          const setupStatus = {
+            requestId: payload.requestId,
+            stage: payload.stage,
+            message: typeof payload.message === 'string' ? payload.message : 'Phone setup is processing.',
+          }
+          setupStageRef.current = setupStatus
+          setSetupCheck({ state: 'checking', message: setupStatus.message })
         })
         .on('broadcast', { event: 'preview_frame' }, (message: any) => {
           const payload = message.payload || message
@@ -253,9 +270,16 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         .subscribe((subscriptionStatus) => {
           if (subscriptionStatus === 'SUBSCRIBED') {
             realtimeStatusRef.current = 'subscribed'
+            setMobilePreviewMessage('Secure phone channel connected. Requesting camera preview…')
+            void channel.send({
+              type: 'broadcast',
+              event: 'preview_start',
+              payload: { sessionId, timestamp: new Date().toISOString() },
+            })
             void restoreOpenIncidents()
           } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(subscriptionStatus)) {
             realtimeStatusRef.current = subscriptionStatus === 'CLOSED' ? 'closed' : 'error'
+            setMobilePreviewMessage('The secure phone channel disconnected. Reconnecting…')
             updateStatus('reconnecting')
           }
         })
@@ -398,6 +422,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     const requestId = crypto.randomUUID()
     startAfterSetupRef.current = startWhenPassed
     setupRequestIdRef.current = requestId
+    setupStageRef.current = null
     setMonitoringStart('idle')
     setSetupCheck({ state: 'checking', message: 'Waiting for the phone camera analysis…' })
 
@@ -407,16 +432,29 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       setupRequestIdRef.current = null
       startAfterSetupRef.current = false
       const phoneStatus = lastPhoneSetupStatusRef.current
+      const setupStage = setupStageRef.current
       const message = realtimeStatusRef.current !== 'subscribed'
         ? 'The secure phone channel disconnected during the setup check. Reconnect the phone and try again.'
+        : !setupStage
+          ? 'The phone did not receive this setup request. Keep the latest setup screen open and confirm both devices are using the same newly scanned QR session.'
+          : setupStage.stage === 'app_background'
+            ? 'The LMS mobile app was backgrounded during the check. Return to the setup screen, keep the phone unlocked, and try again.'
+            : setupStage.stage === 'capturing'
+              ? 'The phone camera could not finish capturing a frame. Check camera permission, close other camera apps, and try again.'
+              : setupStage.stage === 'analyzing'
+                ? 'The phone received and captured the frame, but on-device analysis did not finish. Keep the phone still, close other apps, and retry.'
+                : setupStage.stage === 'syncing'
+                  ? 'The phone completed camera analysis, but the result did not synchronize back to the website. Check both internet connections and retry.'
+                  : setupStage.stage === 'received' || setupStage.stage === 'resumed'
+                    ? 'The phone received the request but did not start camera capture. Keep the setup screen open and restart the mobile setup screen if this repeats.'
         : phoneStatus?.state === 'error'
           ? `The phone reported a camera problem: ${phoneStatus.message}`
-          : 'The phone received no usable camera result within 20 seconds. Keep the setup screen open, check camera permission and lighting, then try again.'
+          : 'The phone setup check did not complete. Keep the setup screen open and try again.'
       setSetupCheck({
         state: 'failed',
         message,
       })
-    }, 20_000)
+    }, 30_000)
 
     try {
       const response = await channel.send({
@@ -429,6 +467,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
       setupCheckTimerRef.current = null
       setupRequestIdRef.current = null
+      setupStageRef.current = null
       startAfterSetupRef.current = false
       setSetupCheck({
         state: 'failed',
@@ -440,6 +479,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
       setupCheckTimerRef.current = null
       setupRequestIdRef.current = null
+      setupStageRef.current = null
       startAfterSetupRef.current = false
       setSetupCheck({
         state: 'failed',

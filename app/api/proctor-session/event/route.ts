@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const sessionId = req.nextUrl.searchParams.get('sessionId')
     if (!sessionId) return NextResponse.json({ error: 'Missing sessionId', code: 'SESSION_ID_REQUIRED', terminal: true }, { status: 400 })
 
-    const { data: session } = await supabaseAdmin
+    const { data: session, error: sessionError } = await supabaseAdmin
       .from('proctor_sessions')
       .select('id')
       .eq('id', sessionId)
@@ -24,6 +24,15 @@ export async function GET(req: NextRequest) {
       .in('status', ['pending', 'paired', 'active', 'paused'])
       .gt('session_expires_at', new Date().toISOString())
       .maybeSingle()
+
+    if (sessionError) {
+      console.error('[proctor-event] session lookup error:', sessionError)
+      return NextResponse.json({
+        error: 'Session validation is temporarily unavailable',
+        code: 'SESSION_LOOKUP_UNAVAILABLE',
+        terminal: false,
+      }, { status: 503 })
+    }
 
     if (!session) {
       return NextResponse.json({ error: 'Session not found, inactive, or forbidden', code: 'SESSION_INACTIVE', terminal: true }, { status: 403 })
