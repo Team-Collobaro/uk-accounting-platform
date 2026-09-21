@@ -21,6 +21,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const [monitoringStart, setMonitoringStart] = useState<'idle' | 'starting' | 'started' | 'failed'>('idle')
   const [mobilePreview, setMobilePreview] = useState<string | null>(null)
   const [mobilePreviewUpdatedAt, setMobilePreviewUpdatedAt] = useState<number | null>(null)
+  const [mobilePreviewMessage, setMobilePreviewMessage] = useState('Waiting for the phone to start setup preview…')
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
@@ -36,6 +37,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const startAfterSetupRef = useRef(false)
   const startMonitoringRef = useRef<(() => Promise<void>) | null>(null)
   const previewControlEnabledRef = useRef(true)
+  const realtimeStatusRef = useRef<'connecting' | 'subscribed' | 'error' | 'closed'>('connecting')
+  const lastPhoneSetupStatusRef = useRef<{ state: string; message: string } | null>(null)
 
   const updateStatus = (s: Status) => {
     setStatus(s)
@@ -47,11 +50,14 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     setMonitoringStart('idle')
     setMobilePreview(null)
     setMobilePreviewUpdatedAt(null)
+    setMobilePreviewMessage('Waiting for the phone to start setup preview…')
     previewControlEnabledRef.current = true
     incidentPollingStoppedRef.current = false
     sessionInvalidatedRef.current = false
     lastHeartbeatRef.current = null
     monitoringRequestedAtRef.current = null
+    realtimeStatusRef.current = 'connecting'
+    lastPhoneSetupStatusRef.current = null
     let disposed = false
     let cleanup: (() => void) | undefined
 
@@ -80,7 +86,6 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           }
           if (res.status === 400) {
             incidentPollingStoppedRef.current = true
-            updateStatus('technical_issue')
             return
           }
           if (!res.ok) return
@@ -196,6 +201,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             state: payload.passed ? 'passed' : 'failed',
             message: payload.message || (payload.passed ? 'Setup looks good.' : 'Setup check failed.'),
           })
+          if (payload.passed && lastHeartbeatRef.current === null) updateStatus('paired')
           if (payload.passed && startAfterSetupRef.current) {
             startAfterSetupRef.current = false
             void startMonitoringRef.current?.()
@@ -209,6 +215,16 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           if (typeof payload?.data !== 'string' || payload.data.length > 140_000) return
           setMobilePreview(`data:image/jpeg;base64,${payload.data}`)
           setMobilePreviewUpdatedAt(Date.now())
+          setMobilePreviewMessage('Low-rate mobile setup preview connected.')
+        })
+        .on('broadcast', { event: 'preview_status' }, (message: any) => {
+          const payload = message.payload || message
+          if (payload?.sessionId !== sessionId || typeof payload?.message !== 'string') return
+          lastPhoneSetupStatusRef.current = {
+            state: typeof payload.state === 'string' ? payload.state : 'unknown',
+            message: payload.message,
+          }
+          setMobilePreviewMessage(payload.message)
         })
         .on('broadcast', { event: 'ended' }, () => {
           updateStatus('technical_issue')
@@ -236,8 +252,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         })
         .subscribe((subscriptionStatus) => {
           if (subscriptionStatus === 'SUBSCRIBED') {
+            realtimeStatusRef.current = 'subscribed'
             void restoreOpenIncidents()
           } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(subscriptionStatus)) {
+            realtimeStatusRef.current = subscriptionStatus === 'CLOSED' ? 'closed' : 'error'
             updateStatus('reconnecting')
           }
         })
@@ -365,6 +383,17 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       setSetupCheck({ state: 'failed', message: 'Link the phone and open its setup screen first.' })
       return
     }
+    if (realtimeStatusRef.current !== 'subscribed') {
+      setSetupCheck({
+        state: 'failed',
+        message: 'The secure phone channel is reconnecting. Check both devices\' internet connection and try again.',
+      })
+      return
+    }
+    if (setupRequestIdRef.current) {
+      setSetupCheck({ state: 'checking', message: 'A phone camera check is already in progress…' })
+      return
+    }
 
     const requestId = crypto.randomUUID()
     startAfterSetupRef.current = startWhenPassed
@@ -377,22 +406,47 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (setupRequestIdRef.current !== requestId) return
       setupRequestIdRef.current = null
       startAfterSetupRef.current = false
+      const phoneStatus = lastPhoneSetupStatusRef.current
+      const message = realtimeStatusRef.current !== 'subscribed'
+        ? 'The secure phone channel disconnected during the setup check. Reconnect the phone and try again.'
+        : phoneStatus?.state === 'error'
+          ? `The phone reported a camera problem: ${phoneStatus.message}`
+          : 'The phone received no usable camera result within 20 seconds. Keep the setup screen open, check camera permission and lighting, then try again.'
       setSetupCheck({
         state: 'failed',
-        message: 'No response from the phone. Keep the LMS Mobile setup screen open and try again.',
+        message,
       })
-    }, 15_000)
+    }, 20_000)
 
-    const response = await channel.send({
-      type: 'broadcast',
-      event: 'setup_check_request',
-      payload: { requestId, timestamp: new Date().toISOString() },
-    })
-    if (response !== 'ok') {
+    try {
+      const response = await channel.send({
+        type: 'broadcast',
+        event: 'setup_check_request',
+        payload: { requestId, sessionId, timestamp: new Date().toISOString() },
+      })
+      if (response === 'ok') return
+
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+      setupCheckTimerRef.current = null
       setupRequestIdRef.current = null
       startAfterSetupRef.current = false
-      setSetupCheck({ state: 'failed', message: 'Could not send the setup request to the phone.' })
+      setSetupCheck({
+        state: 'failed',
+        message: response === 'timed out'
+          ? 'Supabase timed out while sending the setup request. Check both devices\' internet connection and try again.'
+          : 'Supabase rejected the setup request. Reopen the phone setup screen and try again.',
+      })
+    } catch (error) {
+      if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+      setupCheckTimerRef.current = null
+      setupRequestIdRef.current = null
+      startAfterSetupRef.current = false
+      setSetupCheck({
+        state: 'failed',
+        message: error instanceof Error
+          ? `Could not contact the phone: ${error.message}`
+          : 'Could not contact the phone because the secure channel failed.',
+      })
     }
   }
 
@@ -487,7 +541,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             />
           ) : (
             <div style={{ color: '#94a3b8', fontSize: 11, textAlign: 'center', padding: 16 }}>
-              Waiting for mobile setup preview…
+              {mobilePreviewMessage}
             </div>
           )}
           <div style={{
