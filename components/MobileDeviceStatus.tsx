@@ -22,6 +22,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const [mobilePreview, setMobilePreview] = useState<string | null>(null)
   const [mobilePreviewUpdatedAt, setMobilePreviewUpdatedAt] = useState<number | null>(null)
   const [mobilePreviewMessage, setMobilePreviewMessage] = useState('Waiting for the phone to start setup preview…')
+  const [phoneSetupReady, setPhoneSetupReady] = useState(false)
 
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
@@ -30,6 +31,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const pausedTimerRef = useRef<NodeJS.Timeout | null>(null)
   const setupCheckTimerRef = useRef<NodeJS.Timeout | null>(null)
   const setupRequestIdRef = useRef<string | null>(null)
+  const setupRequestRetryRef = useRef<NodeJS.Timeout | null>(null)
+  const lastSetupReadyAtRef = useRef<number | null>(null)
   const channelRef = useRef<any>(null)
   const restoredIncidentTypesRef = useRef<Set<string>>(new Set())
   const incidentPollingStoppedRef = useRef(false)
@@ -60,6 +63,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     realtimeStatusRef.current = 'connecting'
     lastPhoneSetupStatusRef.current = null
     setupStageRef.current = null
+    lastSetupReadyAtRef.current = null
+    setPhoneSetupReady(false)
     let disposed = false
     let cleanup: (() => void) | undefined
 
@@ -198,6 +203,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             setupCheckTimerRef.current = null
             setupRequestIdRef.current = null
             setupStageRef.current = null
+            if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
+            setupRequestRetryRef.current = null
           }
           setSetupCheck({
             state: payload.passed ? 'passed' : 'failed',
@@ -209,6 +216,15 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             void startMonitoringRef.current?.()
           } else if (!payload.passed) {
             startAfterSetupRef.current = false
+          }
+        })
+        .on('broadcast', { event: 'setup_ready' }, (message: any) => {
+          const payload = message.payload || message
+          if (payload?.sessionId !== sessionId || payload?.protocolVersion !== 2) return
+          lastSetupReadyAtRef.current = Date.now()
+          setPhoneSetupReady(true)
+          if (payload.cameraReady === false) {
+            setMobilePreviewMessage('Phone connected. Waiting for its camera to become ready…')
           }
         })
         .on('broadcast', { event: 'setup_check_status' }, (message: any) => {
@@ -224,6 +240,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             message: typeof payload.message === 'string' ? payload.message : 'Phone setup is processing.',
           }
           setupStageRef.current = setupStatus
+          if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
+          setupRequestRetryRef.current = null
           setSetupCheck({ state: 'checking', message: setupStatus.message })
         })
         .on('broadcast', { event: 'preview_frame' }, (message: any) => {
@@ -306,6 +324,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
       // Heartbeat watchdog — check every 5 seconds
       const watchdog = setInterval(() => {
+        const readyAt = lastSetupReadyAtRef.current
+        if (readyAt && Date.now() - readyAt > 10_000) setPhoneSetupReady(false)
         if (lastHeartbeatRef.current === null) {
           // Placement/setup can legitimately take several minutes and the
           // phone does not emit monitoring heartbeats until the website starts
@@ -360,6 +380,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         stopPairingPoller()
         if (pausedTimerRef.current) clearTimeout(pausedTimerRef.current)
         if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
+        if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
         channelRef.current = null
         supabase.removeChannel(channel)
       }
@@ -414,6 +435,13 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       })
       return
     }
+    if (!phoneSetupReady || !lastSetupReadyAtRef.current || Date.now() - lastSetupReadyAtRef.current > 10_000) {
+      setSetupCheck({
+        state: 'failed',
+        message: `The phone setup screen is not ready for session …${sessionId.slice(-4)}. Keep that screen open until it shows connected.`,
+      })
+      return
+    }
     if (setupRequestIdRef.current) {
       setSetupCheck({ state: 'checking', message: 'A phone camera check is already in progress…' })
       return
@@ -430,6 +458,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     setupCheckTimerRef.current = setTimeout(() => {
       if (setupRequestIdRef.current !== requestId) return
       setupRequestIdRef.current = null
+      if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
+      setupRequestRetryRef.current = null
       startAfterSetupRef.current = false
       const phoneStatus = lastPhoneSetupStatusRef.current
       const setupStage = setupStageRef.current
@@ -456,17 +486,24 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       })
     }, 30_000)
 
-    try {
-      const response = await channel.send({
+    const sendRequest = async () => channel.send({
         type: 'broadcast',
         event: 'setup_check_request',
         payload: { requestId, sessionId, timestamp: new Date().toISOString() },
       })
+    setupRequestRetryRef.current = setInterval(() => {
+      if (setupRequestIdRef.current === requestId && !setupStageRef.current) void sendRequest()
+    }, 2_000)
+
+    try {
+      const response = await sendRequest()
       if (response === 'ok') return
 
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
       setupCheckTimerRef.current = null
       setupRequestIdRef.current = null
+      if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
+      setupRequestRetryRef.current = null
       setupStageRef.current = null
       startAfterSetupRef.current = false
       setSetupCheck({
@@ -479,6 +516,8 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
       setupCheckTimerRef.current = null
       setupRequestIdRef.current = null
+      if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
+      setupRequestRetryRef.current = null
       setupStageRef.current = null
       startAfterSetupRef.current = false
       setSetupCheck({
@@ -596,16 +635,25 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       <button
         type="button"
         onClick={() => void runSetupCheck(false)}
-        disabled={setupCheck.state === 'checking' || !['paired', 'live'].includes(status)}
+        disabled={setupCheck.state === 'checking' || !['paired', 'live'].includes(status) || !phoneSetupReady}
         style={{
           width: '100%', border: 'none', borderRadius: 9, padding: '9px 12px',
           background: setupCheck.state === 'passed' ? '#16a34a' : '#2563eb', color: '#fff',
-          fontSize: 12, fontWeight: 800, cursor: setupCheck.state === 'checking' ? 'wait' : 'pointer',
-          opacity: !['paired', 'live'].includes(status) ? 0.45 : 1,
+          fontSize: 12, fontWeight: 800,
+          cursor: setupCheck.state === 'checking' ? 'wait' : phoneSetupReady ? 'pointer' : 'not-allowed',
+          opacity: !['paired', 'live'].includes(status) || !phoneSetupReady ? 0.45 : 1,
         }}
       >
         {setupCheck.state === 'checking' ? 'Checking Phone Setup…' : setupCheck.state === 'passed' ? '✓ Setup Passed — Check Again' : '📷 Check Setup'}
       </button>
+
+      {['paired', 'live'].includes(status) && (
+        <div style={{ color: phoneSetupReady ? '#5eead4' : '#fbbf24', fontSize: 10, textAlign: 'center' }}>
+          {phoneSetupReady
+            ? `Phone setup ready · Session …${sessionId.slice(-4)}`
+            : `Waiting for phone setup screen · Session …${sessionId.slice(-4)}`}
+        </div>
+      )}
 
       {['paired', 'live'].includes(status) && (
         <button
