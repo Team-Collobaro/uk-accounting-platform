@@ -145,7 +145,11 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           updateStatus('degraded')
         })
         .on('broadcast', { event: 'error' }, () => {
-          updateStatus('technical_issue')
+          if (monitoringRequestedAtRef.current || lastHeartbeatRef.current) {
+            updateStatus('technical_issue')
+          } else {
+            setMobilePreviewMessage('The phone reported a setup camera problem. Keep the setup screen open and retry the preview.')
+          }
         })
         .on('broadcast', { event: 'second_phone' }, (payload: any) => {
           onViolation?.(true, payload.payload?.description || 'Secondary phone detected', 'second_phone', 'hard')
@@ -223,6 +227,9 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           if (payload?.sessionId !== sessionId || payload?.protocolVersion !== 2) return
           lastSetupReadyAtRef.current = Date.now()
           setPhoneSetupReady(true)
+          if (!monitoringRequestedAtRef.current && lastHeartbeatRef.current === null) {
+            updateStatus('paired')
+          }
           if (payload.cameraReady === false) {
             setMobilePreviewMessage('Phone connected. Waiting for its camera to become ready…')
           }
@@ -655,7 +662,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         </div>
       )}
 
-      {['paired', 'live'].includes(status) && (
+      {(setupCheck.state === 'passed' || ['paired', 'live'].includes(status)) && (
         <button
           type="button"
           onClick={handleStartMonitoring}
