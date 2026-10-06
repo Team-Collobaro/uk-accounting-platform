@@ -35,6 +35,26 @@ export default async function VerifyPage({ params }: { params: { id: string } })
     )
   }
 
+  if (!certificate.isValid) {
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center border border-red-100">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <XCircle size={32} className="text-red-600" />
+          </div>
+          <p className="text-red-600 text-xs font-semibold uppercase tracking-widest mb-2">Not valid</p>
+          <h1 className="text-xl font-bold text-slate-800 mb-2">Certificate Revoked</h1>
+          <p className="text-slate-500 text-sm">
+            This certificate exists, but it is no longer valid. Contact the course administrator if you believe this is an error.
+          </p>
+          <p className="font-mono text-xs text-slate-500 bg-slate-50 rounded-lg py-2 px-4 mt-5 break-all">
+            {certificate.verificationCode}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden">

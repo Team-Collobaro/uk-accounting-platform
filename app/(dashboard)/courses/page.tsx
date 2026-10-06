@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -71,15 +72,33 @@ const MODULE_TITLES: Record<string, string> = {
 
 export default function CoursesPage() {
   const router = useRouter()
+  const [completedModules, setCompletedModules] = useState<Set<string>>(new Set())
+  const [nextModule, setNextModule] = useState('m01')
+
+  useEffect(() => {
+    fetch('/api/progress')
+      .then((response) => response.ok ? response.json() : null)
+      .then((progress) => {
+        if (!progress) return
+        setCompletedModules(new Set(progress.completedModules ?? []))
+        setNextModule(progress.nextRecommendedModule ?? 'm01')
+      })
+      .catch(() => {/* Module APIs still enforce prerequisites. */})
+  }, [])
+
+  const canOpen = (moduleId: string) => {
+    const number = Number(moduleId.slice(1))
+    if (number === 1) return true
+    return completedModules.has(`m${String(number - 1).padStart(2, '0')}`)
+  }
 
   return (
     <div style={{ padding: '0 0 80px', fontFamily: '"Charter", "Georgia", serif' }}>
 
       {/* ── Part header banner ── */}
-      <div style={{
+      <div className="px-6 py-10 md:px-16 md:py-12" style={{
         background: 'linear-gradient(135deg, var(--bg-dark) 0%, #0f172a 100%)',
         color: '#fff',
-        padding: '48px 64px',
         borderLeft: '6px solid var(--accent)',
         position: 'relative',
       }}>
@@ -119,7 +138,7 @@ export default function CoursesPage() {
 
         <button
           id="begin-course-btn"
-          onClick={() => router.push('/course/m01')}
+          onClick={() => router.push(`/course/${nextModule}`)}
           style={{
             display: 'inline-block', marginTop: 28,
             background: 'var(--accent)', color: '#fff',
@@ -130,39 +149,43 @@ export default function CoursesPage() {
           onMouseOver={e => e.currentTarget.style.background = '#991b1b'}
           onMouseOut={e => e.currentTarget.style.background = 'var(--accent)'}
         >
-          Begin with Module 1 →
+          {nextModule === 'm01' ? 'Begin with Module 1 →' : `Continue with ${nextModule.toUpperCase()} →`}
         </button>
       </div>
 
       {/* ── Master Table of Contents ── */}
-      <div style={{ padding: '40px 64px 0' }}>
+      <div className="px-6 pt-10 md:px-16">
         <div className="master-toc">
           <h2 style={{ margin: '0 0 24px', fontSize: 22, color: 'var(--accent-2)', borderBottom: '2px solid var(--line-soft)', paddingBottom: 14 }}>
             Full Curriculum
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0 48px' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12">
             {PARTS.map(part => (
               <div key={part.number} style={{ breakInside: 'avoid', marginBottom: 20 }}>
                 <div className="toc-part-label">
                   Part {part.number} — {part.title}
                 </div>
                 <ul style={{ listStyle: 'none', padding: '0 0 0 12px', margin: 0 }}>
-                  {part.modules.map(mod => (
-                    <li key={mod} style={{ padding: '2px 0', fontSize: 13 }}>
+                  {part.modules.map(mod => {
+                    const accessible = canOpen(mod)
+                    return (
+                    <li key={mod} style={{ padding: '2px 0', fontSize: 13, opacity: accessible ? 1 : 0.5 }}>
                       <Link
                         href={`/course/${mod}`}
-                        style={{ color: 'var(--ink)', textDecoration: 'none', transition: 'color 0.15s' }}
-                        onMouseOver={e => e.currentTarget.style.color = 'var(--accent)'}
+                        aria-disabled={!accessible}
+                        onClick={(event) => { if (!accessible) event.preventDefault() }}
+                        style={{ color: 'var(--ink)', textDecoration: 'none', transition: 'color 0.15s', cursor: accessible ? 'pointer' : 'not-allowed' }}
+                        onMouseOver={e => { if (accessible) e.currentTarget.style.color = 'var(--accent)' }}
                         onMouseOut={e => e.currentTarget.style.color = 'var(--ink)'}
                       >
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.04em', marginRight: 6 }}>
                           {mod.toUpperCase()}
                         </span>
-                        {MODULE_TITLES[mod]}
+                        {MODULE_TITLES[mod]} {!accessible && <span aria-label="Locked">· 🔒</span>}
                       </Link>
                     </li>
-                  ))}
+                  )})}
                 </ul>
               </div>
             ))}

@@ -19,13 +19,14 @@ export default function RegisterPage() {
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState('')
   const [success,   setSuccess]   = useState(false)
+  const [confirmationRequired, setConfirmationRequired] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -38,10 +39,20 @@ export default function RegisterPage() {
         }
       })
       if (signUpError) { setError(signUpError.message); return }
-      
+
       try { localStorage.setItem('uk_acct_email', email) } catch { /* ignore */ }
+      if (signUpData.session) {
+        const profileResponse = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: `${firstName.trim()} ${lastName.trim()}`.trim() }),
+        })
+        if (!profileResponse.ok) console.warn('Student profile will be created on first sign-in')
+      } else {
+        setConfirmationRequired(true)
+      }
       setSuccess(true)
-      setTimeout(() => { router.push('/dashboard') }, 2000)
+      if (signUpData.session) setTimeout(() => { router.push('/dashboard') }, 2000)
     } catch {
       setError('An unexpected error occurred. Please try again.')
     } finally {
@@ -69,10 +80,19 @@ export default function RegisterPage() {
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
           <ArrowRight size={32} color="#fff" />
         </div>
-        <h2 style={{ fontWeight: 800, color: '#1A365D', marginBottom: 12, fontSize: 24 }}>Account Created</h2>
+        <h2 style={{ fontWeight: 800, color: '#1A365D', marginBottom: 12, fontSize: 24 }}>
+          {confirmationRequired ? 'Confirm Your Email' : 'Account Created'}
+        </h2>
         <p style={{ color: '#6b6b6b', lineHeight: 1.6, fontSize: 15 }}>
-          Welcome to UKATI. We're redirecting you to your dashboard to begin your journey.
+          {confirmationRequired
+            ? `We sent a confirmation link to ${email}. Open it to activate your account, then sign in.`
+            : `Welcome to UKATI. We're redirecting you to your dashboard to begin your journey.`}
         </p>
+        {confirmationRequired && (
+          <Link href="/login" style={{ display: 'inline-block', marginTop: 20, color: '#1A365D', fontWeight: 700, textDecoration: 'none' }}>
+            Go to sign in →
+          </Link>
+        )}
       </motion.div>
     )
   }

@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@/lib/supabase'
 import { Users, TrendingUp, Award, Download, Plus, Crown } from 'lucide-react'
 import type { TeamMember } from '@/types'
 
 interface EmployerData {
   id: string
-  company_name: string
+  companyName: string
   plan: 'starter' | 'growth' | 'enterprise'
   seats: number
-  used_seats: number
-  team_members: string[]
+  usedSeats: number
+}
+
+interface PortalTeamMember extends TeamMember {
+  status: 'active' | 'invited'
 }
 
 const PLAN_COLORS = {
@@ -20,79 +22,62 @@ const PLAN_COLORS = {
   enterprise: 'bg-violet-100 text-violet-700',
 }
 
-const PLAN_SEATS = { starter: 5, growth: 20, enterprise: 50 }
-
 export default function EmployerPage() {
-  const supabase = createClientComponentClient()
   const [employer, setEmployer] = useState<EmployerData | null>(null)
-  const [team, setTeam] = useState<TeamMember[]>([])
+  const [team, setTeam] = useState<PortalTeamMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: emp } = await supabase
-        .from('employers')
-        .select('*')
-        .eq('email', user.email)
-        .single()
-
-      if (emp) {
-        setEmployer(emp as EmployerData)
-
-        // Load team member details
-        if (emp.team_members?.length > 0) {
-          const { data: members } = await supabase
-            .from('students')
-            .select('id, name, email, completed_modules, avg_quiz_score, created_at')
-            .in('id', emp.team_members)
-
-          const { data: certs } = await supabase
-            .from('certificates')
-            .select('student_id')
-            .in('student_id', emp.team_members)
-
-          const certSet = new Set((certs ?? []).map((c: { student_id: string }) => c.student_id))
-
-          setTeam(
-            (members ?? []).map((m: {
-              id: string; name: string; email: string
-              completed_modules: string[]; avg_quiz_score: number; created_at: string
-            }) => ({
-              id: m.id,
-              name: m.name,
-              email: m.email,
-              enrolledAt: m.created_at,
-              completedModules: (m.completed_modules ?? []).length,
-              avgScore: Math.round(m.avg_quiz_score ?? 0),
-              certificateEarned: certSet.has(m.id),
-            }))
-          )
+      try {
+        const response = await fetch('/api/employer', { cache: 'no-store' })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load employer portal')
+        if (!cancelled) {
+          setEmployer(data.employer as EmployerData)
+          setTeam(data.team as PortalTeamMember[])
         }
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Unable to load employer portal')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      setLoading(false)
     }
-    load()
-  }, [supabase])
+    void load()
+    return () => { cancelled = true }
+  }, [])
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     setInviting(true)
     setInviteMsg('')
 
-    const { error } = await supabase.auth.admin.inviteUserByEmail(inviteEmail)
-    if (error) {
-      setInviteMsg(`Error: ${error.message}`)
-    } else {
-      setInviteMsg(`Invitation sent to ${inviteEmail}`)
+    try {
+      const response = await fetch('/api/employer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to send invitation')
+      setInviteMsg(data.message)
       setInviteEmail('')
+      const refreshed = await fetch('/api/employer', { cache: 'no-store' })
+      if (refreshed.ok) {
+        const refreshedData = await refreshed.json()
+        setEmployer(refreshedData.employer as EmployerData)
+        setTeam(refreshedData.team as PortalTeamMember[])
+      }
+    } catch (error) {
+      setInviteMsg(`Error: ${error instanceof Error ? error.message : 'Unable to send invitation'}`)
+    } finally {
+      setInviting(false)
     }
-    setInviting(false)
   }
 
   function downloadCSV() {
@@ -101,11 +86,18 @@ export default function EmployerPage() {
       m.name, m.email, new Date(m.enrolledAt).toLocaleDateString('en-GB'),
       m.completedModules, m.avgScore + '%', m.certificateEarned ? 'Yes' : 'No',
     ])
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
+    const csvCell = (value: string | number) => {
+      let text = String(value)
+      if (/^[=+\-@]/.test(text)) text = `'${text}`
+      return `"${text.replace(/"/g, '""')}"`
+    }
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    a.href = url
     a.download = `team-report-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
+    URL.revokeObjectURL(url)
   }
 
   if (loading) {
@@ -120,11 +112,11 @@ export default function EmployerPage() {
     return (
       <div className="max-w-md mx-auto mt-20 text-center space-y-4">
         <Crown size={40} className="text-slate-300 mx-auto" />
-        <h2 className="text-xl font-bold text-slate-700">No employer account found</h2>
-        <p className="text-slate-500 text-sm">Please upgrade to an employer plan to access team management.</p>
-        <button className="px-5 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">
-          View plans
-        </button>
+        <h2 className="text-xl font-bold text-slate-700">Employer portal unavailable</h2>
+        <p className="text-slate-500 text-sm">{loadError || 'No employer account is linked to this signed-in user.'}</p>
+        <a href="/" className="inline-block px-5 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 transition">
+          Return home
+        </a>
       </div>
     )
   }
@@ -138,11 +130,11 @@ export default function EmployerPage() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">{employer.company_name}</h1>
+          <h1 className="text-2xl font-bold text-slate-800">{employer.companyName}</h1>
           <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mt-1 capitalize ${PLAN_COLORS[employer.plan]}`}>
-            {employer.plan} plan · {employer.used_seats}/{PLAN_SEATS[employer.plan]} seats
+            {employer.plan} plan · {employer.usedSeats}/{employer.seats} seats
           </span>
         </div>
         <button
@@ -178,7 +170,7 @@ export default function EmployerPage() {
         <h2 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
           <Plus size={18} className="text-brand-600" /> Invite team member
         </h2>
-        <form onSubmit={handleInvite} className="flex gap-3">
+        <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
           <input
             type="email"
             value={inviteEmail}
@@ -225,7 +217,10 @@ export default function EmployerPage() {
               {team.map(member => (
                 <tr key={member.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-800">{member.name}</td>
-                  <td className="px-4 py-3 text-slate-500">{member.email}</td>
+                  <td className="px-4 py-3 text-slate-500">
+                    <div>{member.email}</div>
+                    {member.status === 'invited' && <span className="text-xs text-amber-600">Invitation pending</span>}
+                  </td>
                   <td className="px-4 py-3 text-slate-500">{new Date(member.enrolledAt).toLocaleDateString('en-GB')}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

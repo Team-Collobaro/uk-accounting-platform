@@ -67,8 +67,11 @@ export interface QuizQuestion {
   topic: string
 }
 
+export type PublicQuizQuestion = Pick<QuizQuestion, 'id' | 'question' | 'options'>
+
 export interface QuizResult {
   id: string
+  attemptId?: string
   moduleId: string
   studentId: string
   score: number
@@ -76,6 +79,7 @@ export interface QuizResult {
   percentage: number
   passed: boolean
   weakAreas: string[]
+  answers?: Record<string, string>
   completedAt: string
 }
 

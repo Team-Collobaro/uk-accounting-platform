@@ -6,10 +6,12 @@
 drop table if exists section_progress cascade;
 drop table if exists token_usage cascade;
 drop table if exists quiz_results cascade;
+drop table if exists quiz_attempts cascade;
 drop table if exists module_progress cascade;
 drop table if exists certificates cascade;
 drop table if exists tutor_sessions cascade;
 drop table if exists course_chunks cascade;
+drop table if exists employer_invites cascade;
 drop table if exists employers cascade;
 drop table if exists students cascade;
 
@@ -59,9 +61,26 @@ create table tutor_sessions (
   updated_at timestamptz default now()
 );
 
+-- ─── QUIZ ATTEMPTS ────────────────────────────────────────────────────────────
+create table quiz_attempts (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references auth.users(id) on delete cascade,
+  module_id text not null check (module_id ~ '^m(0[1-9]|[1-7][0-9]|8[0-7])$'),
+  questions jsonb not null check (jsonb_typeof(questions) = 'array' and jsonb_array_length(questions) > 0),
+  status text not null default 'active' check (status in ('active', 'submitted', 'expired')),
+  expires_at timestamptz not null default (now() + interval '45 minutes'),
+  submitted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index quiz_attempts_student_created_idx on quiz_attempts(student_id, created_at desc);
+create unique index quiz_attempts_one_active_per_module_idx
+  on quiz_attempts(student_id, module_id) where status = 'active';
+
 -- ─── QUIZ RESULTS ─────────────────────────────────────────────────────────────
 create table quiz_results (
   id uuid primary key default gen_random_uuid(),
+  attempt_id uuid unique references quiz_attempts(id),
   student_id uuid references students(id) on delete cascade,
   module_id text not null,
   score integer not null,
@@ -118,6 +137,7 @@ create table certificates (
 -- ─── EMPLOYERS ────────────────────────────────────────────────────────────────
 create table employers (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid unique references auth.users(id) on delete restrict,
   company_name text not null,
   email text unique not null,
   plan text default 'starter',
@@ -128,6 +148,19 @@ create table employers (
   team_members uuid[] default '{}',
   created_at timestamptz default now()
 );
+
+create table employer_invites (
+  id uuid primary key default gen_random_uuid(),
+  employer_id uuid not null references employers(id) on delete cascade,
+  email text not null check (email = lower(email) and length(email) between 3 and 320),
+  auth_user_id uuid references auth.users(id) on delete set null,
+  status text not null default 'pending' check (status in ('pending', 'invited', 'accepted', 'failed', 'revoked')),
+  invited_at timestamptz not null default now(),
+  accepted_at timestamptz,
+  unique(employer_id, email)
+);
+
+create index employer_invites_employer_status_idx on employer_invites(employer_id, status, invited_at desc);
 
 -- ─── TOKEN USAGE ──────────────────────────────────────────────────────────────
 create table token_usage (
@@ -144,21 +177,29 @@ create table token_usage (
 -- ─── ROW LEVEL SECURITY ───────────────────────────────────────────────────────
 alter table students enable row level security;
 alter table tutor_sessions enable row level security;
+alter table quiz_attempts enable row level security;
 alter table quiz_results enable row level security;
 alter table module_progress enable row level security;
 alter table section_progress enable row level security;
 alter table certificates enable row level security;
 alter table token_usage enable row level security;
 alter table course_chunks enable row level security;
+alter table employers enable row level security;
+alter table employer_invites enable row level security;
 
 -- ─── POLICIES ─────────────────────────────────────────────────────────────────
 create policy "Students can view own data" on students for select using (auth.uid() = id);
-create policy "Students can update own data" on students for update using (auth.uid() = id);
-create policy "Students can insert own data" on students for insert with check (auth.uid() = id);
 create policy "Students can view own sessions" on tutor_sessions for all using (auth.uid() = student_id);
-create policy "Students can view own quiz results" on quiz_results for all using (auth.uid() = student_id);
-create policy "Students can view own progress" on module_progress for all using (auth.uid() = student_id);
+create policy "Students can view own quiz results" on quiz_results for select using (auth.uid() = student_id);
+create policy "Students can view own progress" on module_progress for select using (auth.uid() = student_id);
 create policy "Students can manage own section progress" on section_progress for all using (auth.uid() = student_id);
 create policy "Certificates are public for verification" on certificates for select using (true);
 create policy "Students can view own token usage" on token_usage for select using (auth.uid() = student_id);
 create policy "Course chunks are public" on course_chunks for select using (true);
+
+revoke all on table quiz_attempts from anon, authenticated;
+revoke insert, update, delete on table quiz_results from anon, authenticated;
+revoke insert, update, delete on table module_progress from anon, authenticated;
+revoke insert, update on table students from anon, authenticated;
+revoke all on table employers, employer_invites from anon, authenticated;
+grant all on table quiz_attempts, quiz_results, module_progress, students, employers, employer_invites to service_role;

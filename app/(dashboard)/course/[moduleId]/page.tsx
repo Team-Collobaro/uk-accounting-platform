@@ -32,6 +32,7 @@ import ProctoringCamera from '@/components/ProctoringCamera'
 import MobileDeviceStatus from '@/components/MobileDeviceStatus'
 import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
 import DevProctoringToolbar from '@/components/DevProctoringToolbar'
+import SecureQuiz from '@/components/SecureQuiz'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
 import { initAnimFactory } from '@/lib/animFactory'
 import { mobileAppDownload } from '@/lib/mobileAppDownload'
@@ -46,6 +47,8 @@ export default function CourseLessonPage() {
   const [currentIdx, setCurrentIdx] = useState(0)
   const currentSection = moduleData?.sections[currentIdx]
   const [contentHtml, setContentHtml] = useState('')
+  const [quizPassed, setQuizPassed] = useState(false)
+  const [lockedByModule, setLockedByModule] = useState<string | null>(null)
 
   const [isViolatingProctoring, setIsViolatingProctoring] = useState(false)
   const [proctoringWarning, setProctoringWarning] = useState('')
@@ -294,9 +297,29 @@ export default function CourseLessonPage() {
   }, [currentSection?.section_title, moduleId, proctorSessionId])
 
   useEffect(() => {
+    let cancelled = false
+    setQuizPassed(false)
+    fetch('/api/progress')
+      .then((response) => response.ok ? response.json() : null)
+      .then((progress) => {
+        if (!cancelled && progress?.completedModules?.includes(moduleId)) setQuizPassed(true)
+      })
+      .catch(() => {/* The assessment remains available if progress cannot be loaded. */})
+    return () => { cancelled = true }
+  }, [moduleId])
+
+  useEffect(() => {
+    setLoading(true)
+    setModuleData(null)
+    setLockedByModule(null)
     fetch(`/api/sections?moduleId=${moduleId}`)
-      .then(res => res.json())
-      .then(data => {
+      .then(async (res) => ({ ok: res.ok, status: res.status, data: await res.json() }))
+      .then(({ ok, status, data }) => {
+        if (!ok) {
+          if (status === 403) setLockedByModule(data.prerequisite ?? 'the previous module')
+          setLoading(false)
+          return
+        }
         if (data.sections && data.sections.length > 0) {
           setModuleData(data)
           const storedSectionId = sessionStorage.getItem(sectionKey)
@@ -315,6 +338,10 @@ export default function CourseLessonPage() {
     try {
       const res = await fetch(`/api/section-content?moduleId=${mId}&sectionId=${sId}`)
       const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 403) setLockedByModule(data.prerequisite ?? 'the previous module')
+        throw new Error(data.error || 'Unable to load section')
+      }
       setContentHtml(data.content || '<p>No content available.</p>')
     } catch (err) {
       console.error(err)
@@ -356,7 +383,8 @@ export default function CourseLessonPage() {
     try {
       const currentSection = moduleData!.sections[currentIdx]
       if (!currentSection) return
-      await fetch('/api/progress', {
+      if (currentSection.section_title === 'Knowledge Check' && !quizPassed) return
+      const response = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -366,73 +394,13 @@ export default function CourseLessonPage() {
           status: 'completed',
         }),
       })
+      if (!response.ok) throw new Error('Unable to save section progress')
       window.dispatchEvent(new Event('progress-updated'))
       handleNext()
     } catch (err) {
       console.error('Failed to mark done', err)
     }
   }
-
-  // Handle Knowledge Check MCQ clicks via event delegation
-  useEffect(() => {
-    if (!contentHtml) return
-    
-    const handleQuizClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.classList.contains('opt')) return
-      
-      const q = target.closest('.quiz-q') as HTMLElement
-      if (!q || q.dataset.answered === 'yes') return
-      
-      q.dataset.answered = 'yes'
-      const isCorrect = target.dataset.correct === 'true'
-      target.classList.add(isCorrect ? 'correct' : 'wrong')
-      
-      if (!isCorrect) {
-        const correctOpt = q.querySelector('.opt[data-correct="true"]')
-        if (correctOpt) correctOpt.classList.add('correct')
-      }
-      
-      q.querySelectorAll('.opt').forEach(o => o.classList.add('disabled'))
-      
-      const fb = q.querySelector('.feedback')
-      if (fb) fb.classList.add('show')
-      
-      const block = q.closest('.quiz-block') as HTMLElement
-      if (block) {
-        const qs = block.querySelectorAll('.quiz-q')
-        const total = qs.length
-        let answered = 0, correctCount = 0
-        qs.forEach((question: any) => {
-          if (question.dataset.answered === 'yes') {
-            answered++
-            if (question.querySelector('.opt.correct') && !question.querySelector('.opt.wrong')) {
-              correctCount++
-            }
-          }
-        })
-        
-        if (answered === total) {
-          const res = block.querySelector('.quiz-result')
-          if (res) {
-            res.classList.add('show')
-            res.innerHTML = `You scored <strong>${correctCount} / ${total}</strong>` +
-              (correctCount === total ? ' &mdash; perfect, move on to the next module.' :
-                correctCount >= total * 0.7 ? ' &mdash; good, but review the items you missed.' :
-                  ' &mdash; please re-read this module before progressing.')
-          }
-        }
-      }
-    }
-    
-    const container = document.getElementById('lesson-body')
-    if (container) {
-      container.addEventListener('click', handleQuizClick)
-    }
-    return () => {
-      if (container) container.removeEventListener('click', handleQuizClick)
-    }
-  }, [contentHtml])
 
   // Handle AnimFactory initialization and extraction
   useEffect(() => {
@@ -466,6 +434,27 @@ export default function CourseLessonPage() {
       }
     }
   }, [contentHtml])
+
+  if (lockedByModule) {
+    return (
+      <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 520, textAlign: 'center', padding: 32, border: '1px solid var(--line-soft)', borderRadius: 14, background: 'var(--bg-alt)' }}>
+          <div style={{ fontSize: 34, marginBottom: 12 }} aria-hidden="true">🔒</div>
+          <h1 style={{ margin: '0 0 10px', color: 'var(--ink)' }}>Module locked</h1>
+          <p style={{ color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+            Pass the {lockedByModule.toUpperCase()} knowledge check with 70% or more before opening this module.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push(`/course/${lockedByModule}`)}
+            style={{ marginTop: 14, border: 0, borderRadius: 8, padding: '11px 18px', background: 'var(--accent-2)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Go to {lockedByModule.toUpperCase()}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (!moduleData && !loading) {
     return <div style={{ padding: 40, textAlign: 'center' }}>Module content not found.</div>
@@ -536,17 +525,19 @@ export default function CourseLessonPage() {
           </div>
           <button
             onClick={handleMarkDone}
+            disabled={currentSection?.section_title === 'Knowledge Check' && !quizPassed}
             style={{
               background: 'var(--accent-3)', color: '#fff', border: 'none',
               padding: '7px 16px', borderRadius: 4, fontSize: 12.5, fontWeight: 700,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              cursor: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
               fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+              opacity: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 0.5 : 1,
             }}
             onMouseOver={e => e.currentTarget.style.background = '#166534'}
             onMouseOut={e => e.currentTarget.style.background = 'var(--accent-3)'}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            Mark Done
+            {currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 'Assessment required' : 'Mark Done'}
           </button>
         </div>
       </div>
@@ -713,9 +704,11 @@ export default function CourseLessonPage() {
                       proctoringWarning={hardMobileIncident ? `📱 Mobile Camera: ${hardMobileIncident[1].message}` : proctoringWarning}
                       sessionId={proctorSessionId || undefined}
                     >
-                      <div 
-                        className="section-content-html"
-                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} 
+                      <SecureQuiz
+                        moduleId={moduleId}
+                        moduleTitle={moduleData?.module_title || `Module ${moduleNumber}`}
+                        alreadyPassed={quizPassed}
+                        onPassed={() => setQuizPassed(true)}
                       />
                     </AntiCheatWrapper>
                   )
@@ -786,15 +779,19 @@ export default function CourseLessonPage() {
         <button
           id="btn-next"
           onClick={handleMarkDone}
+          disabled={currentSection?.section_title === 'Knowledge Check' && !quizPassed}
           style={{
             background: 'var(--accent-2)', color: '#fff', border: 'none',
             padding: '9px 24px', borderRadius: 4, fontSize: 14, fontWeight: 700,
-            cursor: 'pointer', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+            cursor: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 'not-allowed' : 'pointer', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+            opacity: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 0.5 : 1,
           }}
           onMouseOver={e => e.currentTarget.style.background = '#1e3a8a'}
           onMouseOut={e => e.currentTarget.style.background = 'var(--accent-2)'}
         >
-          {currentIdx === (moduleData?.sections.length || 0) - 1 ? 'Finish Module →' : 'Continue →'}
+          {currentSection?.section_title === 'Knowledge Check' && !quizPassed
+            ? 'Pass assessment to continue'
+            : currentIdx === (moduleData?.sections.length || 0) - 1 ? 'Finish Module →' : 'Continue →'}
         </button>
       </div>
     </div>

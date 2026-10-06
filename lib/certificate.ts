@@ -5,25 +5,32 @@ const TOTAL_MODULES = 87
 const PASS_THRESHOLD = 70
 
 export async function isEligible(studentId: string): Promise<boolean> {
-  const { data: student } = await supabaseAdmin
-    .from('students')
-    .select('completed_modules')
-    .eq('id', studentId)
-    .single()
+  const { data: progress, error: progressError } = await supabaseAdmin
+    .from('module_progress')
+    .select('module_id')
+    .eq('student_id', studentId)
+    .eq('status', 'completed')
 
-  if (!student) return false
-  const completed: string[] = student.completed_modules ?? []
-  if (completed.length < TOTAL_MODULES) return false
+  if (progressError) throw progressError
+  const completed = new Set(
+    (progress ?? [])
+      .map((row: { module_id: string }) => row.module_id)
+      .filter((moduleId: string) => /^m(?:0[1-9]|[1-7][0-9]|8[0-7])$/.test(moduleId))
+  )
+  if (completed.size < TOTAL_MODULES) return false
 
-  // Check final module (m87) quiz passed with >= 70%
+  // Any qualifying final-module pass remains valid; a voluntary retake should
+  // not erase an earlier pass.
   const { data: finalQuiz } = await supabaseAdmin
     .from('quiz_results')
     .select('percentage, passed')
     .eq('student_id', studentId)
     .eq('module_id', 'm87')
+    .eq('passed', true)
+    .gte('percentage', PASS_THRESHOLD)
     .order('completed_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (!finalQuiz) return false
   return finalQuiz.passed && Number(finalQuiz.percentage) >= PASS_THRESHOLD

@@ -16,23 +16,15 @@ export async function POST(req: NextRequest) {
 
     const student = await getStudent(user.id)
 
-    // Check all 87 modules completed
-    if (student.completedModules.length < 87) {
-      return NextResponse.json(
-        {
-          error: 'Not yet eligible',
-          completed: student.completedModules.length,
-          required: 87,
-        },
-        { status: 403 }
-      )
-    }
-
-    // Check final exam eligibility
+    // Eligibility is derived from server-owned module progress and the final quiz.
     const eligible = await isEligible(user.id)
     if (!eligible) {
       return NextResponse.json(
-        { error: 'Final module quiz must be passed with 70% or above' },
+        {
+          error: 'All 87 modules and the final module quiz (70% or above) are required',
+          completed: student.completedModules.length,
+          required: 87,
+        },
         { status: 403 }
       )
     }
@@ -42,10 +34,14 @@ export async function POST(req: NextRequest) {
       .from('certificates')
       .select('*')
       .eq('student_id', user.id)
+      .order('completion_date', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (existing) {
+      if (!existing.is_valid) {
+        return NextResponse.json({ error: 'The existing certificate has been revoked' }, { status: 403 })
+      }
       return NextResponse.json({ certificate: existing, alreadyIssued: true })
     }
 
@@ -82,6 +78,7 @@ export async function GET(req: NextRequest) {
       .from('certificates')
       .select('*')
       .eq('student_id', user.id)
+      .eq('is_valid', true)
 
     return NextResponse.json({ certificates: certificates ?? [] })
   } catch (err) {

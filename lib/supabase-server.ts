@@ -218,6 +218,7 @@ export async function saveQuizResult(
   result: Partial<QuizResult>
 ): Promise<QuizResult> {
   const mapped: Record<string, unknown> = {
+    attempt_id: result.attemptId,
     student_id: result.studentId,
     module_id: result.moduleId,
     score: result.score,
@@ -225,6 +226,7 @@ export async function saveQuizResult(
     percentage: result.percentage,
     passed: result.passed,
     weak_areas: result.weakAreas ?? [],
+    answers: result.answers ?? {},
   }
 
   const { data, error } = await supabaseAdmin
@@ -237,6 +239,7 @@ export async function saveQuizResult(
 
   return {
     id: data.id,
+    attemptId: data.attempt_id ?? undefined,
     moduleId: data.module_id,
     studentId: data.student_id,
     score: data.score,
@@ -244,6 +247,7 @@ export async function saveQuizResult(
     percentage: data.percentage,
     passed: data.passed,
     weakAreas: data.weak_areas ?? [],
+    answers: data.answers ?? {},
     completedAt: data.completed_at,
   }
 }

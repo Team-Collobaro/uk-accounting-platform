@@ -5,6 +5,8 @@ import { tutorStream } from '@/lib/anthropic'
 import { logUsage } from '@/lib/costTracker'
 import { calculateCost } from '@/lib/costTracker'
 import type { ChatMessage } from '@/types'
+import { canAccessModule, previousModuleId } from '@/lib/course-access'
+import { MODULE_ID_PATTERN } from '@/lib/quiz-security'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,8 +40,14 @@ export async function POST(req: NextRequest) {
 
     const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase } = body
 
-    if (!message || !moduleId) {
+    if (!message || !MODULE_ID_PATTERN.test(moduleId ?? '') || message.length > 8_000) {
       return NextResponse.json({ error: 'message and moduleId are required' }, { status: 400 })
+    }
+    if (!await canAccessModule(user.id, moduleId)) {
+      return NextResponse.json(
+        { error: 'Complete the previous module assessment first', prerequisite: previousModuleId(moduleId) },
+        { status: 403 }
+      )
     }
 
     // Load student profile
