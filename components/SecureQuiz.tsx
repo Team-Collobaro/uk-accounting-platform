@@ -110,8 +110,8 @@ export default function SecureQuiz({ moduleId, moduleTitle, alreadyPassed, onPas
             <h3 style={{ margin: '8px 0 10px', fontSize: 24 }}>{alreadyPassed ? 'Module already passed' : 'Ready to begin?'}</h3>
             <p style={{ color: 'var(--ink-soft)', lineHeight: 1.6, marginBottom: 22 }}>
               {alreadyPassed
-                ? 'Your module completion is saved. You may retake this 10-question assessment for practice.'
-                : 'You will answer 10 questions in a 45-minute attempt. Score 70% or more to complete this module.'}
+                ? 'Your module completion is saved. You may retake this assessment for practice.'
+                : 'Answer the multiple-choice questions in a 45-minute attempt. Score 70% or more to complete this module.'}
             </p>
           </>
         )}

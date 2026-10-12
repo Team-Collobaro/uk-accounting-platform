@@ -45,6 +45,7 @@ export default function CourseLessonPage() {
   const [moduleData, setModuleData] = useState<ModuleData | null>(null)
   const [currentIdx, setCurrentIdx] = useState(0)
   const currentSection = moduleData?.sections[currentIdx]
+  const isKnowledgeCheck = currentSection?.section_title?.trim().toLowerCase() === 'knowledge check'
   const [contentHtml, setContentHtml] = useState('')
   const [quizPassed, setQuizPassed] = useState(false)
   const [lockedByModule, setLockedByModule] = useState<string | null>(null)
@@ -392,7 +393,7 @@ export default function CourseLessonPage() {
     try {
       const currentSection = moduleData!.sections[currentIdx]
       if (!currentSection) return
-      if (currentSection.section_title === 'Knowledge Check' && !quizPassed) return
+      if (isKnowledgeCheck && !quizPassed) return
       const response = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -541,19 +542,19 @@ export default function CourseLessonPage() {
           </div>
           <button
             onClick={handleMarkDone}
-            disabled={currentSection?.section_title === 'Knowledge Check' && !quizPassed}
+            disabled={isKnowledgeCheck && !quizPassed}
             style={{
               background: 'var(--accent-3)', color: '#fff', border: 'none',
               padding: '7px 16px', borderRadius: 4, fontSize: 12.5, fontWeight: 700,
-              cursor: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              cursor: isKnowledgeCheck && !quizPassed ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
               fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
-              opacity: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 0.5 : 1,
+              opacity: isKnowledgeCheck && !quizPassed ? 0.5 : 1,
             }}
             onMouseOver={e => e.currentTarget.style.background = '#166534'}
             onMouseOut={e => e.currentTarget.style.background = 'var(--accent-3)'}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            {currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 'Assessment required' : 'Mark Done'}
+            {isKnowledgeCheck && !quizPassed ? 'Assessment required' : 'Mark Done'}
           </button>
         </div>
       </div>
@@ -602,7 +603,7 @@ export default function CourseLessonPage() {
                 <h2>{currentSection?.section_title}</h2>
               </div>
               <div className="section-content-wrapper">
-                {currentSection?.section_title === 'Knowledge Check' ? (
+                {isKnowledgeCheck ? (
                   !(isProctoringAgreed || config.gates.bypassIntegrityAgreement) ? (
                     <div style={{
                       display: 'flex',
@@ -795,17 +796,17 @@ export default function CourseLessonPage() {
         <button
           id="btn-next"
           onClick={handleMarkDone}
-          disabled={currentSection?.section_title === 'Knowledge Check' && !quizPassed}
+          disabled={isKnowledgeCheck && !quizPassed}
           style={{
             background: 'var(--accent-2)', color: '#fff', border: 'none',
             padding: '9px 24px', borderRadius: 4, fontSize: 14, fontWeight: 700,
-            cursor: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 'not-allowed' : 'pointer', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
-            opacity: currentSection?.section_title === 'Knowledge Check' && !quizPassed ? 0.5 : 1,
+            cursor: isKnowledgeCheck && !quizPassed ? 'not-allowed' : 'pointer', fontFamily: '"Montserrat", sans-serif', letterSpacing: '0.02em', transition: '0.15s',
+            opacity: isKnowledgeCheck && !quizPassed ? 0.5 : 1,
           }}
           onMouseOver={e => e.currentTarget.style.background = '#1e3a8a'}
           onMouseOut={e => e.currentTarget.style.background = 'var(--accent-2)'}
         >
-          {currentSection?.section_title === 'Knowledge Check' && !quizPassed
+          {isKnowledgeCheck && !quizPassed
             ? 'Pass assessment to continue'
             : currentIdx === (moduleData?.sections.length || 0) - 1 ? 'Finish Module →' : 'Continue →'}
         </button>
