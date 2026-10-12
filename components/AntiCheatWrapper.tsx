@@ -26,7 +26,7 @@ export default function AntiCheatWrapper({
   const [isBlurredBySystem, setIsBlurredBySystem] = useState(false)
   const [systemWarning, setSystemWarning] = useState('')
 
-  // If proctoring is disabled in dev config, ignore laptop proctoring violation prop
+  // Apply laptop violations only when camera monitoring is enabled.
   const effectiveIsViolating = isViolatingProctoring && config.laptop.cameraFeed
   const isBlurred = isBlurredBySystem || effectiveIsViolating
   const warningMessage = systemWarning || (effectiveIsViolating ? proctoringWarning : '')

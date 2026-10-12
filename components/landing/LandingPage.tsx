@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight, Award, BadgeCheck, BookOpen, Briefcase, Check, Download,
   Globe, GraduationCap, Info, Laptop, Lock, Menu, ShieldCheck, Smartphone,
-  UserPlus, X,
+  UserPlus, X, Pause, Play,
 } from 'lucide-react'
 import ThemeToggle from '@/components/ThemeToggle'
 import { mobileAppDownload } from '@/lib/mobileAppDownload'
@@ -20,6 +20,19 @@ const NAV = [
   { label: 'Credentials', href: '#credentials' },
   { label: 'Employers', href: '/employer' },
 ]
+
+const HERO_SLIDES = [
+  {
+    lead: 'Your pathway to a career in ', highlight: 'UK accounting & tax',
+    image: '/landing-students.webp', width: 1145, height: 1374,
+    alt: 'Three smiling UKATI students ready to learn accounting and taxation',
+  },
+  {
+    lead: 'Learn together. Build your future in ', highlight: 'UK accounting & tax',
+    image: '/landing-students-laptop.png', width: 1024, height: 1536,
+    alt: 'A seated student using a laptop with two classmates beside him, all studying the screen together',
+  },
+] as const
 
 const STEP_DURATION_MS = 7000
 
@@ -358,6 +371,28 @@ function HowItWorks() {
 
 export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [heroSlide, setHeroSlide] = useState(0)
+  const [heroPaused, setHeroPaused] = useState(false)
+  const [heroHovered, setHeroHovered] = useState(false)
+  const [heroFocused, setHeroFocused] = useState(false)
+  useEffect(() => {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let timer: ReturnType<typeof setInterval> | undefined
+    const syncTimer = () => {
+      if (timer) clearInterval(timer)
+      if (!reducedMotion.matches && !document.hidden && !heroPaused && !heroHovered && !heroFocused) {
+        timer = setInterval(() => setHeroSlide(slide => (slide + 1) % HERO_SLIDES.length), 3000)
+      }
+    }
+    syncTimer()
+    reducedMotion.addEventListener('change', syncTimer)
+    document.addEventListener('visibilitychange', syncTimer)
+    return () => {
+      if (timer) clearInterval(timer)
+      reducedMotion.removeEventListener('change', syncTimer)
+      document.removeEventListener('visibilitychange', syncTimer)
+    }
+  }, [heroPaused, heroHovered, heroFocused])
   useReveal()
 
   return (
@@ -417,7 +452,11 @@ export default function LandingPage() {
 
       <main>
         {/* ── Hero ── */}
-        <section className="lp-hero" aria-labelledby="hero-title">
+        <section className="lp-hero" aria-labelledby="hero-title" aria-roledescription="carousel"
+          onMouseEnter={() => setHeroHovered(true)} onMouseLeave={() => setHeroHovered(false)}
+          onFocusCapture={() => setHeroFocused(true)}
+          onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHeroFocused(false) }}
+        >
           <div className="lp-hero-bg">
             <div className="lp-orb lp-orb-a" />
             <div className="lp-orb lp-orb-b" />
@@ -426,7 +465,11 @@ export default function LandingPage() {
           <div className="lp-container lp-hero-grid">
             <motion.div className="lp-hero-content" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
               <h1 id="hero-title" className="lp-h1">
-                Your pathway to a career in <span className="lp-gold-text">UK accounting &amp; tax</span>
+                {HERO_SLIDES.map((slide, index) => (
+                  <span key={slide.image} className={`lp-hero-heading-slide${heroSlide === index ? ' is-active' : ''}`} aria-hidden={heroSlide !== index}>
+                    {slide.lead}<span className="lp-gold-text">{slide.highlight}</span>
+                  </span>
+                ))}
               </h1>
               <div className="lp-hero-ctas">
                 <Link href="/register" className="lp-btn lp-btn-gold lp-btn-lg" id="hero-enrol">
@@ -435,6 +478,16 @@ export default function LandingPage() {
                 <Link href="#how-it-works" className="lp-btn lp-btn-ghost lp-btn-lg" id="hero-how">
                   See how it works
                 </Link>
+              </div>
+              <div className="lp-hero-controls" aria-label="Hero slideshow controls">
+                {HERO_SLIDES.map((slide, index) => (
+                  <button key={slide.image} type="button" className={`lp-hero-dot${heroSlide === index ? ' is-active' : ''}`}
+                    aria-label={`Show slide ${index + 1}`} aria-pressed={heroSlide === index} onClick={() => setHeroSlide(index)} />
+                ))}
+                <button type="button" className="lp-hero-pause" onClick={() => setHeroPaused(paused => !paused)}
+                  aria-label={heroPaused ? 'Play slideshow' : 'Pause slideshow'}>
+                  {heroPaused ? <Play size={14} /> : <Pause size={14} />}
+                </button>
               </div>
             </motion.div>
 
@@ -445,15 +498,14 @@ export default function LandingPage() {
               transition={{ duration: 0.7, delay: 0.15 }}
             >
               <div className="lp-students-halo" aria-hidden="true" />
-              <Image
-                src="/landing-students.webp"
-                alt="Three smiling UKATI students ready to learn accounting and taxation"
-                width={1145}
-                height={1374}
-                className="lp-students-image"
-                sizes="(max-width: 960px) 90vw, 46vw"
-                priority
-              />
+              {HERO_SLIDES.map((slide, index) => (
+                <Image key={slide.image} src={slide.image} alt={slide.alt}
+                  width={slide.width} height={slide.height}
+                  className={`lp-students-image lp-hero-image-slide${heroSlide === index ? ' is-active' : ''}${index === 1 ? ' lp-laptop-students-image' : ''}`}
+                  aria-hidden={heroSlide !== index}
+                  sizes="(max-width: 960px) 90vw, 46vw" priority
+                />
+              ))}
 
             </motion.div>
           </div>

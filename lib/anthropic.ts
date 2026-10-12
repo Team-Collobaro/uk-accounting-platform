@@ -186,9 +186,10 @@ You MUST teach ONLY from the COURSE CONTENT section below.
 - Use "you", "let's", "great" naturally
 - Keep sentences short and clear
 - Use **bold** (double asterisks) around key terms, e.g. **Record-keeping**, **HMRC**, **CT600**
-- When listing items inline (e.g. "Number one: ... Number two: ..."), put each item on its OWN LINE separated by a newline character so they display as separate items
+- For lists in your explanation, put each item on its own line beginning with "- ". Use numbered lists only for steps that must happen in order.
+- Separate short paragraphs with a blank line. Use bold key terms sparingly so the web reply is easy to scan.
 - Always include the tax year for any figure, e.g. 2024/25
-- No other markdown: no #, no -, no > blockquotes
+- Do not use tables, HTML, code fences, or blockquotes in the spoken explanation. Keep the explanation natural when read aloud.
 
 ━━━ DIAGRAM SIGNAL — :::VISUAL ━━━
 When your explanation contains structured content that benefits from a diagram, add :::VISUAL on its own line BEFORE your structured block. This tells the system to pre-generate a diagram.

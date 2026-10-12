@@ -377,7 +377,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
             💻
           </div>
           <span className="text-xs font-semibold text-slate-300">Laptop Camera Feed Disabled</span>
-          <span className="text-[11px] text-slate-500">Dev mode active via proctoring.config.json</span>
+          <span className="text-[11px] text-slate-500">Camera monitoring is disabled</span>
         </div>
         {sessionId && qrValue && config.mobile.cameraFeed && (
           <div className="border-t border-white/5 pt-3">
@@ -395,7 +395,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
     return (
       <div className="bg-red-900/50 border border-red-500 rounded p-4 text-center my-4">
         <p className="text-red-200 font-bold">{errorMessage}</p>
-        <p className="text-sm text-red-300 mt-2">Please refresh and allow webcam permissions or disable in dev config.</p>
+        <p className="text-sm text-red-300 mt-2">Please refresh and allow webcam permissions.</p>
       </div>
     )
   }

@@ -493,3 +493,18 @@
   .lp *, .lp *::before, .lp *::after { animation: none !important; transition: none !important; }
   .lp-reveal { opacity: 1; transform: none; }
 }
+
+/* Keep both slides in the same layout to avoid height jumps during rotation. */
+.lp-h1 { display: grid; }
+.lp-hero-heading-slide { grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity .55s ease, visibility .55s; }
+.lp-hero-heading-slide.is-active { opacity: 1; visibility: visible; }
+.lp-hero-image-slide { opacity: 0; visibility: hidden; transition: opacity .55s ease, visibility .55s; }
+.lp-hero-image-slide.is-active { opacity: 1; visibility: visible; }
+.lp-laptop-students-image { width: min(128%, 700px); }
+.lp-hero-controls { display: flex; align-items: center; gap: 10px; margin-top: 24px; }
+.lp-hero-dot { width: 28px; height: 28px; padding: 0; border: 0; background: transparent; cursor: pointer; display: grid; place-items: center; }
+.lp-hero-dot::before { content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--lp-border-strong); transition: width .3s, background .3s; }
+.lp-hero-dot.is-active::before { width: 24px; background: var(--lp-gold); }
+.lp-hero-pause { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--lp-border-strong); border-radius: 50%; background: var(--lp-surface); color: var(--lp-text); cursor: pointer; }
+.lp-hero-controls button:focus-visible { outline: 2px solid var(--lp-gold); outline-offset: 4px; }
+@media (max-width: 960px) { .lp-hero-controls { justify-content: center; } }

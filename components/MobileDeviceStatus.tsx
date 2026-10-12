@@ -24,6 +24,22 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
   const [mobilePreviewMessage, setMobilePreviewMessage] = useState('Waiting for the phone to start setup preview…')
   const [phoneSetupReady, setPhoneSetupReady] = useState(false)
 
+  const [setupTrace, setSetupTrace] = useState<{ requestId: string; stage: string; webMs: number; phoneMs?: number }[]>([])
+  const [setupElapsed, setSetupElapsed] = useState(0)
+  const setupStartedRef = useRef<number | null>(null)
+  const traceSetup = (stage: string, requestId: string, phoneMs?: number) => {
+    const webMs = setupStartedRef.current === null ? 0 : Math.round(performance.now() - setupStartedRef.current)
+    console.info('[SetupTiming]', { requestId, sessionId, stage, webMs, phoneMs })
+    setSetupTrace(rows => [...rows, { requestId, stage, webMs, phoneMs }])
+  }
+  useEffect(() => {
+    if (setupCheck.state !== 'checking') return
+    const timer = setInterval(() => {
+      if (setupStartedRef.current !== null) setSetupElapsed(Math.round((performance.now() - setupStartedRef.current) / 1000))
+    }, 250)
+    return () => clearInterval(timer)
+  }, [setupCheck.state])
+
   // Shared state between closure and component
   const lastHeartbeatRef = useRef<number | null>(null)
   const monitoringRequestedAtRef = useRef<number | null>(null)
@@ -51,6 +67,9 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
 
   useEffect(() => {
     setSetupCheck({ state: 'idle', message: '' })
+    setSetupTrace([])
+    setSetupElapsed(0)
+    setupStartedRef.current = null
     setMonitoringStart('idle')
     setMobilePreview(null)
     setMobilePreviewUpdatedAt(null)
@@ -205,6 +224,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           if (requestedResult) {
             if (setupCheckTimerRef.current) clearTimeout(setupCheckTimerRef.current)
             setupCheckTimerRef.current = null
+            traceSetup('result_received', payload.requestId, typeof payload.durationMs === 'number' ? payload.durationMs : undefined)
             setupRequestIdRef.current = null
             setupStageRef.current = null
             if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
@@ -246,6 +266,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             stage: payload.stage,
             message: typeof payload.message === 'string' ? payload.message : 'Phone setup is processing.',
           }
+          traceSetup(payload.stage, payload.requestId, typeof payload.elapsedMs === 'number' ? payload.elapsedMs : undefined)
           setupStageRef.current = setupStatus
           if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
           setupRequestRetryRef.current = null
@@ -455,6 +476,10 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
     }
 
     const requestId = crypto.randomUUID()
+    setupStartedRef.current = performance.now()
+    setSetupTrace([])
+    setSetupElapsed(0)
+    traceSetup('request_sent', requestId)
     startAfterSetupRef.current = startWhenPassed
     setupRequestIdRef.current = requestId
     setupStageRef.current = null
@@ -468,12 +493,13 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       if (setupRequestRetryRef.current) clearInterval(setupRequestRetryRef.current)
       setupRequestRetryRef.current = null
       startAfterSetupRef.current = false
+      traceSetup('timeout', requestId)
       const phoneStatus = lastPhoneSetupStatusRef.current
       const setupStage = setupStageRef.current
       const message = realtimeStatusRef.current !== 'subscribed'
         ? 'The secure phone channel disconnected during the setup check. Reconnect the phone and try again.'
         : !setupStage
-          ? 'The phone did not receive this setup request. Keep the latest setup screen open and confirm both devices are using the same newly scanned QR session.'
+          ? 'No setup acknowledgement returned within 30 seconds. The command or its reply may not have arrived; an updating preview does not confirm setup-command delivery.'
           : setupStage.stage === 'app_background'
             ? 'The LMS mobile app was backgrounded during the check. Return to the setup screen, keep the phone unlocked, and try again.'
             : setupStage.stage === 'capturing'
@@ -685,6 +711,16 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         </button>
       )}
 
+      {setupTrace.length > 0 && (
+        <details style={{ borderRadius: 8, padding: '8px 10px', background: '#f1f5f9', color: '#0f172a', fontSize: 11 }} open={setupCheck.state === 'checking'}>
+          <summary>Setup progress{setupCheck.state === 'checking' ? ` · ${setupElapsed}s elapsed` : ''}</summary>
+          <div style={{ marginTop: 6, overflowWrap: 'anywhere' }}>Request: {setupTrace[0]?.requestId}</div>
+          {setupTrace.map((row, index) => <div key={index} style={{ marginTop: 4 }}>
+            {row.stage.replace(/_/g, ' ')} · web +{(row.webMs / 1000).toFixed(1)}s
+            {row.phoneMs !== undefined && ` · phone +${(row.phoneMs / 1000).toFixed(1)}s`}
+          </div>)}
+        </details>
+      )}
       {setupCheck.message && (
         <div
           role="status"

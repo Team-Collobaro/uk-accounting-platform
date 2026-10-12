@@ -31,7 +31,6 @@ import AntiCheatWrapper from '@/components/AntiCheatWrapper'
 import ProctoringCamera from '@/components/ProctoringCamera'
 import MobileDeviceStatus from '@/components/MobileDeviceStatus'
 import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
-import DevProctoringToolbar from '@/components/DevProctoringToolbar'
 import SecureQuiz from '@/components/SecureQuiz'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
 import { initAnimFactory } from '@/lib/animFactory'
@@ -59,6 +58,8 @@ export default function CourseLessonPage() {
   const [proctorExpiresAt, setProctorExpiresAt] = useState<string | null>(null)
   const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
   const [showResumeNotice, setShowResumeNotice] = useState(false)
+  const [regeneratingQr, setRegeneratingQr] = useState(false)
+  const [qrRecoveryError, setQrRecoveryError] = useState('')
   const [sessionNoticeKind, setSessionNoticeKind] = useState<'restored' | 'replaced'>('restored')
   const sessionRecoveryRef = React.useRef(false)
 
@@ -120,21 +121,28 @@ export default function CourseLessonPage() {
   }
 
   const handleRegenerateQr = async () => {
+    if (regeneratingQr) return
+    setRegeneratingQr(true)
+    setQrRecoveryError('')
     try {
       const res = await fetch('/api/proctor-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId, forceNew: true })
+        body: JSON.stringify({ moduleId, forceNew: true }),
       })
       const data = await res.json()
-      if (data.sessionId) {
-        setProctorSessionId(data.sessionId)
-        setProctorQrValue(data.qrPayload || `lms://proctor/${data.sessionId}`)
-        if (data.expiresAt) setProctorExpiresAt(data.expiresAt)
-        setMobileStatus('not_linked')
+      if (!res.ok || !data.sessionId || !data.qrPayload) {
+        throw new Error(data.error || 'Could not create a new phone pairing QR. Please try again.')
       }
-    } catch (e) {
-      console.error('Failed to regenerate proctor session', e)
+      setProctorSessionId(data.sessionId)
+      setProctorQrValue(data.qrPayload)
+      setProctorExpiresAt(data.expiresAt || null)
+      setMobileStatus('not_linked')
+      setShowResumeNotice(false)
+    } catch (error) {
+      setQrRecoveryError(error instanceof Error ? error.message : 'Could not reconnect the phone.')
+    } finally {
+      setRegeneratingQr(false)
     }
   }
 
@@ -493,8 +501,8 @@ export default function CourseLessonPage() {
             </p>
             <p style={{ color: '#b45309', fontSize: 13, lineHeight: 1.5, margin: '0 0 18px' }}>
               {sessionNoticeKind === 'replaced'
-                ? 'Open LMS Mobile and scan the new QR code before continuing the assessment.'
-                : 'Keep the LMS Mobile app open. The assessment will unlock automatically after the phone heartbeat reconnects.'}
+                ? 'Open UKATI Mobile and scan the new QR code before continuing the assessment.'
+                : 'Keep UKATI Mobile open to reconnect. If you reinstalled the app or changed phones, choose “Pair phone again” to scan a fresh QR instead.'}
             </p>
             <button
               type="button"
@@ -503,6 +511,13 @@ export default function CourseLessonPage() {
             >
               {sessionNoticeKind === 'replaced' ? 'Show New QR Code' : 'Continue Same Session'}
             </button>
+            {sessionNoticeKind === 'restored' && mobileStatus !== 'live' && hardMobileIncidents.length === 0 && (
+              <button type="button" onClick={handleRegenerateQr} disabled={regeneratingQr}
+                style={{ width: '100%', marginTop: 10, padding: '11px 14px', borderRadius: 9, border: '1px solid #cbd5e1', background: '#fff', color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
+                {regeneratingQr ? 'Creating QR…' : 'Pair phone again'}
+              </button>
+            )}
+            {qrRecoveryError && <p role="alert" style={{ color: '#b91c1c', fontSize: 13 }}>{qrRecoveryError}</p>}
           </div>
         </div>
       )}
@@ -822,6 +837,16 @@ export default function CourseLessonPage() {
                 />
               </div>
             )}
+            {proctorSessionId && !proctorQrValue && mobileStatus !== 'live' && hardMobileIncidents.length === 0 && (
+              <div style={{ marginBottom: 16, padding: 12, border: '1px solid #cbd5e1', borderRadius: 10 }}>
+                <p style={{ fontSize: 12, margin: '0 0 8px' }}>Reinstalled UKATI Mobile or changed phones? Scan a fresh QR to pair again.</p>
+                <button type="button" onClick={handleRegenerateQr} disabled={regeneratingQr}
+                  style={{ width: '100%', padding: 10, border: 0, borderRadius: 8, background: '#2563eb', color: '#fff', cursor: 'pointer' }}>
+                  {regeneratingQr ? 'Creating QR…' : 'Pair phone again'}
+                </button>
+                {qrRecoveryError && <p role="alert" style={{ color: '#dc2626', fontSize: 12 }}>{qrRecoveryError}</p>}
+              </div>
+            )}
             {hardMobileIncidents.length > 0 && (
               <div
                 role="alert"
@@ -909,8 +934,6 @@ export default function CourseLessonPage() {
     )}
   </div>
 
-  {/* Dev Proctoring Floating Toolbar */}
-  <DevProctoringToolbar onSimulateViolation={handleProctoringViolation} />
 </div>
   )
 }

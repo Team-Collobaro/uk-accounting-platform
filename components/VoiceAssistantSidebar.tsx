@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useEffect, useCallback } from 'react'
+import TutorMessage from './TutorMessage'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
 
 
@@ -18,6 +19,13 @@ interface Message {
   content: string
 }
 
+const QUICK_REPLIES = [
+  { label: 'Continue', message: 'I understand. Please continue with the next point in this section.' },
+  { label: 'Explain simply', message: 'Could you explain that more simply?' },
+  { label: 'Give an example', message: 'Could you give me an example from the course material?' },
+  { label: 'Repeat that', message: 'Could you repeat the last explanation?' },
+] as const
+
 type ConvState = 'idle' | 'listening' | 'processing' | 'speaking'
 
 function stripVisualBlocks(text: string): string {
@@ -25,6 +33,7 @@ function stripVisualBlocks(text: string): string {
     .replace(/:::VISUAL\n?/g, '')
     .replace(/:::(?:PILLARS|STEPS|TERMS|MCQ)[\s\S]*?:::/g, '')
     .replace(/\*\*/g, '')
+    .replace(/^\s*(?:#{1,3}\s+|[-*•]\s+|\d+[.)]\s+)/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -46,6 +55,7 @@ export default function VoiceAssistantSidebar({
   const [convState, setConvState] = useState<ConvState>('idle')
   const [liveTranscript, setLiveTranscript] = useState('')
   const [voiceSupported, setVoiceSupported] = useState(true)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isSpeechPaused, setIsSpeechPaused] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -61,12 +71,12 @@ export default function VoiceAssistantSidebar({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const autoRestartListeningRef = useRef(false)
-  const convStateRef = useRef<ConvState>('idle')
+  const discardTranscriptRef = useRef(false)
+  const speechRunRef = useRef(0)
 
   // Keep refs in sync
   useEffect(() => { voiceUnlockedRef.current = voiceUnlocked }, [voiceUnlocked])
   useEffect(() => { isMutedRef.current = isMuted }, [isMuted])
-  useEffect(() => { convStateRef.current = convState }, [convState])
 
   // Auto-scroll
   useEffect(() => {
@@ -74,9 +84,18 @@ export default function VoiceAssistantSidebar({
   }, [messages])
 
 
+  // Invalidate old utterance callbacks before cancelling so they cannot reset a new turn.
+  const stopSpeaking = useCallback(() => {
+    speechRunRef.current += 1
+    autoRestartListeningRef.current = false
+    window.speechSynthesis.cancel()
+    setIsSpeaking(false)
+    setIsSpeechPaused(false)
+  }, [])
+
   // Chrome speechSynthesis bug fix
   useEffect(() => {
-    if (!isSpeaking) return
+    if (!isSpeaking || isSpeechPaused) return
     const interval = setInterval(() => {
       if (window.speechSynthesis.speaking) {
         window.speechSynthesis.pause()
@@ -84,11 +103,12 @@ export default function VoiceAssistantSidebar({
       }
     }, 10000)
     return () => clearInterval(interval)
-  }, [isSpeaking])
+  }, [isSpeaking, isSpeechPaused])
 
   // Core TTS — stable, no stale closures
   const doSpeak = useCallback((text: string, onDone?: () => void) => {
-    window.speechSynthesis.cancel()
+    stopSpeaking()
+    const speechRun = speechRunRef.current
     const cleaned = stripVisualBlocks(text)
     if (!cleaned) { onDone?.(); return }
 
@@ -108,11 +128,11 @@ export default function VoiceAssistantSidebar({
       window.speechSynthesis.addEventListener('voiceschanged', applyVoice, { once: true })
     }
 
-    utterance.onstart = () => { setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
-    utterance.onend = () => { setIsSpeaking(false); setIsSpeechPaused(false); onDone?.() }
-    utterance.onerror = () => { setIsSpeaking(false); setIsSpeechPaused(false); onDone?.() }
+    utterance.onstart = () => { if (speechRun !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
+    utterance.onend = () => { if (speechRun !== speechRunRef.current) return; setIsSpeaking(false); setIsSpeechPaused(false); onDone?.() }
+    utterance.onerror = () => { if (speechRun !== speechRunRef.current) return; setIsSpeaking(false); setIsSpeechPaused(false); onDone?.() }
     window.speechSynthesis.speak(utterance)
-  }, [])
+  }, [stopSpeaking])
 
   const speakText = useCallback((text: string, onDone?: () => void) => {
     if (isMutedRef.current) { setConvState('idle'); onDone?.(); return }
@@ -193,9 +213,19 @@ export default function VoiceAssistantSidebar({
   // Start listening — skip if already active
   const isRecognitionActiveRef = useRef(false)
   const startListeningFn = useCallback(() => {
-    if (!recognitionRef.current) return
+    if (!recognitionRef.current) {
+      setVoiceError('Speech recognition is unavailable in this browser. Try Chrome or type your reply below.')
+      return
+    }
     if (isRecognitionActiveRef.current) return  // Already running
     try {
+      setVoiceError(null)
+      discardTranscriptRef.current = false
+      autoRestartListeningRef.current = false
+      pendingTextRef.current = ''
+      stopSpeaking()
+      setIsSpeaking(false)
+      setIsSpeechPaused(false)
       finalTranscriptRef.current = ''
       setLiveTranscript('')
       setConvState('listening')
@@ -204,9 +234,10 @@ export default function VoiceAssistantSidebar({
     } catch (e) {
       console.error('recognition.start error:', e)
       isRecognitionActiveRef.current = false
+      setVoiceError('Could not start the microphone. Check microphone access for this site and try again.')
       setConvState('idle')
     }
-  }, [])
+  }, [stopSpeaking])
 
   const startListeningRef = useRef(startListeningFn)
   useEffect(() => { startListeningRef.current = startListeningFn }, [startListeningFn])
@@ -228,7 +259,7 @@ export default function VoiceAssistantSidebar({
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition: any = new SR()
-    recognition.continuous = true
+    recognition.continuous = false
     recognition.interimResults = true
     recognition.lang = 'en-GB'
 
@@ -245,9 +276,13 @@ export default function VoiceAssistantSidebar({
 
     recognition.onend = () => {
       isRecognitionActiveRef.current = false
-      const transcript = finalTranscriptRef.current.trim()
+      const transcript = discardTranscriptRef.current ? '' : finalTranscriptRef.current.trim()
       finalTranscriptRef.current = ''
       setLiveTranscript('')
+      if (discardTranscriptRef.current) {
+        discardTranscriptRef.current = false
+        return
+      }
       if (transcript) {
         sendMessageRef.current(transcript)
       } else {
@@ -260,15 +295,34 @@ export default function VoiceAssistantSidebar({
       console.error('SpeechRecognition error:', event.error)
       finalTranscriptRef.current = ''
       setLiveTranscript('')
-      if (event.error === 'not-allowed') {
-        setVoiceSupported(false)
+      autoRestartListeningRef.current = false
+      const errors: Record<string, string> = {
+        'not-allowed': 'Microphone access was blocked. Allow Microphone in Chrome’s site settings, then tap to speak again.',
+        'service-not-allowed': 'Chrome’s speech recognition service is unavailable. Check browser settings or type your reply below.',
+        'audio-capture': 'No microphone is available. Check your input device and microphone access, then try again.',
+        'network': 'Speech recognition could not connect. Check your internet connection and try again.',
+        'no-speech': 'No speech was detected. Tap to speak and try again.',
+        'language-not-supported': 'English speech recognition is unavailable in this browser. Try Chrome or type your reply below.',
+      }
+      if (event.error !== 'aborted') {
+        setVoiceError(errors[event.error] ?? 'Speech recognition stopped. Tap to speak to try again.')
       }
       isRecognitionActiveRef.current = false
       setConvState('idle')
     }
 
     recognitionRef.current = recognition
-  }, []) // runs once on mount
+    return () => {
+      recognition.onresult = null
+      recognition.onend = null
+      recognition.onerror = null
+      recognition.abort()
+      recognitionRef.current = null
+      isRecognitionActiveRef.current = false
+      autoRestartListeningRef.current = false
+      stopSpeaking()
+    }
+  }, [stopSpeaking]) // stable recognition instance
 
   const stopListening = useCallback(() => {
     // Just stop recognition, let onend handle sending the message and state changes
@@ -277,32 +331,12 @@ export default function VoiceAssistantSidebar({
     }
   }, [])
 
-  // Unlock voice + queue listening start
+  // Start recognition directly from the user's gesture, including permission retries.
   const unlockAndStart = useCallback(() => {
-    const silent = new SpeechSynthesisUtterance(' ')
-    silent.volume = 0
-    window.speechSynthesis.speak(silent)
     voiceUnlockedRef.current = true
     setVoiceUnlocked(true)
-
-    if (pendingTextRef.current && !isMutedRef.current) {
-      // Speak queued text then auto-restart listening
-      const pending = pendingTextRef.current
-      pendingTextRef.current = ''
-      setTimeout(() => doSpeak(pending, () => {
-        autoRestartListeningRef.current = true
-        setConvState('idle')
-      }), 150)
-    } else {
-      // No pending speech — queue listening to start once convState reaches idle
-      autoRestartListeningRef.current = true
-      // If already idle, trigger the effect immediately
-      if (convStateRef.current === 'idle') {
-        setTimeout(() => startListeningRef.current(), 400)
-      }
-      // Otherwise the useEffect will pick it up when convState becomes idle
-    }
-  }, [doSpeak])
+    startListeningFn()
+  }, [startListeningFn])
 
   // Auto-start AI greeting on mount
   useEffect(() => {
@@ -316,10 +350,16 @@ export default function VoiceAssistantSidebar({
   useEffect(() => {
     if (sectionIdRef.current === currentSection?.sectionId) return
     sectionIdRef.current = currentSection?.sectionId
-    stopListening()
+    autoRestartListeningRef.current = false
+    discardTranscriptRef.current = true
+    finalTranscriptRef.current = ''
+    recognitionRef.current?.abort()
+    setLiveTranscript('')
+    setVoiceError(null)
+    setConvState('idle')
     setMessages([])
     setSessionId(undefined)
-    window.speechSynthesis.cancel()
+    stopSpeaking()
     setIsSpeaking(false)
     pendingTextRef.current = ''
     hasStarted.current = false
@@ -328,19 +368,29 @@ export default function VoiceAssistantSidebar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSection?.sectionId])
 
-  const handleTextSend = () => {
-    const msg = input.trim()
+  const sendReply = (message: string) => {
+    const msg = message.trim()
     if (!msg || isStreaming) return
     setInput('')
+    stopSpeaking()
+    discardTranscriptRef.current = true
+    finalTranscriptRef.current = ''
+    recognitionRef.current?.abort()
+    setLiveTranscript('')
     sendMessageRef.current(msg)
   }
+
+  const handleTextSend = () => sendReply(input)
+  const lastMessage = messages[messages.length - 1]
+  const showQuickReplies = lastMessage?.role === 'assistant' && Boolean(lastMessage.content.trim())
+    && !isStreaming && !isSpeaking && (convState === 'idle' || convState === 'listening')
 
   const toggleMute = () => {
     const next = !isMuted
     setIsMuted(next)
     isMutedRef.current = next
     if (next) { 
-      window.speechSynthesis.cancel()
+      stopSpeaking()
       setIsSpeaking(false)
       setIsSpeechPaused(false)
     }
@@ -384,7 +434,7 @@ export default function VoiceAssistantSidebar({
           )}
           {!voiceSupported && (
             <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: 10 }}>
-              Voice input: Chrome only
+              Voice input unavailable
             </span>
           )}
         </div>
@@ -402,14 +452,14 @@ export default function VoiceAssistantSidebar({
 
       {/* Interactive Avatar Pill */}
       {voiceUnlocked && (
-        <div style={{ padding: '24px 24px 12px', display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '24px 24px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <button
             onClick={
-              convState === 'speaking' ? togglePause :
+              convState === 'speaking' ? startListeningFn :
               canListen ? startListeningFn : 
               convState === 'listening' ? stopListening : undefined
             }
-            disabled={convState === 'processing'}
+            disabled={convState === 'processing' || !voiceSupported}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               background: convState === 'listening' ? 'rgba(239, 68, 68, 0.12)' : (isSpeechPaused ? 'rgba(245, 158, 11, 0.12)' : 'linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(124, 58, 237, 0.15))'),
@@ -452,9 +502,23 @@ export default function VoiceAssistantSidebar({
             
             {/* Status Text */}
             <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em' }}>
-              {isSpeechPaused ? 'Paused' : isSpeaking ? 'Speaking' : convState === 'processing' ? 'Thinking' : convState === 'listening' ? 'Listening...' : 'Tap to speak'}
+              {isSpeaking ? 'Interrupt & speak' : convState === 'processing' ? 'Thinking' : convState === 'listening' ? 'Listening...' : !voiceSupported ? 'Voice unavailable' : 'Tap to speak'}
             </span>
           </button>
+          {isSpeaking && (
+            <button type="button" onClick={togglePause}
+              aria-label={isSpeechPaused ? 'Resume tutor speech' : 'Pause tutor speech'}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', fontSize: 12 }}>
+              {isSpeechPaused ? <Play size={14} /> : <Pause size={14} />}
+              {isSpeechPaused ? 'Resume tutor' : 'Pause tutor'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {voiceError && (
+        <div role="alert" style={{ margin: '0 12px 8px', padding: '10px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', color: 'var(--ink)', fontSize: 12, lineHeight: 1.5 }}>
+          {voiceError}
         </div>
       )}
 
@@ -486,12 +550,26 @@ export default function VoiceAssistantSidebar({
               }}>
                 {msg.content === '' && isLast && isStreaming
                   ? <span style={{ opacity: 0.5 }}>thinking…</span>
-                  : msg.content}
+                  : msg.role === 'assistant' ? <TutorMessage content={msg.content} /> : msg.content}
               </div>
             </div>
           )
         })}
       </div>
+
+      {showQuickReplies && (
+        <div role="group" aria-label="Suggested replies" style={{ padding: '8px 12px 10px', flexShrink: 0 }}>
+          <span style={{ display: 'block', marginBottom: 7, fontSize: 11, color: 'var(--ink)', opacity: 0.65 }}>Quick replies</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {QUICK_REPLIES.map(reply => (
+              <button key={reply.label} type="button" onClick={() => sendReply(reply.message)}
+                style={{ padding: '7px 10px', borderRadius: 16, border: '1px solid rgba(124,58,237,0.25)', background: 'rgba(124,58,237,0.06)', color: 'var(--ink)', fontFamily: '"Montserrat", sans-serif', fontSize: 12, cursor: 'pointer' }}>
+                {reply.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Text input fallback */}
       <div style={{ padding: '8px 10px 12px', borderTop: '1px solid rgba(148,163,184,0.2)', display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
