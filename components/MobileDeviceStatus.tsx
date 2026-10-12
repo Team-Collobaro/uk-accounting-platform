@@ -211,7 +211,21 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           onViolation?.(true, event?.description || 'Mobile camera view is blocked', 'camera_obstructed', event?.severity || 'hard')
         })
         .on('broadcast', { event: 'notes_visible' }, (payload: any) => {
-          onViolation?.(true, payload.payload?.description || 'Notes or written material detected', 'notes_visible', 'hard')
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Notes or written material detected', 'notes_visible', 'hard')
+        })
+        .on('broadcast', { event: 'static_image_spoof' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Static image detected. Liveness check failed.', 'static_image_spoof', 'hard')
+        })
+        .on('broadcast', { event: 'student_returned' }, () => {
+          onViolation?.(false, '', 'student_missing', 'info')
+        })
+        .on('broadcast', { event: 'second_person_cleared' }, () => {
+          onViolation?.(false, '', 'second_person', 'info')
+        })
+        .on('broadcast', { event: 'clear' }, () => {
+          onViolation?.(false, '', '*', 'info')
         })
         .on('broadcast', { event: 'violation' }, (message: any) => {
           const payload = message.payload || message

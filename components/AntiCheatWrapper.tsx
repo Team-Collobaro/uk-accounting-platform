@@ -9,6 +9,8 @@ interface AntiCheatWrapperProps {
   children: React.ReactNode
   isViolatingProctoring?: boolean
   proctoringWarning?: string
+  isViolatingMobile?: boolean
+  mobileWarning?: string
   sessionId?: string // proctor:sessionId channel identifier
 }
 
@@ -16,6 +18,9 @@ export default function AntiCheatWrapper({
   children,
   isViolatingProctoring = false,
   proctoringWarning = '',
+  isViolatingMobile = false,
+  mobileWarning = '',
+  sessionId,
 }: AntiCheatWrapperProps) {
   const { config } = useProctoringConfig()
   const configRef = useRef(config)
@@ -26,10 +31,18 @@ export default function AntiCheatWrapper({
   const [isBlurredBySystem, setIsBlurredBySystem] = useState(false)
   const [systemWarning, setSystemWarning] = useState('')
 
-  // Apply laptop violations only when camera monitoring is enabled.
-  const effectiveIsViolating = isViolatingProctoring && config.laptop.cameraFeed
+  // Laptop proctoring violation (when laptop camera feed is enabled in config)
+  const effectiveLaptopViolating = Boolean(isViolatingProctoring && config.laptop.cameraFeed)
+  // Mobile proctoring violation (when mobile camera feed is enabled in config)
+  const effectiveMobileViolating = Boolean(isViolatingMobile && config.mobile.cameraFeed)
+  const effectiveIsViolating = effectiveLaptopViolating || effectiveMobileViolating
+
   const isBlurred = isBlurredBySystem || effectiveIsViolating
-  const warningMessage = systemWarning || (effectiveIsViolating ? proctoringWarning : '')
+  const warningMessage = systemWarning || (
+    effectiveMobileViolating
+      ? (mobileWarning || '📱 Mobile Alert: Security violation detected.')
+      : (effectiveLaptopViolating ? proctoringWarning : '')
+  )
 
   useEffect(() => {
     // 1. Handle window blur (screenshot tool opening, switching tabs)
@@ -221,15 +234,15 @@ export default function AntiCheatWrapper({
       </AnimatePresence>
 
       {isBlurred && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-xl rounded-lg border border-slate-700 mt-20">
-          <div className="text-center p-8">
-            <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-xl rounded-lg border border-slate-700">
+          <div className="text-center p-8 max-w-lg">
+            <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4 animate-pulse" />
             <h2 className="text-2xl font-bold text-white mb-2">Security Protection Active</h2>
-            <p className="text-slate-300">{warningMessage || 'Content is hidden.'}</p>
+            <p className="text-slate-200 text-base">{warningMessage || 'Content is hidden.'}</p>
           </div>
         </div>
       )}
-      <div className={`transition-all duration-200 ${isBlurred ? 'opacity-0 blur-md select-none' : 'opacity-100'}`}>
+      <div className={`transition-all duration-200 ${isBlurred ? 'opacity-0 blur-md select-none pointer-events-none' : 'opacity-100'}`}>
         {children}
       </div>
     </div>

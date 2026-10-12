@@ -94,6 +94,11 @@ export default function CourseLessonPage() {
   const hardMobileIncidents = activeMobileIncidents.filter(([, incident]) => incident.severity === 'hard' || incident.severity === 'technical')
   const warningMobileIncidents = activeMobileIncidents.filter(([, incident]) => incident.severity === 'warning' || incident.severity === 'soft')
   const hardMobileIncident = hardMobileIncidents[0]
+  const isMobileViolating = activeMobileIncidents.length > 0
+  const activeMobileIncident = hardMobileIncident || activeMobileIncidents[0]
+  const mobileWarningMessage = activeMobileIncident
+    ? `📱 Mobile Alert: ${activeMobileIncident[1].message}`
+    : ''
 
   const handleAgreeProctoring = async () => {
     // BUG 1 FIX: Skip POST if session already exists (avoid duplicate creation)
@@ -717,8 +722,10 @@ export default function CourseLessonPage() {
                     </div>
                   ) : (
                     <AntiCheatWrapper 
-                      isViolatingProctoring={isViolatingProctoring || Boolean(hardMobileIncident)}
-                      proctoringWarning={hardMobileIncident ? `📱 Mobile Camera: ${hardMobileIncident[1].message}` : proctoringWarning}
+                      isViolatingProctoring={isViolatingProctoring}
+                      proctoringWarning={proctoringWarning}
+                      isViolatingMobile={isMobileViolating}
+                      mobileWarning={mobileWarningMessage}
                       sessionId={proctorSessionId || undefined}
                     >
                       <SecureQuiz
