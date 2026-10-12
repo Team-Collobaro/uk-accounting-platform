@@ -1,7 +1,7 @@
 export const mobileAppDownload = {
-  version: '1.0.16',
+  version: '1.0.17',
   platform: 'Android 64-bit',
-  fileName: 'UKATI-Mobile-v1.0.16.apk',
-  url: '/downloads/UKATI-Mobile-v1.0.16.apk',
-  sha256: 'c6c722735350c676e0bbead24df611e0785762048e4036d6a570dcf3042794f6',
+  fileName: 'UKATI-Mobile-v1.0.17.apk',
+  url: '/downloads/UKATI-Mobile-v1.0.17.apk',
+  sha256: '0d7fc57cd3a5974268f12b45fe5c2bedd0bb6c963caadb8ef22bca3681ea24e1',
 } as const
