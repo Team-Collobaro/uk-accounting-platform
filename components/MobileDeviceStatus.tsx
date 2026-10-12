@@ -695,51 +695,38 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => void runSetupCheck(false)}
-        disabled={setupCheck.state === 'checking' || !['paired', 'live'].includes(status) || !phoneSetupReady}
-        style={{
-          width: '100%', border: 'none', borderRadius: 9, padding: '9px 12px',
-          background: setupCheck.state === 'passed' ? '#16a34a' : '#2563eb', color: '#fff',
-          fontSize: 12, fontWeight: 800,
-          cursor: setupCheck.state === 'checking' ? 'wait' : phoneSetupReady ? 'pointer' : 'not-allowed',
-          opacity: !['paired', 'live'].includes(status) || !phoneSetupReady ? 0.45 : 1,
-        }}
-      >
-        {setupCheck.state === 'checking' ? 'Checking Phone Setup…' : setupCheck.state === 'passed' ? '✓ Setup Passed — Check Again' : '📷 Check Setup'}
-      </button>
-
-      {['paired', 'live'].includes(status) && (
-        <div style={{ color: phoneSetupReady ? '#5eead4' : '#fbbf24', fontSize: 10, textAlign: 'center' }}>
-          {phoneSetupReady
-            ? `Phone setup ready · Session …${sessionId.slice(-4)}`
-            : `Waiting for phone setup screen · Session …${sessionId.slice(-4)}`}
+      {status === 'paired' && (
+        <div style={{ color: '#5eead4', fontSize: 11, textAlign: 'center' }}>
+          Mobile device connected · Starting monitoring…
         </div>
       )}
 
-      {(setupCheck.state === 'passed' || ['paired', 'live'].includes(status)) && (
+      {status === 'live' ? (
+        <div style={{
+          width: '100%', borderRadius: 9, padding: '10px 12px',
+          background: '#16a34a', color: '#fff', textAlign: 'center',
+          fontSize: 12, fontWeight: 800,
+        }}>
+          ✓ Monitoring Active
+        </div>
+      ) : status === 'paired' ? (
         <button
           type="button"
           onClick={handleStartMonitoring}
-          disabled={setupCheck.state === 'checking' || monitoringStart === 'started'}
+          disabled={monitoringStart === 'starting'}
           style={{
             width: '100%', border: 'none', borderRadius: 9, padding: '10px 12px',
-            background: monitoringStart === 'started' ? '#16a34a' : '#0f766e', color: '#fff',
+            background: '#0f766e', color: '#fff',
             fontSize: 12, fontWeight: 800,
-            cursor: setupCheck.state === 'checking' ? 'wait' : 'pointer',
-            opacity: setupCheck.state === 'checking' ? 0.75 : 1,
+            cursor: monitoringStart === 'starting' ? 'wait' : 'pointer',
+            opacity: monitoringStart === 'starting' ? 0.75 : 1,
           }}
         >
           {monitoringStart === 'starting'
-              ? 'Starting Monitoring… (Click to re-send)'
-            : monitoringStart === 'started'
-              ? '✓ Monitoring Active'
-              : setupCheck.state === 'passed'
-                ? '▶ Start Monitoring'
-                : '▶ Verify Setup & Start Monitoring'}
+            ? 'Starting Monitoring… (Click to re-send)'
+            : '▶ Start Monitoring'}
         </button>
-      )}
+      ) : null}
 
       {setupTrace.length > 0 && (
         <details style={{ borderRadius: 8, padding: '8px 10px', background: '#f1f5f9', color: '#0f172a', fontSize: 11 }} open={setupCheck.state === 'checking'}>
