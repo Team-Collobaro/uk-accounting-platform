@@ -9,9 +9,10 @@ interface MobileDeviceStatusProps {
   onStatusChange?: (status: Status) => void
   onViolation?: (isViolating: boolean, message: string, incidentType: string, severity: string) => void
   onSessionInvalid?: (message: string) => void
+  onMonitoringStarted?: () => void
 }
 
-export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolation, onSessionInvalid }: MobileDeviceStatusProps) {
+export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolation, onSessionInvalid, onMonitoringStarted }: MobileDeviceStatusProps) {
   const [status, setStatus] = useState<Status>('not_linked')
   const [reconnectingSeconds, setReconnectingSeconds] = useState(0)
   const [setupCheck, setSetupCheck] = useState<{ state: 'idle' | 'checking' | 'passed' | 'failed'; message: string }>({
@@ -158,6 +159,7 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
             setReconnectingSeconds(0)
           }
           updateStatus('live')
+          onMonitoringStarted?.()
           setMonitoringStart('started')
         })
         .on('broadcast', { event: 'tier2_unavailable' }, () => {
@@ -595,6 +597,9 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       setMobilePreview(null)
       setMobilePreviewUpdatedAt(null)
       monitoringRequestedAtRef.current = Date.now()
+      // Notify parent that monitoring has been successfully started so the
+      // quiz gate opens immediately, before the first heartbeat arrives.
+      onMonitoringStarted?.()
     } catch (error) {
       setMonitoringStart('failed')
       setSetupCheck({

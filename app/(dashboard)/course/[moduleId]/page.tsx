@@ -57,6 +57,7 @@ export default function CourseLessonPage() {
   const [proctorQrValue, setProctorQrValue] = useState<string | null>(null)
   const [proctorExpiresAt, setProctorExpiresAt] = useState<string | null>(null)
   const [mobileStatus, setMobileStatus] = useState<string>('not_linked')
+  const [mobileMonitoringStarted, setMobileMonitoringStarted] = useState(false)
   const [showResumeNotice, setShowResumeNotice] = useState(false)
   const [regeneratingQr, setRegeneratingQr] = useState(false)
   const [qrRecoveryError, setQrRecoveryError] = useState('')
@@ -688,7 +689,7 @@ export default function CourseLessonPage() {
                         I Agree, Start Knowledge Check
                       </button>
                     </div>
-                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live') ? (
+                  ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live' && !mobileMonitoringStarted) ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff', background: '#1f2937', borderRadius: 12, marginTop: 40 }}>
                       <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>📱 Link Your Phone to Continue</h2>
                       <p style={{ color: '#9ca3af', marginBottom: 24 }}>Mobile camera monitoring is required for this exam.</p>
@@ -831,7 +832,11 @@ export default function CourseLessonPage() {
               <div style={{ marginBottom: 20 }}>
                 <MobileDeviceStatus 
                   sessionId={proctorSessionId} 
-                  onStatusChange={setMobileStatus} 
+                  onStatusChange={(s) => {
+                    setMobileStatus(s)
+                    if (s === 'live') setMobileMonitoringStarted(true)
+                  }}
+                  onMonitoringStarted={() => setMobileMonitoringStarted(true)}
                   onViolation={handleMobileProctoringViolation}
                   onSessionInvalid={handleInvalidProctorSession}
                 />
