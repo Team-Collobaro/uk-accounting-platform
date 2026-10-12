@@ -150,6 +150,13 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
           stopPairingPoller()
           updateStatus('paired')
         })
+        .on('broadcast', { event: 'monitoring_starting' }, () => {
+          stopPairingPoller()
+          setMonitoringStart('starting')
+          setMobilePreview(null)
+          setMobilePreviewUpdatedAt(null)
+          onMonitoringStarted?.()
+        })
         .on('broadcast', { event: 'heartbeat' }, () => {
           stopPairingPoller()
           lastHeartbeatRef.current = Date.now()
@@ -600,6 +607,24 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
       // Notify parent that monitoring has been successfully started so the
       // quiz gate opens immediately, before the first heartbeat arrives.
       onMonitoringStarted?.()
+
+      // Retry sending start_monitoring_request every 2 seconds until first heartbeat arrives
+      let startRetryCount = 0
+      const startInterval = setInterval(() => {
+        startRetryCount++
+        if (lastHeartbeatRef.current || startRetryCount > 5 || !channelRef.current) {
+          clearInterval(startInterval)
+          if (!lastHeartbeatRef.current && startRetryCount > 5) {
+            setMonitoringStart('idle')
+          }
+          return
+        }
+        void channelRef.current.send({
+          type: 'broadcast',
+          event: 'start_monitoring_request',
+          payload: { sessionId, timestamp: new Date().toISOString() },
+        })
+      }, 2000)
     } catch (error) {
       setMonitoringStart('failed')
       setSetupCheck({
@@ -697,17 +722,17 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         <button
           type="button"
           onClick={handleStartMonitoring}
-          disabled={setupCheck.state === 'checking' || monitoringStart === 'starting' || monitoringStart === 'started'}
+          disabled={setupCheck.state === 'checking' || monitoringStart === 'started'}
           style={{
             width: '100%', border: 'none', borderRadius: 9, padding: '10px 12px',
             background: monitoringStart === 'started' ? '#16a34a' : '#0f766e', color: '#fff',
             fontSize: 12, fontWeight: 800,
-            cursor: setupCheck.state === 'checking' || monitoringStart === 'starting' ? 'wait' : 'pointer',
-            opacity: setupCheck.state === 'checking' || monitoringStart === 'starting' ? 0.75 : 1,
+            cursor: setupCheck.state === 'checking' ? 'wait' : 'pointer',
+            opacity: setupCheck.state === 'checking' ? 0.75 : 1,
           }}
         >
           {monitoringStart === 'starting'
-              ? 'Starting Monitoring…'
+              ? 'Starting Monitoring… (Click to re-send)'
             : monitoringStart === 'started'
               ? '✓ Monitoring Active'
               : setupCheck.state === 'passed'
