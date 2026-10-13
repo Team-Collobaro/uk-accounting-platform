@@ -66,7 +66,7 @@ function EnrolVisual() {
           <div className="lp-hv-icon" style={{ background: 'rgba(61,214,140,0.12)', color: 'var(--lp-success)' }}><Smartphone size={18} /></div>
           <div style={{ flex: 1 }}>
             <div className="lp-mock-value">Companion app installed</div>
-            <div className="lp-mock-label">Android {mobileAppDownload.version} · needed for exams</div>
+            <div className="lp-mock-label">iOS &amp; Android v{mobileAppDownload.version} · needed for exams</div>
           </div>
           <span className="lp-mock-chip lp-chip-ok">Ready</span>
         </div>
@@ -208,7 +208,12 @@ const STEPS = [
       'Leaving full-screen or switching tabs pauses the exam',
       'Answers are scored on the server, so results can’t be tampered with',
     ],
-    cta: { label: `Download Android app (${mobileAppDownload.version})`, href: mobileAppDownload.url, download: true },
+    cta: {
+      downloads: [
+        { label: `Android APK (${mobileAppDownload.android.version})`, href: mobileAppDownload.android.url, fileName: mobileAppDownload.android.fileName },
+        { label: `iOS IPA (${mobileAppDownload.ios.version})`, href: mobileAppDownload.ios.url, fileName: mobileAppDownload.ios.fileName },
+      ],
+    },
     Visual: ExamVisual,
   },
   {
@@ -335,8 +340,14 @@ function HowItWorks() {
                     <li key={p}><Check size={18} />{p}</li>
                   ))}
                 </ul>
-                <div className="lp-step-cta">
-                  {'download' in step.cta ? (
+                <div className="lp-step-cta" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {'downloads' in step.cta ? (
+                    step.cta.downloads.map(dl => (
+                      <a key={dl.label} className="lp-btn lp-btn-ghost" href={dl.href} download={dl.fileName}>
+                        <Download size={17} /> {dl.label}
+                      </a>
+                    ))
+                  ) : 'download' in step.cta ? (
                     <a className="lp-btn lp-btn-ghost" href={step.cta.href} download={mobileAppDownload.fileName}>
                       <Download size={17} /> {step.cta.label}
                     </a>
@@ -614,16 +625,29 @@ export default function LandingPage() {
               </div>
               <div className="lp-cta-actions">
                 <Link href="/register" className="lp-btn lp-btn-gold lp-btn-lg" id="cta-enrol">Enrol now <ArrowRight size={18} /></Link>
-                <a
-                  href={mobileAppDownload.url}
-                  download={mobileAppDownload.fileName}
-                  className="lp-btn lp-btn-ghost lp-btn-lg"
-                  id="cta-download"
-                  aria-label={`Download LMS Mobile ${mobileAppDownload.version} for ${mobileAppDownload.platform}`}
-                >
-                  <Download size={18} /> Android companion app
-                </a>
-                <small>v{mobileAppDownload.version} · {mobileAppDownload.platform}</small>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <a
+                    href={mobileAppDownload.android.url}
+                    download={mobileAppDownload.android.fileName}
+                    className="lp-btn lp-btn-ghost"
+                    id="cta-download-android"
+                    style={{ fontSize: 13, padding: '12px 14px', justifyContent: 'center' }}
+                    aria-label={`Download LMS Mobile for Android`}
+                  >
+                    <Download size={16} /> Android APK
+                  </a>
+                  <a
+                    href={mobileAppDownload.ios.url}
+                    download={mobileAppDownload.ios.fileName}
+                    className="lp-btn lp-btn-ghost"
+                    id="cta-download-ios"
+                    style={{ fontSize: 13, padding: '12px 14px', justifyContent: 'center' }}
+                    aria-label={`Download LMS Mobile for iOS`}
+                  >
+                    <Download size={16} /> iOS IPA
+                  </a>
+                </div>
+                <small>v{mobileAppDownload.version} · Android &amp; iOS</small>
               </div>
             </div>
           </div>

@@ -865,39 +865,58 @@ export default function ProctoringCamera({
           </div>
 
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <a
-              href={mobileAppDownload.url}
-              download={mobileAppDownload.fileName}
-              style={{
-                width: '100%',
-                border: '1px solid rgba(78,205,196,0.45)',
-                background: 'rgba(78,205,196,0.10)',
-                color: '#4ECDC4',
-                borderRadius: 7,
-                padding: '8px 10px',
-                fontSize: 10,
-                fontWeight: 800,
-                textAlign: 'center',
-                textDecoration: 'none',
-              }}
-              aria-label={`Download LMS Mobile for Android`}
-            >
-              🤖 Download LMS Mobile (Android APK)
-            </a>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <a
+                href={mobileAppDownload.android.url}
+                download={mobileAppDownload.android.fileName}
+                style={{
+                  border: '1px solid rgba(78,205,196,0.45)',
+                  background: 'rgba(78,205,196,0.10)',
+                  color: '#4ECDC4',
+                  borderRadius: 7,
+                  padding: '8px 6px',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                }}
+                aria-label="Download LMS Mobile for Android"
+              >
+                🤖 Android (APK)
+              </a>
+              <a
+                href={mobileAppDownload.ios.url}
+                download={mobileAppDownload.ios.fileName}
+                style={{
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#ffffff',
+                  borderRadius: 7,
+                  padding: '8px 6px',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                }}
+                aria-label="Download LMS Mobile for iOS"
+              >
+                🍏 iOS (IPA)
+              </a>
+            </div>
             <div
               style={{
                 width: '100%',
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: 'rgba(255,255,255,0.04)',
-                color: 'rgba(255,255,255,0.85)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'rgba(255,255,255,0.75)',
                 borderRadius: 7,
-                padding: '7px 10px',
-                fontSize: 9.5,
-                fontWeight: 600,
+                padding: '6px 8px',
+                fontSize: 9,
+                fontWeight: 500,
                 textAlign: 'center',
               }}
             >
-              🍏 iOS: Point iPhone Camera at QR or use in-app scanner
+              Tip: Point iPhone Camera at this QR to pair instantly via deep link
             </div>
           </div>
 

@@ -752,18 +752,32 @@ export default function CourseLessonPage() {
                           <li>Position your phone behind you, facing your screen</li>
                         </ol>
                       </div>
-                      <a
-                        href={mobileAppDownload.url}
-                        download={mobileAppDownload.fileName}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          marginTop: 20, padding: '11px 18px', borderRadius: 8,
-                          background: '#0f766e', color: '#fff', fontWeight: 800,
-                          fontSize: 13, textDecoration: 'none',
-                        }}
-                      >
-                        ↓ Download LMS Mobile Android Beta
-                      </a>
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 20 }}>
+                        <a
+                          href={mobileAppDownload.android.url}
+                          download={mobileAppDownload.android.fileName}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '11px 18px', borderRadius: 8,
+                            background: '#0f766e', color: '#fff', fontWeight: 800,
+                            fontSize: 13, textDecoration: 'none',
+                          }}
+                        >
+                          🤖 Download Android APK
+                        </a>
+                        <a
+                          href={mobileAppDownload.ios.url}
+                          download={mobileAppDownload.ios.fileName}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '11px 18px', borderRadius: 8,
+                            background: '#374151', color: '#fff', fontWeight: 800,
+                            fontSize: 13, textDecoration: 'none', border: '1px solid #4b5563',
+                          }}
+                        >
+                          🍏 Download iOS IPA
+                        </a>
+                      </div>
                     </div>
                   ) : (
                     <AntiCheatWrapper 
