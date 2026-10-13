@@ -1,9 +1,15 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { ShieldAlert } from 'lucide-react'
+import { ShieldAlert, AlertTriangle, Monitor, Smartphone, Laptop } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
+
+export interface SecurityIncidentItem {
+  source: 'laptop' | 'mobile' | 'system' | string
+  message: string
+  severity?: 'warning' | 'soft' | 'hard' | 'technical' | string
+}
 
 interface AntiCheatWrapperProps {
   children: React.ReactNode
@@ -11,7 +17,9 @@ interface AntiCheatWrapperProps {
   proctoringWarning?: string
   isViolatingMobile?: boolean
   mobileWarning?: string
-  sessionId?: string // proctor:sessionId channel identifier
+  sessionId?: string
+  lockedIncidents?: SecurityIncidentItem[]
+  warningIncidents?: SecurityIncidentItem[]
 }
 
 export default function AntiCheatWrapper({
@@ -21,6 +29,8 @@ export default function AntiCheatWrapper({
   isViolatingMobile = false,
   mobileWarning = '',
   sessionId,
+  lockedIncidents = [],
+  warningIncidents = [],
 }: AntiCheatWrapperProps) {
   const { config } = useProctoringConfig()
   const configRef = useRef(config)
@@ -31,21 +41,42 @@ export default function AntiCheatWrapper({
   const [isBlurredBySystem, setIsBlurredBySystem] = useState(false)
   const [systemWarning, setSystemWarning] = useState('')
 
-  // Laptop proctoring violation (when laptop camera feed is enabled in config)
-  const effectiveLaptopViolating = Boolean(isViolatingProctoring && config.laptop.cameraFeed)
-  // Mobile proctoring violation (when mobile camera feed is enabled in config)
-  const effectiveMobileViolating = Boolean(isViolatingMobile && config.mobile.cameraFeed)
-  const effectiveIsViolating = effectiveLaptopViolating || effectiveMobileViolating
+  // Build combined locked list
+  const activeLockedList: SecurityIncidentItem[] = [...lockedIncidents]
 
-  const isBlurred = isBlurredBySystem || effectiveIsViolating
-  const warningMessage = systemWarning || (
-    effectiveMobileViolating
-      ? (mobileWarning || '📱 Mobile Alert: Security violation detected.')
-      : (effectiveLaptopViolating ? proctoringWarning : '')
-  )
+  if (isBlurredBySystem && systemWarning) {
+    activeLockedList.push({
+      source: 'system',
+      message: systemWarning,
+      severity: 'technical',
+    })
+  }
+
+  if (isViolatingProctoring && config.laptop.cameraFeed && proctoringWarning) {
+    if (!activeLockedList.some((i) => i.source === 'laptop' && i.message === proctoringWarning)) {
+      activeLockedList.push({
+        source: 'laptop',
+        message: proctoringWarning,
+        severity: 'hard',
+      })
+    }
+  }
+
+  if (isViolatingMobile && config.mobile.cameraFeed && mobileWarning) {
+    if (!activeLockedList.some((i) => i.source === 'mobile' && i.message === mobileWarning)) {
+      activeLockedList.push({
+        source: 'mobile',
+        message: mobileWarning,
+        severity: 'hard',
+      })
+    }
+  }
+
+  const isLocked = activeLockedList.length > 0
+  const hasSoftWarnings = warningIncidents.length > 0 && !isLocked
 
   useEffect(() => {
-    // 1. Handle window blur (screenshot tool opening, switching tabs)
+    // 1. Handle window blur (switching tabs, DevTools)
     const handleBlur = () => {
       if (!configRef.current.browserGuards.tabSwitchBlur) return
       setIsBlurredBySystem(true)
@@ -57,25 +88,22 @@ export default function AntiCheatWrapper({
       setSystemWarning('')
     }
 
-    // 2. Handle specific keyboard shortcuts for screenshots
+    // 2. Handle screenshot shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!configRef.current.browserGuards.screenshotProtection) return
 
-      // Proactively blur if they hold Cmd+Shift or Win+Shift
       if (e.metaKey && e.shiftKey) {
         setIsBlurredBySystem(true)
         setSystemWarning('Screenshot shortcut detected.')
       }
 
-      // PrintScreen key (Windows)
       if (e.key === 'PrintScreen') {
         setIsBlurredBySystem(true)
         setSystemWarning('Screenshots are not permitted on Knowledge Checks.')
         e.preventDefault()
-        navigator.clipboard.writeText('') // Clear clipboard just in case
+        navigator.clipboard?.writeText('')
       }
 
-      // Ctrl+C, Cmd+C (Copy)
       if (configRef.current.browserGuards.clipboardCopyProtection) {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
           e.preventDefault()
@@ -97,26 +125,25 @@ export default function AntiCheatWrapper({
       }
     }
 
-    // 3. Handle copy event
+    // 3. Clipboard and Context menu guards
     const handleCopy = (e: ClipboardEvent) => {
       if (!configRef.current.browserGuards.clipboardCopyProtection) return
       e.preventDefault()
       e.clipboardData?.setData('text/plain', 'Copying is disabled.')
     }
 
-    // 4. Handle right click
     const handleContextMenu = (e: MouseEvent) => {
       if (!configRef.current.browserGuards.clipboardCopyProtection) return
       e.preventDefault()
     }
 
-    // 5. Handle extended displays / multiple monitors
+    // 4. Multiple monitor guard
     const checkMultipleMonitors = () => {
       if (!configRef.current.browserGuards.multiMonitorDetection) return false
       if (typeof window !== 'undefined' && window.screen) {
         if ((window.screen as any).isExtended) {
           setIsBlurredBySystem(true)
-          setSystemWarning('Multiple monitors detected. Please disconnect secondary displays to continue.')
+          setSystemWarning('Multiple monitors detected. Please disconnect secondary displays.')
           return true
         } else {
           setSystemWarning((prev) => {
@@ -132,47 +159,8 @@ export default function AntiCheatWrapper({
     }
 
     const hasMultipleMonitors = checkMultipleMonitors()
-
     if (typeof window !== 'undefined' && window.screen) {
       ;(window.screen as any).addEventListener('change', checkMultipleMonitors)
-    }
-
-    let screenDetailsInstance: any = null
-    let handleScreensChangeRef: any = null
-
-    const initScreenDetails = async () => {
-      if (!configRef.current.browserGuards.multiMonitorDetection) return
-      if (typeof window !== 'undefined' && 'getScreenDetails' in window) {
-        try {
-          const screenDetails = await (window as any).getScreenDetails()
-          screenDetailsInstance = screenDetails
-
-          handleScreensChangeRef = () => {
-            if (!configRef.current.browserGuards.multiMonitorDetection) return
-            if (screenDetails.screens.length > 1) {
-              setIsBlurredBySystem(true)
-              setSystemWarning('Multiple monitors detected. Please disconnect secondary displays to continue.')
-            } else {
-              setSystemWarning((prev) => {
-                if (prev.includes('monitor') || prev.includes('display')) {
-                  setIsBlurredBySystem(false)
-                  return ''
-                }
-                return prev
-              })
-            }
-          }
-
-          handleScreensChangeRef()
-          screenDetails.addEventListener('screenschange', handleScreensChangeRef)
-        } catch (err) {
-          console.warn('Screen details permission denied or not supported:', err)
-        }
-      }
-    }
-
-    if (!hasMultipleMonitors) {
-      initScreenDetails()
     }
 
     window.addEventListener('blur', handleBlur)
@@ -192,57 +180,120 @@ export default function AntiCheatWrapper({
       if (typeof window !== 'undefined' && window.screen) {
         ;(window.screen as any).removeEventListener('change', checkMultipleMonitors)
       }
-      if (screenDetailsInstance && handleScreensChangeRef) {
-        screenDetailsInstance.removeEventListener('screenschange', handleScreensChangeRef)
-      }
     }
   }, [systemWarning])
 
+  const renderSourceBadge = (source: string) => {
+    switch (source) {
+      case 'laptop':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            <Laptop className="w-3 h-3" /> Laptop Camera
+          </span>
+        )
+      case 'mobile':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <Smartphone className="w-3 h-3" /> Mobile Camera
+          </span>
+        )
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            <Monitor className="w-3 h-3" /> System Guard
+          </span>
+        )
+    }
+  }
+
   return (
     <div className="anti-cheat-container no-copy relative">
+      {/* ── Soft / Provisional Warning Banner (Non-blurring) ── */}
       <AnimatePresence>
-        {isBlurred && warningMessage && (
+        {hasSoftWarnings && (
           <motion.div
-            initial={{ opacity: 0, y: -50, scale: 0.9, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, scale: 1, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, scale: 0.95, x: '-50%' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            initial={{ opacity: 0, y: -40, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -30, x: '-50%' }}
+            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
             style={{
               position: 'fixed',
-              top: '24px',
+              top: '20px',
               left: '50%',
               zIndex: 9999,
               display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              background: 'rgba(239, 68, 68, 0.95)', // red-500
+              flexDirection: 'column',
+              gap: '6px',
+              background: 'rgba(245, 158, 11, 0.95)',
               backdropFilter: 'blur(12px)',
-              color: '#ffffff',
+              color: '#0f172a',
               padding: '12px 20px',
-              borderRadius: '8px',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              fontFamily: '"Montserrat", sans-serif',
-              fontSize: '14px',
-              fontWeight: 600,
+              borderRadius: '10px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(251, 191, 36, 0.5)',
+              maxWidth: '90vw',
+              width: '480px',
             }}
           >
-            <ShieldAlert className="w-5 h-5 text-white flex-shrink-0 animate-pulse" />
-            <span>{warningMessage}</span>
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-950 flex-shrink-0 animate-bounce" />
+              <span>Provisional Warning</span>
+            </div>
+            <div className="flex flex-col gap-1.5 text-xs text-amber-950 font-medium">
+              {warningIncidents.map((incident, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-2">
+                  <span>{incident.message}</span>
+                  {renderSourceBadge(incident.source)}
+                </div>
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {isBlurred && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-xl rounded-lg border border-slate-700">
-          <div className="text-center p-8 max-w-lg">
-            <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4 animate-pulse" />
-            <h2 className="text-2xl font-bold text-white mb-2">Security Protection Active</h2>
-            <p className="text-slate-200 text-base">{warningMessage || 'Content is hidden.'}</p>
+      {/* ── Hard / Technical Locked Screen Blur Overlay ── */}
+      {isLocked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-2xl p-6 select-none">
+          <div className="text-center p-8 max-w-lg w-full bg-slate-900/90 rounded-2xl border border-red-500/40 shadow-2xl flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 border border-red-500/50 flex items-center justify-center mb-5">
+              <ShieldAlert className="w-9 h-9 text-red-400 animate-pulse" />
+            </div>
+
+            <h2 className="text-xl font-bold text-white mb-2 tracking-tight">
+              Assessment Locked
+            </h2>
+            <p className="text-slate-300 text-xs mb-5">
+              Security protocol active. Resolve the conditions below to automatically unlock.
+            </p>
+
+            <div className="w-full flex flex-col gap-2.5 mb-6 text-left">
+              {activeLockedList.map((inc, index) => (
+                <div
+                  key={index}
+                  className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-200"
+                >
+                  <span className="font-medium">{inc.message}</span>
+                  {renderSourceBadge(inc.source)}
+                </div>
+              ))}
+            </div>
+
+            <div className="text-[11px] text-slate-400 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              Continuous clean view for ~2 seconds will automatically resume.
+            </div>
           </div>
         </div>
       )}
-      <div className={`transition-all duration-200 ${isBlurred ? 'opacity-0 blur-md select-none pointer-events-none' : 'opacity-100'}`}>
+
+      {/* Content wrapper */}
+      <div
+        className={`transition-all duration-300 ${
+          isLocked
+            ? 'opacity-0 blur-lg select-none pointer-events-none'
+            : 'opacity-100 blur-0'
+        }`}
+      >
         {children}
       </div>
     </div>

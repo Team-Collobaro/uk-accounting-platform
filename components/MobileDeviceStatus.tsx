@@ -224,6 +224,20 @@ export default function MobileDeviceStatus({ sessionId, onStatusChange, onViolat
         .on('broadcast', { event: 'second_person_cleared' }, () => {
           onViolation?.(false, '', 'second_person', 'info')
         })
+        .on('broadcast', { event: 'camera_stalled' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Mobile camera video stalled', 'camera_stalled', 'technical')
+        })
+        .on('broadcast', { event: 'camera_stalled_cleared' }, () => {
+          onViolation?.(false, '', 'camera_stalled', 'info')
+        })
+        .on('broadcast', { event: 'detector_unavailable' }, (payload: any) => {
+          const event = payload.payload || payload
+          onViolation?.(true, event?.description || 'Mobile AI detector unavailable', 'detector_unavailable', 'technical')
+        })
+        .on('broadcast', { event: 'detector_recovered' }, () => {
+          onViolation?.(false, '', 'detector_unavailable', 'info')
+        })
         .on('broadcast', { event: 'clear' }, () => {
           onViolation?.(false, '', '*', 'info')
         })

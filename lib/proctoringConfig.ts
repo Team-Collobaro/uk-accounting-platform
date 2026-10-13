@@ -1,5 +1,18 @@
 export interface ProctoringConfig {
   devMode: boolean
+  policy?: {
+    version: number
+    personAnalysisIntervalMs: number
+    secondaryAnalysisIntervalMs: number
+    warningWindowMs: number
+    strongConfirmPositives: number
+    strongConfirmWindowMs: number
+    weakConfirmPositives: number
+    weakConfirmWindowMs: number
+    recoveryMs: number
+    staleFrameTimeoutMs: number
+    minConfidence: number
+  }
   laptop: {
     cameraFeed: boolean
     microphoneFeed: boolean
@@ -36,6 +49,19 @@ export interface ProctoringConfig {
 // Fixed proctoring defaults; developer overrides and disk persistence have been removed.
 export const DEFAULT_PROCTORING_CONFIG: ProctoringConfig = {
   "devMode": false,
+  "policy": {
+    "version": 1,
+    "personAnalysisIntervalMs": 500,
+    "secondaryAnalysisIntervalMs": 1500,
+    "warningWindowMs": 1500,
+    "strongConfirmPositives": 2,
+    "strongConfirmWindowMs": 1000,
+    "weakConfirmPositives": 3,
+    "weakConfirmWindowMs": 1500,
+    "recoveryMs": 3500,
+    "staleFrameTimeoutMs": 8000,
+    "minConfidence": 0.35
+  },
   "laptop": {
     "cameraFeed": true,
     "microphoneFeed": true,

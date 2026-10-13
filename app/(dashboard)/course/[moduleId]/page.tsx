@@ -24,10 +24,15 @@ interface MobileIncident {
   severity: string
 }
 
+interface ProctorIncident {
+  message: string
+  severity: string
+}
+
 import { motion, AnimatePresence } from 'framer-motion'
 import DOMPurify from 'dompurify'
 import AiZone from '@/components/AiZone'
-import AntiCheatWrapper from '@/components/AntiCheatWrapper'
+import AntiCheatWrapper, { SecurityIncidentItem } from '@/components/AntiCheatWrapper'
 import ProctoringCamera from '@/components/ProctoringCamera'
 import MobileDeviceStatus from '@/components/MobileDeviceStatus'
 import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
@@ -35,6 +40,7 @@ import SecureQuiz from '@/components/SecureQuiz'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
 import { initAnimFactory } from '@/lib/animFactory'
 import { mobileAppDownload } from '@/lib/mobileAppDownload'
+import { DetectionIncident } from '@/lib/proctoring/types'
 
 export default function CourseLessonPage() {
   const params = useParams()
@@ -53,6 +59,7 @@ export default function CourseLessonPage() {
   const [isViolatingProctoring, setIsViolatingProctoring] = useState(false)
   const [proctoringWarning, setProctoringWarning] = useState('')
   const [mobileIncidents, setMobileIncidents] = useState<Record<string, MobileIncident>>({})
+  const [laptopIncidents, setLaptopIncidents] = useState<Record<string, ProctorIncident>>({})
   const [isProctoringAgreed, setIsProctoringAgreed] = useState(false)
   const [proctorSessionId, setProctorSessionId] = useState<string | null>(null)
   const [proctorQrValue, setProctorQrValue] = useState<string | null>(null)
@@ -73,6 +80,14 @@ export default function CourseLessonPage() {
   const handleProctoringViolation = React.useCallback((isViolating: boolean, message: string) => {
     setIsViolatingProctoring(isViolating)
     setProctoringWarning(isViolating ? message : '')
+  }, [])
+
+  const handleLaptopProctoringIncidents = React.useCallback((incidents: DetectionIncident[]) => {
+    const map: Record<string, ProctorIncident> = {}
+    for (const inc of incidents) {
+      map[inc.type] = { message: inc.description, severity: inc.severity }
+    }
+    setLaptopIncidents(map)
   }, [])
 
   const handleMobileProctoringViolation = React.useCallback((
@@ -99,6 +114,36 @@ export default function CourseLessonPage() {
   const mobileWarningMessage = activeMobileIncident
     ? `📱 Mobile Alert: ${activeMobileIncident[1].message}`
     : ''
+
+  const activeLaptopIncidents = Object.entries(laptopIncidents)
+  const hardLaptopIncidents = activeLaptopIncidents.filter(([, incident]) => incident.severity === 'hard' || incident.severity === 'technical')
+  const warningLaptopIncidents = activeLaptopIncidents.filter(([, incident]) => incident.severity === 'warning' || incident.severity === 'soft')
+
+  const combinedLockedIncidents: SecurityIncidentItem[] = [
+    ...hardLaptopIncidents.map(([, inc]) => ({
+      source: 'laptop',
+      message: inc.message,
+      severity: inc.severity,
+    })),
+    ...hardMobileIncidents.map(([, inc]) => ({
+      source: 'mobile',
+      message: inc.message,
+      severity: inc.severity,
+    })),
+  ]
+
+  const combinedWarningIncidents: SecurityIncidentItem[] = [
+    ...warningLaptopIncidents.map(([, inc]) => ({
+      source: 'laptop',
+      message: inc.message,
+      severity: inc.severity,
+    })),
+    ...warningMobileIncidents.map(([, inc]) => ({
+      source: 'mobile',
+      message: inc.message,
+      severity: inc.severity,
+    })),
+  ]
 
   const handleAgreeProctoring = async () => {
     // BUG 1 FIX: Skip POST if session already exists (avoid duplicate creation)
@@ -727,6 +772,8 @@ export default function CourseLessonPage() {
                       isViolatingMobile={isMobileViolating}
                       mobileWarning={mobileWarningMessage}
                       sessionId={proctorSessionId || undefined}
+                      lockedIncidents={combinedLockedIncidents}
+                      warningIncidents={combinedWarningIncidents}
                     >
                       <SecureQuiz
                         moduleId={moduleId}
@@ -860,7 +907,7 @@ export default function CourseLessonPage() {
                 {qrRecoveryError && <p role="alert" style={{ color: '#dc2626', fontSize: 12 }}>{qrRecoveryError}</p>}
               </div>
             )}
-            {hardMobileIncidents.length > 0 && (
+            {combinedLockedIncidents.length > 0 && (
               <div
                 role="alert"
                 aria-live="assertive"
@@ -877,15 +924,17 @@ export default function CourseLessonPage() {
                     Monitoring Incident (Exam Locked)
                   </div>
                   <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ink)' }}>
-                    {hardMobileIncidents.map(([type, incident]) => (
-                      <div key={type} style={{ marginBottom: 4 }}>{incident.message}</div>
+                    {combinedLockedIncidents.map((incident, idx) => (
+                      <div key={idx} style={{ marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, textTransform: 'capitalize' }}>[{incident.source}]</span> {incident.message}
+                      </div>
                     ))}
                   </div>
                 </div>
               </div>
             )}
             
-            {warningMobileIncidents.length > 0 && (
+            {combinedWarningIncidents.length > 0 && (
               <div
                 role="alert"
                 aria-live="polite"
@@ -902,8 +951,10 @@ export default function CourseLessonPage() {
                     Provisional Warning
                   </div>
                   <div style={{ fontSize: 12, lineHeight: 1.45, color: 'var(--ink)' }}>
-                    {warningMobileIncidents.map(([type, incident]) => (
-                      <div key={type} style={{ marginBottom: 4 }}>{incident.message}</div>
+                    {combinedWarningIncidents.map((incident, idx) => (
+                      <div key={idx} style={{ marginBottom: 4 }}>
+                        <span style={{ fontWeight: 700, textTransform: 'capitalize' }}>[{incident.source}]</span> {incident.message}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -911,6 +962,7 @@ export default function CourseLessonPage() {
             )}
             <ProctoringCamera 
               onViolation={handleProctoringViolation} 
+              onIncidentsChange={handleLaptopProctoringIncidents}
               sessionId={proctorSessionId || undefined} 
               qrValue={proctorQrValue || undefined} 
               expiresAt={proctorExpiresAt || undefined}

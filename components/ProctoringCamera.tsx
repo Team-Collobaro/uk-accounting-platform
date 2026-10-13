@@ -3,23 +3,36 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { FaceLandmarker, FilesetResolver, ObjectDetector } from '@mediapipe/tasks-vision'
 import QRCode from 'react-qr-code'
-import { useProctoringConfig } from '@/lib/proctoringConfig'
+import { DEFAULT_PROCTORING_CONFIG, useProctoringConfig } from '@/lib/proctoringConfig'
 import { mobileAppDownload } from '@/lib/mobileAppDownload'
+import { TimedDetectionEngine } from '@/lib/proctoring/detectionPolicy'
+import { useProctorIncidentReporter } from '@/lib/proctoring/useProctorIncidentReporter'
+import { DetectionIncident, IncidentType } from '@/lib/proctoring/types'
 
 interface ProctoringCameraProps {
   onViolation: (isViolating: boolean, message: string) => void
+  onIncidentsChange?: (incidents: DetectionIncident[]) => void
   sessionId?: string
   qrValue?: string
   expiresAt?: string
   onRegenerateQr?: () => void | Promise<void>
 }
 
-export default function ProctoringCamera({ onViolation, sessionId, qrValue, expiresAt, onRegenerateQr }: ProctoringCameraProps) {
+export default function ProctoringCamera({
+  onViolation,
+  onIncidentsChange,
+  sessionId,
+  qrValue,
+  expiresAt,
+  onRegenerateQr,
+}: ProctoringCameraProps) {
   const { config } = useProctoringConfig()
   const configRef = useRef(config)
   useEffect(() => {
     configRef.current = config
   }, [config])
+
+  const { reportIncident, resolveIncident } = useProctorIncidentReporter({ sessionId })
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioBarRef = useRef<HTMLDivElement>(null)
@@ -27,6 +40,49 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
   const [errorMessage, setErrorMessage] = useState('')
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
   const [isRegeneratingQr, setIsRegeneratingQr] = useState(false)
+
+  // Track active local incidents
+  const activeIncidentsRef = useRef<Map<string, DetectionIncident>>(new Map())
+
+  const syncIncidents = () => {
+    const incidents = Array.from(activeIncidentsRef.current.values())
+    onIncidentsChange?.(incidents)
+
+    const hardIncidents = incidents.filter(
+      (i) => i.severity === 'hard' || i.severity === 'technical',
+    )
+    const softIncidents = incidents.filter(
+      (i) => i.severity === 'warning' || i.severity === 'soft',
+    )
+
+    if (hardIncidents.length > 0) {
+      onViolation(true, hardIncidents[0].description)
+    } else if (softIncidents.length > 0) {
+      onViolation(false, softIncidents[0].description)
+    } else {
+      onViolation(false, '')
+    }
+  }
+
+  const setIncident = (incident: DetectionIncident) => {
+    const prev = activeIncidentsRef.current.get(incident.incidentKey)
+    if (prev && prev.severity === incident.severity && prev.description === incident.description) {
+      return
+    }
+    activeIncidentsRef.current.set(incident.incidentKey, incident)
+    syncIncidents()
+    if (incident.severity === 'hard' || incident.severity === 'technical') {
+      void reportIncident(incident)
+    }
+  }
+
+  const removeIncident = (incidentKey: string, type: IncidentType, source = 'laptop_local') => {
+    if (activeIncidentsRef.current.has(incidentKey)) {
+      activeIncidentsRef.current.delete(incidentKey)
+      syncIncidents()
+      void resolveIncident(type, source)
+    }
+  }
 
   const regenerateQr = async () => {
     if (!onRegenerateQr || isRegeneratingQr) return
@@ -43,29 +99,29 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
       setTimeRemaining(null)
       return
     }
-    
+
     const updateCountdown = () => {
       const now = new Date().getTime()
       const end = new Date(expiresAt).getTime()
       const diff = end - now
-      
+
       if (diff <= 0) {
         setTimeRemaining(0)
       } else {
         setTimeRemaining(Math.floor(diff / 1000))
       }
     }
-    
+
     updateCountdown()
     const timer = setInterval(updateCountdown, 1000)
     return () => clearInterval(timer)
   }, [expiresAt])
 
   useEffect(() => {
-    // If dev explicitly disabled laptop camera feed, skip media capture entirely
     if (!config.laptop.cameraFeed) {
       setStatus('disabled')
-      onViolation(false, '')
+      activeIncidentsRef.current.clear()
+      syncIncidents()
       return
     }
 
@@ -76,30 +132,57 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
     let dataArray: Float32Array | null = null
     let stream: MediaStream | null = null
     let animationFrameId: number
+    let checkIntervalId: NodeJS.Timeout | null = null
+
+    // Stale video tracking
     let lastVideoTime = -1
+    let lastTimeAdvancedMs = performance.now()
+    let isStalled = false
 
-    // Debounce state to avoid flickering
-    let violatingFrames = 0
-    let normalFrames = 0
+    // Scheduling timestamps & overlap locks
+    let lastFaceDetectMs = 0
+    let lastObjectDetectMs = 0
+    let lastBrightnessCheckMs = 0
+    let isRunningFace = false
+    let isRunningObject = false
+
+    // Audio & liveness
     let noiseFrames = 0
-
-    // Liveness state
     let lastBlinkTime = performance.now()
     let nosePositions: { x: number; y: number }[] = []
 
+    // Offscreen canvas for brightness / obstruction check
+    const sampleCanvas = document.createElement('canvas')
+    sampleCanvas.width = 16
+    sampleCanvas.height = 16
+    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true })
+    let darkFrameCount = 0
+
+    // Policy Engines
+    const policyConfig = configRef.current.policy || DEFAULT_PROCTORING_CONFIG.policy!
+    const recoveryMs = policyConfig.recoveryMs ?? 2500
+
+    const secondPersonEngine = TimedDetectionEngine.secondPerson(recoveryMs)
+    const presenceEngine = TimedDetectionEngine.presence(recoveryMs)
+    const gazeEngine = TimedDetectionEngine.presence(2000)
+    const objectEngine = TimedDetectionEngine.object(recoveryMs)
+
     const init = async () => {
       try {
-        // 1. Get webcam and microphone
         const shouldGetAudio = configRef.current.laptop.microphoneFeed
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 320, height: 240 },
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+          },
           audio: shouldGetAudio,
         })
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream
         }
 
-        // Initialize Web Audio API if mic is enabled
+        // Web Audio API
         if (shouldGetAudio) {
           try {
             audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -114,100 +197,379 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
           }
         }
 
-        // 2. Load MediaPipe resolver
+        // Load MediaPipe resolver
         const filesetResolver = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
         )
-        const [landmarker, detector] = await Promise.all([
-          FaceLandmarker.createFromOptions(filesetResolver, {
-            baseOptions: {
-              modelAssetPath:
-                'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-              delegate: 'GPU',
-            },
-            outputFaceBlendshapes: true,
-            outputFacialTransformationMatrixes: true,
-            runningMode: 'VIDEO',
-            numFaces: 2,
-          }),
-          ObjectDetector.createFromOptions(filesetResolver, {
-            baseOptions: {
-              modelAssetPath:
-                'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
-              delegate: 'GPU',
-            },
-            scoreThreshold: 0.4,
-            runningMode: 'VIDEO',
-          }),
-        ])
 
-        faceLandmarker = landmarker
-        objectDetector = detector
+        // Try GPU delegate first, fallback to CPU delegate on failure
+        const createVisionModels = async (delegate: 'GPU' | 'CPU') => {
+          return await Promise.all([
+            FaceLandmarker.createFromOptions(filesetResolver, {
+              baseOptions: {
+                modelAssetPath:
+                  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+                delegate,
+              },
+              outputFaceBlendshapes: true,
+              outputFacialTransformationMatrixes: true,
+              runningMode: 'VIDEO',
+              numFaces: 4,
+            }),
+            ObjectDetector.createFromOptions(filesetResolver, {
+              baseOptions: {
+                modelAssetPath:
+                  'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
+                delegate,
+              },
+              scoreThreshold: policyConfig.minConfidence ?? 0.35,
+              runningMode: 'VIDEO',
+            }),
+          ])
+        }
+
+        try {
+          const [landmarker, detector] = await createVisionModels('GPU')
+          faceLandmarker = landmarker
+          objectDetector = detector
+        } catch (gpuErr) {
+          console.warn('MediaPipe GPU initialization failed, falling back to CPU:', gpuErr)
+          try {
+            const [landmarker, detector] = await createVisionModels('CPU')
+            faceLandmarker = landmarker
+            objectDetector = detector
+          } catch (cpuErr) {
+            throw new Error('Both GPU and CPU vision initialization failed: ' + (cpuErr as any)?.message)
+          }
+        }
 
         setStatus('ready')
-        predictWebcam()
+        lastTimeAdvancedMs = performance.now()
+        startDetectionLoop()
       } catch (err: any) {
         setStatus('error')
         setErrorMessage(err.message || 'Webcam access denied. Required for Knowledge Check.')
-        // Only trigger continuous violation if camera feed is not in dev bypass
-        if (configRef.current.laptop.cameraFeed) {
-          onViolation(true, 'Camera access required to view Knowledge Check.')
+
+        const incident: DetectionIncident = {
+          incidentKey: 'laptop:detector_unavailable',
+          type: 'detector_unavailable',
+          severity: 'technical',
+          description: 'Laptop camera or detector is unavailable. Camera access is required.',
+          source: 'laptop_local',
+          occurredAt: new Date().toISOString(),
         }
+        setIncident(incident)
       }
     }
 
-    const predictWebcam = () => {
-      if (!videoRef.current || !faceLandmarker || !objectDetector) return
+    const startDetectionLoop = () => {
+      const personIntervalMs = policyConfig.personAnalysisIntervalMs ?? 250
+      const objectIntervalMs = policyConfig.secondaryAnalysisIntervalMs ?? 600
+      const staleTimeoutMs = policyConfig.staleFrameTimeoutMs ?? 6000
 
-      const currentCfg = configRef.current
-      let startTimeMs = performance.now()
+      const checkWatchdogs = () => {
+        const video = videoRef.current
+        if (!video) return
+        const now = performance.now()
 
-      if (videoRef.current.currentTime !== lastVideoTime) {
-        lastVideoTime = videoRef.current.currentTime
-        const results = faceLandmarker.detectForVideo(videoRef.current, startTimeMs)
-        const objectResults = objectDetector.detectForVideo(videoRef.current, startTimeMs)
-
-        let frameViolation = false
-        let frameViolationMessage = ''
-
-        // 1. Check for forbidden objects and count people
-        const forbiddenLabels = ['cell phone', 'phone', 'book', 'laptop']
-        let detectedForbiddenObject = null
-        let personCount = 0
-
-        for (const detection of objectResults.detections) {
-          let isPerson = false
-          for (const category of detection.categories) {
-            const name = category.categoryName.toLowerCase()
-            if (name === 'person' && category.score > 0.4) {
-              isPerson = true
+        // 1. Camera Stalled Watchdog
+        if (video.readyState >= 2 && !video.paused) {
+          if (video.currentTime !== lastVideoTime) {
+            lastVideoTime = video.currentTime
+            lastTimeAdvancedMs = now
+            if (isStalled) {
+              isStalled = false
+              removeIncident('laptop:camera_stalled', 'camera_stalled')
             }
-            if (forbiddenLabels.includes(name) && category.score > 0.4) {
-              detectedForbiddenObject = category.categoryName
-            }
-          }
-          if (isPerson) personCount++
-        }
-
-        // Multiple People Detection Check
-        if (currentCfg.laptop.multiplePeopleDetection && personCount > 1) {
-          violatingFrames++
-          normalFrames = 0
-          if (violatingFrames > 10) {
-            frameViolation = true
-            frameViolationMessage = 'Multiple people detected in the room.'
-          }
-        } else if (currentCfg.laptop.forbiddenObjectDetection && detectedForbiddenObject) {
-          // Forbidden Object Check
-          violatingFrames++
-          normalFrames = 0
-          if (violatingFrames > 10) {
-            frameViolation = true
-            frameViolationMessage = `Forbidden object (${detectedForbiddenObject}) detected. Please remove it.`
+          } else if (now - lastTimeAdvancedMs > staleTimeoutMs && !isStalled) {
+            isStalled = true
+            setIncident({
+              incidentKey: 'laptop:camera_stalled',
+              type: 'camera_stalled',
+              severity: 'technical',
+              description: 'Laptop camera feed is stalled or frozen.',
+              source: 'laptop_local',
+              occurredAt: new Date().toISOString(),
+            })
           }
         }
 
-        // 2. Check noise level (Audio)
+        // 2. Camera Obstructed / Covered Check (~1s)
+        if (now - lastBrightnessCheckMs >= 1000 && video.readyState >= 2 && sampleCtx) {
+          lastBrightnessCheckMs = now
+          try {
+            sampleCtx.drawImage(video, 0, 0, 16, 16)
+            const imgData = sampleCtx.getImageData(0, 0, 16, 16).data
+            let totalBrightness = 0
+            for (let i = 0; i < imgData.length; i += 4) {
+              totalBrightness += (imgData[i] + imgData[i + 1] + imgData[i + 2]) / 3
+            }
+            const avgBrightness = totalBrightness / (16 * 16)
+            if (avgBrightness < 6) {
+              darkFrameCount++
+              if (darkFrameCount >= 3) {
+                setIncident({
+                  incidentKey: 'laptop:camera_obstructed',
+                  type: 'camera_obstructed',
+                  severity: 'hard',
+                  description: 'Laptop camera view is obstructed or pitch black.',
+                  source: 'laptop_local',
+                  occurredAt: new Date().toISOString(),
+                })
+              }
+            } else {
+              if (darkFrameCount >= 3) {
+                removeIncident('laptop:camera_obstructed', 'camera_obstructed')
+              }
+              darkFrameCount = 0
+            }
+          } catch (e) {
+            // ignore canvas security/rendering errors
+          }
+        }
+      }
+
+      const loop = () => {
+        const video = videoRef.current
+        if (!video || !faceLandmarker || !objectDetector) {
+          animationFrameId = requestAnimationFrame(loop)
+          return
+        }
+
+        const now = performance.now()
+        const currentCfg = configRef.current
+        checkWatchdogs()
+
+        // 1. Person & Face Analysis (every ~250ms)
+        if (now - lastFaceDetectMs >= personIntervalMs && !isRunningFace && video.readyState >= 2) {
+          lastFaceDetectMs = now
+          isRunningFace = true
+
+          try {
+            const results = faceLandmarker.detectForVideo(video, now)
+            const faceCount = results.faceLandmarks.length
+
+            // Multiple People check
+            if (currentCfg.laptop.multiplePeopleDetection) {
+              const transition = secondPersonEngine.record({
+                at: now,
+                detected: faceCount > 1,
+                confidence: 0.85,
+              })
+
+              if (transition === 'confirmed') {
+                setIncident({
+                  incidentKey: 'laptop:second_person',
+                  type: 'second_person',
+                  severity: 'hard',
+                  description: 'Multiple people detected by laptop camera.',
+                  source: 'laptop_local',
+                  occurredAt: new Date().toISOString(),
+                })
+              } else if (transition === 'warning') {
+                setIncident({
+                  incidentKey: 'laptop:second_person',
+                  type: 'second_person',
+                  severity: 'warning',
+                  description: 'Another person suspected in camera view.',
+                  source: 'laptop_local',
+                  occurredAt: new Date().toISOString(),
+                })
+              } else if (transition === 'resolved' || transition === 'warningCleared') {
+                removeIncident('laptop:second_person', 'second_person')
+              }
+            }
+
+            // Face Presence check
+            if (currentCfg.laptop.facePresenceDetection) {
+              const transition = presenceEngine.record({
+                at: now,
+                detected: faceCount === 0,
+                confidence: 0.9,
+              })
+
+              if (transition === 'confirmed') {
+                setIncident({
+                  incidentKey: 'laptop:student_missing',
+                  type: 'student_missing',
+                  severity: 'hard',
+                  description: 'No face detected in laptop camera. Please face the screen.',
+                  source: 'laptop_local',
+                  occurredAt: new Date().toISOString(),
+                })
+              } else if (transition === 'warning') {
+                setIncident({
+                  incidentKey: 'laptop:student_missing',
+                  type: 'student_missing',
+                  severity: 'warning',
+                  description: 'Face not clearly visible. Please re-center.',
+                  source: 'laptop_local',
+                  occurredAt: new Date().toISOString(),
+                })
+              } else if (transition === 'resolved' || transition === 'warningCleared') {
+                removeIncident('laptop:student_missing', 'student_missing')
+              }
+            }
+
+            // Gaze & Liveness Tracking (when 1 face is present)
+            if (faceCount === 1) {
+              const landmarks = results.faceLandmarks[0]
+
+              // Gaze tracking
+              if (currentCfg.laptop.gazeTracking) {
+                const nose = landmarks[1]
+                const leftEdge = landmarks[234]
+                const rightEdge = landmarks[454]
+                const topForehead = landmarks[10]
+                const chin = landmarks[152]
+
+                const horizontalRatio = (nose.x - leftEdge.x) / (rightEdge.x - leftEdge.x)
+                const verticalRatio = (nose.y - topForehead.y) / (chin.y - topForehead.y)
+                const isLookingAway =
+                  horizontalRatio < 0.22 || horizontalRatio > 0.78 || verticalRatio > 0.78
+
+                const gazeTransition = gazeEngine.record({
+                  at: now,
+                  detected: isLookingAway,
+                  confidence: 0.7,
+                })
+
+                if (gazeTransition === 'confirmed') {
+                  setIncident({
+                    incidentKey: 'laptop:gaze_away',
+                    type: 'gaze_away',
+                    severity: 'hard',
+                    description: 'Looking away from screen detected.',
+                    source: 'laptop_local',
+                    occurredAt: new Date().toISOString(),
+                  })
+                } else if (gazeTransition === 'warning') {
+                  setIncident({
+                    incidentKey: 'laptop:gaze_away',
+                    type: 'gaze_away',
+                    severity: 'warning',
+                    description: 'Please look towards your exam screen.',
+                    source: 'laptop_local',
+                    occurredAt: new Date().toISOString(),
+                  })
+                } else if (gazeTransition === 'resolved' || gazeTransition === 'warningCleared') {
+                  removeIncident('laptop:gaze_away', 'gaze_away')
+                }
+              }
+
+              // Liveness check (Blink & Micro-movements)
+              if (currentCfg.laptop.livenessCheck) {
+                const blendshapes = results.faceBlendshapes?.[0]?.categories
+                if (blendshapes) {
+                  const leftBlink =
+                    blendshapes.find((b) => b.categoryName === 'eyeBlinkLeft')?.score || 0
+                  const rightBlink =
+                    blendshapes.find((b) => b.categoryName === 'eyeBlinkRight')?.score || 0
+                  if (leftBlink > 0.4 || rightBlink > 0.4) {
+                    lastBlinkTime = now
+                    nosePositions = []
+                  }
+                }
+
+                nosePositions.push({ x: landmarks[1].x, y: landmarks[1].y })
+                if (nosePositions.length > 30) nosePositions.shift()
+
+                if (now - lastBlinkTime > 15000 && nosePositions.length >= 30) {
+                  const avgX = nosePositions.reduce((s, p) => s + p.x, 0) / nosePositions.length
+                  const avgY = nosePositions.reduce((s, p) => s + p.y, 0) / nosePositions.length
+                  const stdDevX = Math.sqrt(
+                    nosePositions.reduce((s, p) => s + Math.pow(p.x - avgX, 2), 0) /
+                      nosePositions.length,
+                  )
+                  const stdDevY = Math.sqrt(
+                    nosePositions.reduce((s, p) => s + Math.pow(p.y - avgY, 2), 0) /
+                      nosePositions.length,
+                  )
+
+                  if (stdDevX < 0.0001 && stdDevY < 0.0001) {
+                    setIncident({
+                      incidentKey: 'laptop:static_image_spoof',
+                      type: 'static_image_spoof',
+                      severity: 'hard',
+                      description: 'Static image detected. Liveness check failed.',
+                      source: 'laptop_local',
+                      occurredAt: new Date().toISOString(),
+                    })
+                  } else {
+                    lastBlinkTime = now
+                    removeIncident('laptop:static_image_spoof', 'static_image_spoof')
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Face landmark error:', e)
+          } finally {
+            isRunningFace = false
+          }
+        }
+
+        // 2. Object Detection (every ~600ms)
+        if (
+          now - lastObjectDetectMs >= objectIntervalMs &&
+          !isRunningObject &&
+          video.readyState >= 2 &&
+          currentCfg.laptop.forbiddenObjectDetection
+        ) {
+          lastObjectDetectMs = now
+          isRunningObject = true
+
+          try {
+            const objectResults = objectDetector.detectForVideo(video, now)
+            const forbiddenLabels = ['cell phone', 'phone', 'book']
+            let detectedForbiddenObject: string | null = null
+
+            for (const detection of objectResults.detections) {
+              for (const category of detection.categories) {
+                const name = category.categoryName.toLowerCase()
+                if (forbiddenLabels.includes(name) && category.score > 0.4) {
+                  detectedForbiddenObject = category.categoryName
+                  break
+                }
+              }
+              if (detectedForbiddenObject) break
+            }
+
+            const objectTransition = objectEngine.record({
+              at: now,
+              detected: Boolean(detectedForbiddenObject),
+              confidence: 0.8,
+            })
+
+            if (objectTransition === 'confirmed') {
+              setIncident({
+                incidentKey: 'laptop:suspicious_object',
+                type: 'suspicious_object',
+                severity: 'hard',
+                description: `Forbidden object (${detectedForbiddenObject}) detected. Please remove it.`,
+                source: 'laptop_local',
+                occurredAt: new Date().toISOString(),
+              })
+            } else if (objectTransition === 'warning') {
+              setIncident({
+                incidentKey: 'laptop:suspicious_object',
+                type: 'suspicious_object',
+                severity: 'warning',
+                description: `Possible forbidden item detected in view.`,
+                source: 'laptop_local',
+                occurredAt: new Date().toISOString(),
+              })
+            } else if (objectTransition === 'resolved' || objectTransition === 'warningCleared') {
+              removeIncident('laptop:suspicious_object', 'suspicious_object')
+            }
+          } catch (e) {
+            console.warn('Object detector error:', e)
+          } finally {
+            isRunningObject = false
+          }
+        }
+
+        // 3. Audio Noise Monitor
         if (currentCfg.laptop.audioNoiseDetection && analyser && dataArray) {
           analyser.getFloatTimeDomainData(dataArray as any)
           let sumSquares = 0.0
@@ -220,154 +582,51 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
             const percentage = Math.min(100, Math.round((rms / 0.1) * 100))
             audioBarRef.current.style.transform = `scaleX(${percentage / 100})`
             if (rms > 0.06) {
-              audioBarRef.current.style.backgroundColor = '#ef4444' // red-500
+              audioBarRef.current.style.backgroundColor = '#ef4444'
             } else if (rms > 0.03) {
-              audioBarRef.current.style.backgroundColor = '#eab308' // yellow-500
+              audioBarRef.current.style.backgroundColor = '#eab308'
             } else {
-              audioBarRef.current.style.backgroundColor = '#22c55e' // green-500
+              audioBarRef.current.style.backgroundColor = '#22c55e'
             }
           }
 
           if (rms > 0.06) {
             noiseFrames++
-            if (noiseFrames <= 90) {
-              if (currentCfg.laptop.audioCountdownBlur) {
-                const secondsRemaining = Math.max(1, Math.ceil((90 - noiseFrames) / 30))
-                frameViolation = true
-                frameViolationMessage = `Speaking or noise detected. Content will blur in ${secondsRemaining}s. Please keep quiet.`
-              }
-            } else {
-              if (currentCfg.laptop.audioCountdownBlur) {
-                frameViolation = true
-                frameViolationMessage = 'Speaking or high background noise detected. Content locked.'
-              }
+            if (noiseFrames > 60 && currentCfg.laptop.audioCountdownBlur) {
+              setIncident({
+                incidentKey: 'laptop:audio_noise',
+                type: 'suspicious_object',
+                severity: 'hard',
+                description: 'High background noise or speech detected.',
+                source: 'laptop_local',
+                occurredAt: new Date().toISOString(),
+              })
             }
           } else {
-            if (noiseFrames > 0) {
-              noiseFrames--
-              if (noiseFrames > 0 && currentCfg.laptop.audioCountdownBlur) {
-                const secondsRemaining = Math.max(1, Math.ceil((90 - noiseFrames) / 30))
-                frameViolation = true
-                frameViolationMessage = `Speaking or noise detected. Content will blur in ${secondsRemaining}s. Please keep quiet.`
-              }
+            if (noiseFrames > 0) noiseFrames--
+            if (noiseFrames === 0) {
+              removeIncident('laptop:audio_noise', 'suspicious_object')
             }
           }
         }
 
-        // 3. Check faces (only if no object/audio violation is already blocking the frame)
-        if (!frameViolation) {
-          if (currentCfg.laptop.facePresenceDetection && results.faceLandmarks.length === 0) {
-            violatingFrames++
-            normalFrames = 0
-            if (violatingFrames > 15) {
-              frameViolation = true
-              frameViolationMessage = 'No face detected. Please face the screen.'
-            }
-          } else if (currentCfg.laptop.multiplePeopleDetection && results.faceLandmarks.length > 1) {
-            violatingFrames++
-            normalFrames = 0
-            if (violatingFrames > 15) {
-              frameViolation = true
-              frameViolationMessage = 'Multiple people detected. Only one person is allowed.'
-            }
-          } else if (results.faceLandmarks.length > 0) {
-            // Face detected, calculate pose
-            const landmarks = results.faceLandmarks[0]
-
-            if (currentCfg.laptop.gazeTracking) {
-              const nose = landmarks[1]
-              const leftEdge = landmarks[234]
-              const rightEdge = landmarks[454]
-              const topForehead = landmarks[10]
-              const chin = landmarks[152]
-
-              const horizontalRatio = (nose.x - leftEdge.x) / (rightEdge.x - leftEdge.x)
-              const verticalRatio = (nose.y - topForehead.y) / (chin.y - topForehead.y)
-
-              const isLookingLeftOrRight = horizontalRatio < 0.25 || horizontalRatio > 0.75
-              const isLookingDown = verticalRatio > 0.75
-
-              if (isLookingLeftOrRight || isLookingDown) {
-                violatingFrames++
-                normalFrames = 0
-                if (violatingFrames > 15) {
-                  frameViolation = true
-                  frameViolationMessage = 'Looking away from screen detected.'
-                }
-              } else {
-                normalFrames++
-                if (normalFrames > 5) {
-                  violatingFrames = 0
-                }
-              }
-            } else {
-              normalFrames++
-              if (normalFrames > 5) {
-                violatingFrames = 0
-              }
-            }
-
-            // Liveness detection (Blink & Micro-movements)
-            if (currentCfg.laptop.livenessCheck) {
-              const blendshapes = results.faceBlendshapes?.[0]?.categories
-              if (blendshapes) {
-                const leftBlink = blendshapes.find((b) => b.categoryName === 'eyeBlinkLeft')?.score || 0
-                const rightBlink = blendshapes.find((b) => b.categoryName === 'eyeBlinkRight')?.score || 0
-                if (leftBlink > 0.4 || rightBlink > 0.4) {
-                  lastBlinkTime = startTimeMs
-                  nosePositions = [] // Reset nose tracking on blink
-                }
-              }
-
-              nosePositions.push({ x: landmarks[1].x, y: landmarks[1].y })
-              if (nosePositions.length > 30) nosePositions.shift()
-
-              // If no blink for 15 seconds, check for micro-movements
-              if (startTimeMs - lastBlinkTime > 15000) {
-                if (nosePositions.length >= 30) {
-                  const avgX = nosePositions.reduce((sum, p) => sum + p.x, 0) / nosePositions.length
-                  const avgY = nosePositions.reduce((sum, p) => sum + p.y, 0) / nosePositions.length
-                  const stdDevX = Math.sqrt(
-                    nosePositions.reduce((sum, p) => sum + Math.pow(p.x - avgX, 2), 0) / nosePositions.length
-                  )
-                  const stdDevY = Math.sqrt(
-                    nosePositions.reduce((sum, p) => sum + Math.pow(p.y - avgY, 2), 0) / nosePositions.length
-                  )
-
-                  // If perfectly static
-                  if (stdDevX < 0.0001 && stdDevY < 0.0001) {
-                    frameViolation = true
-                    frameViolationMessage = 'Static image detected. Liveness check failed.'
-                  } else {
-                    lastBlinkTime = startTimeMs
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        // 4. Propagate final proctoring state
-        if (frameViolation) {
-          onViolation(true, frameViolationMessage)
-        } else {
-          onViolation(false, '')
-        }
+        animationFrameId = requestAnimationFrame(loop)
       }
 
-      animationFrameId = requestAnimationFrame(predictWebcam)
+      animationFrameId = requestAnimationFrame(loop)
     }
 
     init()
 
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId)
+      if (checkIntervalId) clearInterval(checkIntervalId)
       if (stream) stream.getTracks().forEach((track) => track.stop())
       if (faceLandmarker) faceLandmarker.close()
       if (objectDetector) objectDetector.close()
       if (audioContext) audioContext.close()
     }
-  }, [config.laptop.cameraFeed, config.laptop.microphoneFeed, onViolation])
+  }, [config.laptop.cameraFeed, config.laptop.microphoneFeed])
 
   if (status === 'disabled' || !config.laptop.cameraFeed) {
     return (
@@ -427,7 +686,9 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
         </div>
         {config.laptop.microphoneFeed && (
           <div className="flex flex-col items-end gap-1 w-24">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Audio Level</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+              Audio Level
+            </span>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
               <div
                 ref={audioBarRef}
@@ -439,7 +700,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
         )}
       </div>
 
-      {/* ─── Mobile Camera QR Link Panel ─── */}
+      {/* Mobile Camera QR Link Panel */}
       {sessionId && qrValue && config.mobile.cameraFeed && (
         <div
           style={{
@@ -466,7 +727,16 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
           >
             <span>📱 Link Mobile Camera</span>
             {config.gates.bypassMobileCameraRequired && (
-              <span style={{ fontSize: 9, background: 'rgba(34,197,94,0.15)', color: '#4ade80', padding: '1px 5px', borderRadius: 4, textTransform: 'none' }}>
+              <span
+                style={{
+                  fontSize: 9,
+                  background: 'rgba(34,197,94,0.15)',
+                  color: '#4ade80',
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  textTransform: 'none',
+                }}
+              >
                 Optional (Dev Mode)
               </span>
             )}
@@ -499,24 +769,44 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
                 viewBox={`0 0 100 100`}
               />
             </div>
-            
+
             {timeRemaining === 0 && (
-              <div style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(15, 23, 42, 0.8)',
-                borderRadius: 10,
-              }}>
-                <div style={{ color: '#f87171', fontSize: 12, fontWeight: 'bold', marginBottom: 8 }}>QR Expired</div>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  borderRadius: 10,
+                }}
+              >
+                <div
+                  style={{
+                    color: '#f87171',
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    marginBottom: 8,
+                  }}
+                >
+                  QR Expired
+                </div>
                 <button
                   onClick={regenerateQr}
                   style={{
-                    background: '#ef4444', color: 'white',
-                    border: 'none', padding: '6px 12px',
-                    borderRadius: 4, fontSize: 10,
-                    cursor: 'pointer', fontWeight: 'bold'
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
                   }}
                 >
                   {isRegeneratingQr ? 'Generating…' : 'Generate New QR'}
@@ -545,7 +835,7 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
               {isRegeneratingQr ? 'Generating New QR…' : 'Generate New QR'}
             </button>
           )}
-          
+
           <div
             style={{
               fontSize: 10,
@@ -556,8 +846,15 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
             }}
           >
             {timeRemaining !== null && timeRemaining > 0 && (
-              <div style={{ color: timeRemaining < 60 ? '#f87171' : '#4ECDC4', marginBottom: 4, fontWeight: 'bold' }}>
-                Expires in {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+              <div
+                style={{
+                  color: timeRemaining < 60 ? '#f87171' : '#4ECDC4',
+                  marginBottom: 4,
+                  fontWeight: 'bold',
+                }}
+              >
+                Expires in {Math.floor(timeRemaining / 60)}:
+                {(timeRemaining % 60).toString().padStart(2, '0')}
               </div>
             )}
             Scan with LMS Mobile to activate rear-camera monitoring.
@@ -571,10 +868,16 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
             href={mobileAppDownload.url}
             download={mobileAppDownload.fileName}
             style={{
-              width: '100%', border: '1px solid rgba(78,205,196,0.45)',
-              background: 'rgba(78,205,196,0.10)', color: '#4ECDC4',
-              borderRadius: 7, padding: '8px 10px', fontSize: 10,
-              fontWeight: 800, textAlign: 'center', textDecoration: 'none',
+              width: '100%',
+              border: '1px solid rgba(78,205,196,0.45)',
+              background: 'rgba(78,205,196,0.10)',
+              color: '#4ECDC4',
+              borderRadius: 7,
+              padding: '8px 10px',
+              fontSize: 10,
+              fontWeight: 800,
+              textAlign: 'center',
+              textDecoration: 'none',
             }}
             aria-label={`Download LMS Mobile ${mobileAppDownload.version} for ${mobileAppDownload.platform}`}
           >
@@ -595,9 +898,20 @@ export default function ProctoringCamera({ onViolation, sessionId, qrValue, expi
               width: '100%',
             }}
           >
-            <div style={{ fontWeight: 'bold', marginBottom: 4, color: 'rgba(255,255,255,0.5)' }}>Diagnostic Info</div>
-            <div>Session ID: {sessionId?.substring(0, 8)}...{sessionId?.substring(sessionId.length - 4)}</div>
-            <div>Token Suffix: {qrValue.substring(qrValue.length - 6)}</div>
+            <div
+              style={{
+                fontWeight: 'bold',
+                marginBottom: 4,
+                color: 'rgba(255,255,255,0.5)',
+              }}
+            >
+              Diagnostic Info
+            </div>
+            <div>
+              Session ID: {sessionId?.substring(0, 8)}...
+              {sessionId?.substring(sessionId.length - 4)}
+            </div>
+            <div>Token Suffix: {qrValue ? qrValue.substring(qrValue.length - 6) : 'none'}</div>
           </div>
         </div>
       )}

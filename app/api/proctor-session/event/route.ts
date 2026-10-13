@@ -88,12 +88,20 @@ export async function POST(req: NextRequest) {
       'second_phone', 'second_monitor', 'second_person', 'notes_visible',
       'student_missing', 'student_returned', 'second_person_cleared', 'suspicious_object',
       'static_image_spoof', 'student_mismatch', 'distance_invalid', 'camera_moved',
-      'camera_obstructed', 'technical_error', 'clear',
+      'camera_obstructed', 'camera_stalled', 'camera_stalled_cleared',
+      'detector_unavailable', 'detector_recovered', 'gaze_away',
+      'technical_error', 'mobile_session_ended', 'clear',
     ])
     const allowedSeverities = new Set(['info', 'soft', 'warning', 'hard', 'technical'])
+    const allowedSources = new Set([
+      'mobile_local', 'laptop_local', 'browser_protection', 'fused_mediapipe', 'system',
+    ])
 
     if (typeof type !== 'string' || !allowedTypes.has(type)) {
       return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
+    }
+    if (typeof source !== 'string' || !allowedSources.has(source)) {
+      return NextResponse.json({ error: 'Invalid event source' }, { status: 400 })
     }
     if (severity != null && (typeof severity !== 'string' || !allowedSeverities.has(severity))) {
       return NextResponse.json({ error: 'Invalid severity' }, { status: 400 })
@@ -101,8 +109,7 @@ export async function POST(req: NextRequest) {
     if (confidence != null && (typeof confidence !== 'number' || confidence < 0 || confidence > 1)) {
       return NextResponse.json({ error: 'Invalid confidence' }, { status: 400 })
     }
-    if (typeof source !== 'string' || source.length > 64 ||
-        (description != null && (typeof description !== 'string' || description.length > 500))) {
+    if (description != null && (typeof description !== 'string' || description.length > 500)) {
       return NextResponse.json({ error: 'Invalid event payload' }, { status: 400 })
     }
     if (!Number.isInteger(version) || version < 1 || version > 1 ||
@@ -126,13 +133,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Session not found, inactive, or forbidden', code: 'SESSION_INACTIVE', terminal: true }, { status: 403 })
     }
 
-    if (type === 'student_returned' || type === 'second_person_cleared' || type === 'clear') {
+    const resolutionMap: Record<string, string> = {
+      'student_returned': 'student_missing',
+      'second_person_cleared': 'second_person',
+      'camera_stalled_cleared': 'camera_stalled',
+      'detector_recovered': 'detector_unavailable',
+    }
+
+    if (type === 'clear' || type in resolutionMap) {
       const resolvedAt = new Date().toISOString()
-      const resolvedType = type === 'student_returned'
-        ? 'student_missing'
-        : type === 'second_person_cleared'
-          ? 'second_person'
-          : '*'
+      const resolvedType = resolutionMap[type] || '*'
       let resolveQuery = supabaseAdmin
         .from('proctor_events')
         .update({ status: 'resolved', resolved_at: resolvedAt })
@@ -161,7 +171,7 @@ export async function POST(req: NextRequest) {
         payload: {
           type,
           resolvesType: resolvedType,
-          description: description || 'Mobile camera condition recovered',
+          description: description || 'Security condition resolved',
           source,
           resolvedAt,
         }
