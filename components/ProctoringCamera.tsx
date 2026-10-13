@@ -857,32 +857,49 @@ export default function ProctoringCamera({
                 {(timeRemaining % 60).toString().padStart(2, '0')}
               </div>
             )}
-            Scan with LMS Mobile to activate rear-camera monitoring.
+            Scan with LMS Mobile or your iPhone Camera to activate rear-camera monitoring.
             <br />
             <span style={{ color: '#4ECDC4', fontWeight: 500 }}>
               Prop your phone ~1 meter behind you so it can see your back, desk, and screen.
             </span>
           </div>
 
-          <a
-            href={mobileAppDownload.url}
-            download={mobileAppDownload.fileName}
-            style={{
-              width: '100%',
-              border: '1px solid rgba(78,205,196,0.45)',
-              background: 'rgba(78,205,196,0.10)',
-              color: '#4ECDC4',
-              borderRadius: 7,
-              padding: '8px 10px',
-              fontSize: 10,
-              fontWeight: 800,
-              textAlign: 'center',
-              textDecoration: 'none',
-            }}
-            aria-label={`Download LMS Mobile ${mobileAppDownload.version} for ${mobileAppDownload.platform}`}
-          >
-            ↓ Download LMS Mobile Android Beta
-          </a>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <a
+              href={mobileAppDownload.url}
+              download={mobileAppDownload.fileName}
+              style={{
+                width: '100%',
+                border: '1px solid rgba(78,205,196,0.45)',
+                background: 'rgba(78,205,196,0.10)',
+                color: '#4ECDC4',
+                borderRadius: 7,
+                padding: '8px 10px',
+                fontSize: 10,
+                fontWeight: 800,
+                textAlign: 'center',
+                textDecoration: 'none',
+              }}
+              aria-label={`Download LMS Mobile for Android`}
+            >
+              🤖 Download LMS Mobile (Android APK)
+            </a>
+            <div
+              style={{
+                width: '100%',
+                border: '1px solid rgba(255,255,255,0.15)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'rgba(255,255,255,0.85)',
+                borderRadius: 7,
+                padding: '7px 10px',
+                fontSize: 9.5,
+                fontWeight: 600,
+                textAlign: 'center',
+              }}
+            >
+              🍏 iOS: Point iPhone Camera at QR or use in-app scanner
+            </div>
+          </div>
 
           <div
             style={{
