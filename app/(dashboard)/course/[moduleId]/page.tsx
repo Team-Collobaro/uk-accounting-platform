@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 
 interface SectionMeta {
@@ -30,6 +31,7 @@ interface ProctorIncident {
 }
 
 import { motion, AnimatePresence } from 'framer-motion'
+import { Smartphone, QrCode, Download } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import AiZone from '@/components/AiZone'
 import AntiCheatWrapper, { SecurityIncidentItem } from '@/components/AntiCheatWrapper'
@@ -741,42 +743,317 @@ export default function CourseLessonPage() {
                       </button>
                     </div>
                   ) : (!config.gates.bypassMobileCameraRequired && mobileStatus !== 'live' && !mobileMonitoringStarted) ? (
-                    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#fff', background: '#1f2937', borderRadius: 12, marginTop: 40 }}>
-                      <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>📱 Link Your Phone to Continue</h2>
-                      <p style={{ color: '#9ca3af', marginBottom: 24 }}>Mobile camera monitoring is required for this exam.</p>
-                      <div style={{ display: 'inline-block', textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: 20, borderRadius: 8 }}>
-                        <ol style={{ margin: 0, paddingLeft: 20, color: '#d1d5db', lineHeight: 1.6 }}>
-                          <li>Open the <strong>LMS Mobile App</strong> on your phone</li>
-                          <li>Tap <strong>Scan Desktop QR Code</strong></li>
-                          <li>Scan the QR code shown in the sidebar</li>
-                          <li>Position your phone behind you, facing your screen</li>
-                        </ol>
+                    <div style={{
+                      maxWidth: 680,
+                      margin: '32px auto',
+                      padding: '40px 32px',
+                      borderRadius: 20,
+                      background: 'linear-gradient(150deg, #0d2230 0%, #06141d 100%)',
+                      border: '1px solid rgba(79, 179, 196, 0.24)',
+                      boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      textAlign: 'center',
+                      fontFamily: '"Montserrat", sans-serif',
+                    }}>
+                      {/* Ambient background glow */}
+                      <div style={{
+                        position: 'absolute',
+                        top: -90,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 340,
+                        height: 180,
+                        background: 'radial-gradient(circle, rgba(79, 179, 196, 0.22), transparent 70%)',
+                        pointerEvents: 'none',
+                      }} />
+
+                      {/* Header badge & icon */}
+                      <div style={{
+                        width: 58,
+                        height: 58,
+                        margin: '0 auto 16px',
+                        borderRadius: 16,
+                        background: 'linear-gradient(135deg, rgba(79, 179, 196, 0.20), rgba(61, 214, 140, 0.12))',
+                        border: '1px solid rgba(79, 179, 196, 0.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#4fb3c4',
+                        boxShadow: '0 8px 24px rgba(79, 179, 196, 0.16)',
+                      }}>
+                        <Smartphone size={28} />
                       </div>
-                      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 20 }}>
-                        <a
-                          href={mobileAppDownload.android.url}
-                          download={mobileAppDownload.android.fileName}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '11px 18px', borderRadius: 8,
-                            background: '#0f766e', color: '#fff', fontWeight: 800,
-                            fontSize: 13, textDecoration: 'none',
-                          }}
-                        >
-                          🤖 Download Android APK
-                        </a>
-                        <a
-                          href={mobileAppDownload.ios.url}
-                          download={mobileAppDownload.ios.fileName}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '11px 18px', borderRadius: 8,
-                            background: '#374151', color: '#fff', fontWeight: 800,
-                            fontSize: 13, textDecoration: 'none', border: '1px solid #4b5563',
-                          }}
-                        >
-                          🍏 Download iOS IPA
-                        </a>
+
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '4px 12px',
+                        borderRadius: 999,
+                        background: 'rgba(79, 179, 196, 0.12)',
+                        border: '1px solid rgba(79, 179, 196, 0.30)',
+                        color: '#4fb3c4',
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: '0.14em',
+                        textTransform: 'uppercase',
+                        marginBottom: 12,
+                      }}>
+                        Dual-Camera Exam Requirement
+                      </span>
+
+                      <h2 style={{
+                        fontSize: 'clamp(22px, 3vw, 26px)',
+                        fontWeight: 800,
+                        color: '#ffffff',
+                        letterSpacing: '-0.02em',
+                        margin: '0 0 10px',
+                        lineHeight: 1.25,
+                      }}>
+                        Link Your Phone to Continue
+                      </h2>
+
+                      <p style={{
+                        fontSize: 14,
+                        color: 'rgba(229, 238, 241, 0.76)',
+                        lineHeight: 1.6,
+                        maxWidth: 500,
+                        margin: '0 auto 22px',
+                        fontFamily: '"Source Sans 3", sans-serif',
+                      }}>
+                        To verify assessment integrity, secondary mobile camera monitoring is required. Set up your phone to capture a clear side view using its back camera:
+                      </p>
+
+                      {/* Setup visual example */}
+                      <div style={{
+                        margin: '0 auto 24px',
+                        maxWidth: 540,
+                        borderRadius: 14,
+                        overflow: 'hidden',
+                        border: '1px solid rgba(79, 179, 196, 0.28)',
+                        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.35)',
+                        background: '#040d12',
+                        position: 'relative',
+                      }}>
+                        <div style={{ position: 'relative', width: '100%', height: 260 }}>
+                          <Image
+                            src="/proctor-phone-setup.jpg"
+                            alt="Recommended mobile camera proctoring setup: side view using phone back camera"
+                            fill
+                            style={{ objectFit: 'cover' }}
+                            sizes="(max-width: 768px) 100vw, 540px"
+                            priority
+                          />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'linear-gradient(to top, rgba(6, 20, 29, 0.96) 0%, rgba(6, 20, 29, 0.65) 65%, transparent 100%)',
+                            padding: '16px 18px 12px',
+                            textAlign: 'left',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                          }}>
+                            <div>
+                              <div style={{ color: '#ffffff', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>✓ Side View Setup (Mobile Back Camera)</span>
+                              </div>
+                              <div style={{ color: 'rgba(229, 238, 241, 0.82)', fontSize: 11.5, marginTop: 2, fontFamily: '"Source Sans 3", sans-serif' }}>
+                                Point phone back camera at a side view of student (1–1.5m away), capturing you, desk &amp; laptop screen
+                              </div>
+                            </div>
+                            <span style={{
+                              padding: '3px 9px',
+                              borderRadius: 6,
+                              background: 'rgba(61, 214, 140, 0.18)',
+                              border: '1px solid rgba(61, 214, 140, 0.35)',
+                              color: '#3dd68c',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              flexShrink: 0,
+                            }}>
+                              Side View
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Step by Step Cards */}
+                      <div style={{
+                        display: 'grid',
+                        gap: 10,
+                        textAlign: 'left',
+                        maxWidth: 540,
+                        margin: '0 auto 24px',
+                      }}>
+                        {/* Step 1 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: '13px 18px',
+                          borderRadius: 12,
+                          background: 'rgba(255, 255, 255, 0.045)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}>
+                          <div style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 8,
+                            background: 'rgba(79, 179, 196, 0.18)',
+                            color: '#4fb3c4',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            fontFamily: '"JetBrains Mono", monospace',
+                            flexShrink: 0,
+                          }}>
+                            1
+                          </div>
+                          <div style={{ flex: 1, fontSize: 13.5, color: '#e5eef1', lineHeight: 1.45 }}>
+                            Open the <strong style={{ color: '#ffffff', fontWeight: 700 }}>LMS Mobile App</strong> on your phone
+                          </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: '13px 18px',
+                          borderRadius: 12,
+                          background: 'rgba(255, 255, 255, 0.045)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}>
+                          <div style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 8,
+                            background: 'rgba(79, 179, 196, 0.18)',
+                            color: '#4fb3c4',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            fontFamily: '"JetBrains Mono", monospace',
+                            flexShrink: 0,
+                          }}>
+                            2
+                          </div>
+                          <div style={{ flex: 1, fontSize: 13.5, color: '#e5eef1', lineHeight: 1.45 }}>
+                            Tap <strong style={{ color: '#ffffff', fontWeight: 700 }}>Scan Desktop QR Code</strong>
+                          </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 14,
+                          padding: '13px 18px',
+                          borderRadius: 12,
+                          background: 'rgba(255, 255, 255, 0.045)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}>
+                          <div style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 8,
+                            background: 'rgba(212, 165, 55, 0.18)',
+                            color: '#d4a537',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            fontFamily: '"JetBrains Mono", monospace',
+                            flexShrink: 0,
+                          }}>
+                            3
+                          </div>
+                          <div style={{ flex: 1, fontSize: 13.5, color: '#e5eef1', lineHeight: 1.45 }}>
+                            Scan the <strong style={{ color: '#ffffff', fontWeight: 700 }}>QR code shown in the sidebar</strong> &amp; position phone to your side with the back camera facing you
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Helpful banner pointing to sidebar QR */}
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 16px',
+                        borderRadius: 999,
+                        background: 'rgba(61, 214, 140, 0.10)',
+                        border: '1px solid rgba(61, 214, 140, 0.25)',
+                        color: '#3dd68c',
+                        fontSize: 12,
+                        fontWeight: 650,
+                        marginBottom: 26,
+                      }}>
+                        <QrCode size={15} />
+                        <span>QR code is waiting in the Exam Integrity panel on the right</span>
+                      </div>
+
+                      {/* Download Section */}
+                      <div style={{
+                        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                        paddingTop: 20,
+                      }}>
+                        <div style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(229, 238, 241, 0.52)', fontWeight: 700, marginBottom: 14 }}>
+                          Need to install the companion app?
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <a
+                            href={mobileAppDownload.android.url}
+                            download={mobileAppDownload.android.fileName}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 18px',
+                              borderRadius: 10,
+                              background: 'linear-gradient(135deg, #0f766e, #115e59)',
+                              boxShadow: '0 8px 20px rgba(15, 118, 110, 0.25)',
+                              color: '#ffffff',
+                              fontWeight: 700,
+                              fontSize: 12.5,
+                              textDecoration: 'none',
+                              transition: 'transform 0.18s, box-shadow 0.18s',
+                            }}
+                          >
+                            <Download size={15} />
+                            <span>Download Android APK</span>
+                          </a>
+                          <a
+                            href={mobileAppDownload.ios.url}
+                            download={mobileAppDownload.ios.fileName}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              padding: '10px 18px',
+                              borderRadius: 10,
+                              background: 'rgba(255, 255, 255, 0.07)',
+                              border: '1px solid rgba(255, 255, 255, 0.16)',
+                              color: '#ffffff',
+                              fontWeight: 700,
+                              fontSize: 12.5,
+                              textDecoration: 'none',
+                              transition: 'transform 0.18s, background 0.18s',
+                            }}
+                          >
+                            <Download size={15} />
+                            <span>Download iOS IPA</span>
+                          </a>
+                        </div>
                       </div>
                     </div>
                   ) : (

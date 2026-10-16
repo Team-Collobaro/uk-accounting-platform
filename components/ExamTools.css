@@ -1,0 +1,72 @@
+.exam-tools {
+  margin: 0 0 20px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, var(--line));
+  border-radius: 16px;
+  background: var(--card-bg, var(--bg-alt));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .08);
+  font-family: "Montserrat", system-ui, sans-serif;
+}
+
+.exam-tools-bar {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px 12px 18px;
+}
+
+.exam-tools-bar > div:first-child { display: grid; gap: 4px; }
+.exam-tools-bar span { color: var(--text-primary, var(--ink)); font-size: 12px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.exam-tools-bar small, .exam-tool-panel-head small { color: var(--text-tertiary, var(--ink-faint)); font: 500 11px/1.4 "Source Sans 3", sans-serif; }
+.exam-tools-actions { display: flex; gap: 8px; }
+.exam-tools-actions button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid var(--border-subtle, var(--line));
+  border-radius: 10px;
+  background: var(--bg-elevated, var(--bg));
+  color: var(--text-secondary, var(--ink-soft));
+  cursor: pointer;
+  font: 650 11px/1 "Montserrat", sans-serif;
+}
+.exam-tools-actions button:hover, .exam-tools-actions button.active { color: var(--text-primary, var(--ink)); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated, var(--bg))); }
+.exam-tools-actions button.active svg { color: var(--accent); }
+
+.exam-tool-panel { padding: 16px 18px 18px; border-top: 1px solid var(--border-subtle, var(--line)); background: color-mix(in srgb, var(--bg-elevated, var(--bg)) 76%, transparent); }
+.exam-tool-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 13px; }
+.exam-tool-panel-head > div { display: grid; gap: 3px; }
+.exam-tool-panel-head strong { color: var(--text-primary, var(--ink)); font-size: 13px; }
+.exam-tool-panel-head > button { width: 32px; height: 32px; display: grid; place-items: center; flex-shrink: 0; border: 1px solid var(--border-subtle, var(--line)); border-radius: 9px; background: transparent; color: var(--text-tertiary, var(--ink-faint)); cursor: pointer; }
+
+.exam-calculator { max-width: 340px; margin: 0 auto; }
+.exam-calculator-display { min-height: 78px; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding: 12px 16px; overflow: hidden; border: 1px solid var(--border-subtle, var(--line)); border-radius: 12px; background: var(--bg, #061219); }
+.exam-calculator-display small { min-height: 16px; color: var(--text-tertiary, var(--ink-faint)); font: 600 9px/1 "JetBrains Mono", monospace; letter-spacing: .1em; }
+.exam-calculator-display strong { max-width: 100%; overflow: hidden; color: var(--text-primary, var(--ink)); font: 700 28px/1.15 "JetBrains Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+.exam-calculator-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 8px; }
+.exam-calculator-grid button { min-height: 46px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 10px; background: var(--card-bg, var(--bg-alt)); color: var(--text-primary, var(--ink)); cursor: pointer; font: 700 14px/1 "Montserrat", sans-serif; }
+.exam-calculator-grid button:hover { border-color: var(--border-medium, var(--line)); background: var(--bg-hover, var(--line-soft)); }
+.exam-calculator-grid .utility, .exam-calculator-grid .backspace { color: var(--text-secondary, var(--ink-soft)); background: var(--bg-elevated, var(--bg)); }
+.exam-calculator-grid .backspace { display: grid; place-items: center; }
+.exam-calculator-grid .operator { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card-bg, var(--bg-alt))); }
+.exam-calculator-grid .equals { border-color: transparent; background: linear-gradient(135deg, #e2b547, #b88a22); color: #091820; }
+
+.exam-notebook textarea { width: 100%; min-height: 210px; padding: 16px; resize: vertical; border: 1px solid var(--border-subtle, var(--line)); border-radius: 12px; outline: none; background-color: var(--card-bg, var(--bg-alt)); background-image: repeating-linear-gradient(transparent, transparent 31px, color-mix(in srgb, var(--ac-cyan, #4fb3c4) 13%, transparent) 32px); color: var(--text-primary, var(--ink)); font: 500 14px/32px "Source Sans 3", sans-serif; }
+.exam-notebook textarea:focus { border-color: color-mix(in srgb, var(--ac-cyan, #4fb3c4) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac-cyan, #4fb3c4) 10%, transparent); }
+.exam-notebook textarea::placeholder { color: var(--text-tertiary, var(--ink-faint)); }
+.exam-notebook-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 9px; color: var(--text-tertiary, var(--ink-faint)); font-size: 10px; }
+.exam-notebook-footer button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 8px; background: transparent; color: var(--text-secondary, var(--ink-soft)); cursor: pointer; font: 600 10px/1 "Montserrat", sans-serif; }
+.exam-notebook-footer button:disabled { opacity: .4; cursor: not-allowed; }
+
+@media (max-width: 620px) {
+  .exam-tools-bar { align-items: flex-start; flex-direction: column; }
+  .exam-tools-actions { width: 100%; }
+  .exam-tools-actions button { flex: 1; }
+  .exam-tool-panel { padding: 14px; }
+  .exam-calculator-grid button { min-height: 50px; }
+}

@@ -860,7 +860,7 @@ export default function ProctoringCamera({
             Scan with LMS Mobile or your iPhone Camera to activate rear-camera monitoring.
             <br />
             <span style={{ color: '#4ECDC4', fontWeight: 500 }}>
-              Prop your phone ~1 meter behind you so it can see your back, desk, and screen.
+              Point phone back camera at a side view of student (~1–1.5m away), capturing you, desk, and laptop screen.
             </span>
           </div>
 

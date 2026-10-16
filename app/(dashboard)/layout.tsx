@@ -1,19 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@/lib/supabase'
 import { PARTS, MODULE_TITLES } from '@/lib/courseData'
-import { LogOut, LayoutDashboard, TrendingUp, Award, BookOpen } from 'lucide-react'
+import ThemeToggle from '@/components/ThemeToggle'
+import {
+  Award, BookOpen, Check, ChevronDown, LayoutDashboard, LogOut, Menu, TrendingUp, X,
+} from 'lucide-react'
+import './dashboard-shell.css'
+
+const PRIMARY_NAV = [
+  { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { href: '/courses', label: 'Course home', Icon: BookOpen },
+  { href: '/progress', label: 'My progress', Icon: TrendingUp },
+  { href: '/certificate', label: 'Certificate', Icon: Award },
+] as const
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClientComponentClient()
-
   const [completedModules, setCompletedModules] = useState<string[]>([])
-  const [nextModule, setNextModule] = useState<string | null>(null)
   const [expandedParts, setExpandedParts] = useState<Set<number>>(new Set([1]))
   const [readingPct, setReadingPct] = useState(0)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -23,17 +33,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       fetch('/api/progress')
         .then(r => r.json() as Promise<{ nextRecommendedModule: string; completedModules: string[] }>)
         .then(d => {
-          setNextModule(d.nextRecommendedModule)
           setCompletedModules(d.completedModules || [])
           if (d.nextRecommendedModule) {
             const part = PARTS.find(p => p.modules.includes(d.nextRecommendedModule))
-            if (part) {
-              setExpandedParts(prev => {
-                const next = new Set(prev)
-                next.add(part.number)
-                return next
-              })
-            }
+            if (part) setExpandedParts(prev => new Set(prev).add(part.number))
           }
         })
         .catch(() => {})
@@ -41,22 +44,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     fetchProgress()
     window.addEventListener('progress-updated', fetchProgress)
-
-    const handleReadingProgress = (e: Event) => {
-      setReadingPct((e as CustomEvent).detail)
-    }
+    const handleReadingProgress = (event: Event) => setReadingPct((event as CustomEvent).detail)
     window.addEventListener('reading-progress', handleReadingProgress)
-
     return () => {
       window.removeEventListener('progress-updated', fetchProgress)
       window.removeEventListener('reading-progress', handleReadingProgress)
     }
   }, [])
 
-  const togglePart = (n: number) => {
+  const activeModule = pathname.match(/\/course\/(m\d+)/)?.[1] ?? null
+
+  useEffect(() => {
+    setIsSidebarOpen(false)
+    if (!activeModule) return
+    const part = PARTS.find(p => p.modules.includes(activeModule))
+    if (part) setExpandedParts(prev => new Set(prev).add(part.number))
+    const timer = window.setTimeout(() => {
+      document.getElementById(`sidebar-mod-${activeModule}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 100)
+    return () => window.clearTimeout(timer)
+  }, [activeModule, pathname])
+
+  const togglePart = (partNumber: number) => {
     setExpandedParts(prev => {
       const next = new Set(prev)
-      next.has(n) ? next.delete(n) : next.add(n)
+      next.has(partNumber) ? next.delete(partNumber) : next.add(partNumber)
       return next
     })
   }
@@ -69,284 +81,109 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const completedCount = completedModules.length
   const progressPct = Math.round((completedCount / 87) * 100)
 
-  const currentModuleMatch = pathname.match(/\/course\/(m\d+)/)
-  const activeModule = currentModuleMatch ? currentModuleMatch[1] : null
-
-  useEffect(() => {
-    if (activeModule) {
-      const part = PARTS.find(p => p.modules.includes(activeModule))
-      if (part) {
-        setExpandedParts(prev => {
-          const next = new Set(prev)
-          next.add(part.number)
-          return next
-        })
-        setTimeout(() => {
-          const el = document.getElementById(`sidebar-mod-${activeModule}`)
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-        }, 100)
-      }
-    }
-  }, [activeModule])
-
   return (
-    <div id="app" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      {/* ── Mobile Header & Hamburger ────────────────────────────────────── */}
-      <div className="mobile-header" style={{
-        display: 'none', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        padding: '12px 20px',
-        background: 'var(--bg-dark)',
-        color: '#fff',
-        borderBottom: '1px solid #000',
-        zIndex: 50,
-      }}>
-        <h2 style={{ fontSize: 16, margin: 0, fontWeight: 700, fontFamily: '"Charter", "Georgia", serif' }}>UK Accounting</h2>
-        <button 
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          style={{ background: 'transparent', border: 'none', color: '#fff', padding: '8px', cursor: 'pointer' }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        </button>
-      </div>
+    <div className="student-shell">
+      <header className="student-topbar">
+        <Link href="/dashboard" className="student-brand" aria-label="UKATI student dashboard">
+          <Image src="/logo-no-background.png" width={56} height={56} alt="UKATI" priority />
+          <span className="student-brand-copy"><strong>UKATI</strong><small>Student learning portal</small></span>
+        </Link>
 
-      <style dangerouslySetInnerHTML={{__html: `
-        @media (max-width: 768px) {
-          .mobile-header { display: flex !important; }
-          #sidebar { 
-            position: fixed; 
-            left: 0; 
-            top: 53px; 
-            bottom: 0; 
-            z-index: 40; 
-            transform: translateX(\${isSidebarOpen ? '0' : '-100%'});
-            transition: transform 0.3s ease;
-          }
-          #app { flex-direction: column !important; }
-        }
-      `}} />
+        <nav className="student-topnav" aria-label="Student navigation">
+          {PRIMARY_NAV.map(({ href, label }) => (
+            <Link key={href} href={href} className={pathname === href ? 'active' : ''}>{label}</Link>
+          ))}
+        </nav>
 
-      {/* ── Sidebar ────────────────────────────────────────────────────── */}
-      <nav id="sidebar" style={{
-        width: 300, minWidth: 300, background: 'var(--bg-dark)', color: '#e8e4d6',
-        display: 'flex', flexDirection: 'column', height: '100vh',
-        borderRight: '1px solid #000',
-        fontFamily: '"Montserrat", "Helvetica Neue", sans-serif', fontSize: 14,
-      }}>
-
-        {/* ─ Header ─ */}
-        <div style={{ padding: '22px 20px 14px', borderBottom: '1px solid #1e293b', flexShrink: 0 }} className="sidebar-desktop-header">
-          <h2 style={{
-            margin: '0 0 4px', fontSize: 17, fontWeight: 700, color: '#fff',
-            fontFamily: '"Charter", "Georgia", serif', lineHeight: 1.3, letterSpacing: '-0.01em',
-          }}>
-            UK Bookkeeping,<br />Accounting &amp; Tax
-          </h2>
-          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#475569', marginTop: 2 }}>
-            Master Course · 150 hrs · 87 Modules
-          </div>
-        </div>
-
-        {/* ─ Progress bar ─ */}
-        <div style={{ padding: '11px 20px 13px', background: '#0f172a', borderBottom: '1px solid #1e293b', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#475569' }}>Course Progress</div>
-            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>{progressPct}%</div>
-          </div>
-          <div style={{ height: 5, background: '#1e293b', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              background: 'linear-gradient(90deg, var(--accent), var(--gold))',
-              width: `${progressPct}%`,
-              transition: 'width 0.5s ease',
-              borderRadius: 3,
-            }} />
-          </div>
-          <div style={{ fontSize: 10, color: '#475569', marginTop: 5, marginBottom: 10 }}>
-            {completedCount} of 87 modules completed
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#475569' }}>Reading Progress</div>
-            <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>{readingPct}%</div>
-          </div>
-          <div style={{ height: 5, background: '#1e293b', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              background: 'linear-gradient(90deg, #10b981, #059669)',
-              width: `${readingPct}%`,
-              transition: 'width 0.2s ease-out',
-              borderRadius: 3,
-            }} />
-          </div>
-        </div>
-
-        {/* ─ Nav ─ */}
-        <div id="sidebar-nav" style={{ flex: 1, overflowY: 'auto', padding: '12px 0 16px' }}>
-
-          {/* Main app links */}
-          <div style={{ marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid #1e293b' }}>
-            {([
-              { href: '/courses',     label: 'Course Home', Icon: BookOpen },
-              { href: '/dashboard',   label: 'Dashboard',   Icon: LayoutDashboard },
-              { href: '/progress',    label: 'My Progress', Icon: TrendingUp },
-              { href: '/certificate', label: 'Certificate', Icon: Award },
-            ] as const).map(({ href, label, Icon }) => {
-              const active = pathname === href
-              return (
-                <Link key={href} href={href} style={{
-                  display: 'flex', alignItems: 'center', gap: 9, padding: '8px 20px',
-                  color: active ? '#fff' : '#64748b',
-                  fontSize: 12.5, fontWeight: active ? 600 : 400,
-                  background: active ? 'rgba(185,28,28,0.14)' : 'transparent',
-                  borderLeft: `3px solid ${active ? 'var(--accent)' : 'transparent'}`,
-                  textDecoration: 'none', transition: 'all 0.15s',
-                }}>
-                  <Icon size={14} />
-                  {label}
-                </Link>
-              )
-            })}
-          </div>
-
-          {/* Curriculum label */}
-          <div style={{ padding: '0 20px 6px', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.16em', color: '#334155', fontWeight: 700 }}>
-            Curriculum
-          </div>
-
-          {/* Front matter accordion */}
-          <details
-            className="part-group"
-            open={expandedParts.has(0)}
-            style={{ marginBottom: 1 }}
-            onClick={(e) => { e.preventDefault(); togglePart(0) }}
-          >
-            <summary className="part-summary" style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 20px', cursor: 'pointer',
-              fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
-              color: expandedParts.has(0) ? '#f1f5f9' : '#475569',
-              borderLeft: `2px solid ${expandedParts.has(0) ? 'var(--accent)' : 'transparent'}`,
-              userSelect: 'none', listStyle: 'none', transition: 'all 0.15s',
-            }}>
-              <span style={{
-                fontSize: 9, marginRight: 2, display: 'inline-block',
-                transform: expandedParts.has(0) ? 'rotate(90deg)' : 'none',
-                transition: 'transform 0.2s',
-              }}>▸</span>
-              Front Matter
-            </summary>
-            {expandedParts.has(0) && (
-              <ul style={{ listStyle: 'none', margin: 0, padding: '2px 0 8px 0' }}>
-                {[
-                  { href: '/front-matter#welcome',  label: 'Welcome & How to Use' },
-                  { href: '/front-matter#contents', label: 'Contents' },
-                  { href: '/front-matter#visuals',  label: 'Visual Companions ▸' },
-                ].map(({ href, label }) => (
-                  <li key={href}>
-                    <Link href={href} style={{
-                      display: 'block', padding: '5px 20px 5px 30px',
-                      color: '#475569', fontSize: 12, lineHeight: 1.35,
-                      textDecoration: 'none', transition: 'color 0.15s',
-                    }}>
-                      {label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </details>
-
-          {/* Parts & Modules */}
-          {PARTS.map(part => {
-            const isOpen = expandedParts.has(part.number)
-            return (
-              <details
-                key={part.number}
-                className="part-group"
-                open={isOpen}
-                style={{ marginBottom: 1 }}
-                onClick={(e) => { e.preventDefault(); togglePart(part.number) }}
-              >
-                <summary className="part-summary" style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '7px 20px', cursor: 'pointer',
-                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
-                  color: isOpen ? '#f1f5f9' : '#475569',
-                  borderLeft: `2px solid ${isOpen ? 'var(--accent)' : 'transparent'}`,
-                  userSelect: 'none', listStyle: 'none', transition: 'all 0.15s',
-                }}>
-                  <span style={{
-                    fontSize: 9, marginRight: 2, display: 'inline-block', flexShrink: 0,
-                    transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s',
-                  }}>▸</span>
-                  <span style={{ flex: 1 }}>Part {part.number}: {part.title}</span>
-                </summary>
-
-                {isOpen && (
-                  <ul className="module-list" style={{ listStyle: 'none', margin: 0, padding: '2px 0 8px 0' }}>
-                    {part.modules.map(mod => {
-                      const isCompleted = completedModules.includes(mod)
-                      const isActive = activeModule === mod
-                      return (
-                        <li key={mod}>
-                          <button
-                            id={`sidebar-mod-${mod}`}
-                            onClick={(e) => { e.stopPropagation(); router.push(`/course/${mod}`) }}
-                            className={`module-btn ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 7,
-                              width: '100%', textAlign: 'left',
-                              background: isActive ? 'rgba(30,58,138,0.35)' : 'none',
-                              borderLeft: `3px solid ${isActive ? 'var(--accent-2)' : 'transparent'}`,
-                              border: 'none', borderTop: 'none', borderRight: 'none', borderBottom: 'none',
-                              padding: '5px 14px 5px 24px',
-                              cursor: 'pointer',
-                              color: isActive ? '#fff' : isCompleted ? '#4ade80' : '#475569',
-                              fontSize: 12, fontFamily: '"Montserrat", sans-serif', lineHeight: 1.35,
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            <span style={{
-                              fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0, minWidth: 26,
-                              color: isActive ? '#93c5fd' : 'var(--accent)',
-                            }}>
-                              {mod.toUpperCase()}
-                            </span>
-                            <span style={{ flex: 1, paddingRight: 6 }}>{MODULE_TITLES[mod]}</span>
-                            {isCompleted && <span style={{ fontSize: 10, color: '#4ade80', flexShrink: 0 }}>✓</span>}
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </details>
-            )
-          })}
-        </div>
-
-        {/* ─ Sign out ─ */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
+        <div className="student-topbar-actions">
+          <ThemeToggle collapsed />
+          <button className="student-signout-compact" onClick={handleSignOut} type="button"><LogOut size={16} /><span>Sign out</span></button>
           <button
-            onClick={handleSignOut}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              padding: '9px 14px', background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.07)', borderRadius: 4,
-              cursor: 'pointer', color: '#475569', fontSize: 12.5, fontWeight: 500,
-              fontFamily: '"Montserrat", sans-serif', transition: 'all 0.15s',
-            }}
-            onMouseOver={e => { e.currentTarget.style.color = '#cbd5e1'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)' }}
-            onMouseOut={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
+            className="student-menu-button"
+            onClick={() => setIsSidebarOpen(open => !open)}
+            type="button"
+            aria-label={isSidebarOpen ? 'Close course navigation' : 'Open course navigation'}
+            aria-expanded={isSidebarOpen}
           >
-            <LogOut size={14} /> Sign out
+            {isSidebarOpen ? <X size={21} /> : <Menu size={21} />}
           </button>
         </div>
-      </nav>
+      </header>
 
-      {/* ── Main content ──────────────────────────────────────────────── */}
-      <div id="main" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-        {children}
+      <div className="student-workspace">
+        {isSidebarOpen && <button className="student-sidebar-scrim" aria-label="Close course navigation" onClick={() => setIsSidebarOpen(false)} type="button" />}
+
+        <aside className={`student-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+          <div className="student-course-summary">
+            <span className="student-eyebrow">Your qualification</span>
+            <h2>UK Accounting &amp; Tax</h2>
+            <p>12 parts · 87 guided modules</p>
+          </div>
+
+          <div className="student-progress-panel">
+            <div className="student-progress-heading"><span>Course progress</span><strong>{progressPct}%</strong></div>
+            <div className="student-progress-track" aria-label={`${progressPct}% course progress`}><i style={{ width: `${progressPct}%` }} /></div>
+            <p>{completedCount} of 87 modules complete</p>
+            {activeModule && (
+              <>
+                <div className="student-progress-heading reading"><span>Current lesson</span><strong>{readingPct}%</strong></div>
+                <div className="student-progress-track reading" aria-label={`${readingPct}% lesson progress`}><i style={{ width: `${readingPct}%` }} /></div>
+              </>
+            )}
+          </div>
+
+          <nav className="student-sidebar-scroll" aria-label="Course curriculum">
+            <div className="student-sidebar-primary">
+              {PRIMARY_NAV.map(({ href, label, Icon }) => {
+                const active = pathname === href
+                return <Link key={href} href={href} className={active ? 'active' : ''}><Icon size={16} /><span>{label}</span></Link>
+              })}
+            </div>
+
+            <div className="student-sidebar-label">Curriculum</div>
+            <button className={`student-part-button ${expandedParts.has(0) ? 'open' : ''}`} onClick={() => togglePart(0)} type="button" aria-expanded={expandedParts.has(0)}>
+              <ChevronDown size={14} /><span>Front matter</span>
+            </button>
+            {expandedParts.has(0) && (
+              <div className="student-module-list">
+                {[
+                  { href: '/front-matter#welcome', label: 'Welcome & how to use' },
+                  { href: '/front-matter#contents', label: 'Contents' },
+                  { href: '/front-matter#visuals', label: 'Visual companions' },
+                ].map(item => <Link key={item.href} href={item.href}>{item.label}</Link>)}
+              </div>
+            )}
+
+            {PARTS.map(part => {
+              const open = expandedParts.has(part.number)
+              const completedInPart = part.modules.filter(module => completedModules.includes(module)).length
+              return (
+                <div className="student-part" key={part.number}>
+                  <button className={`student-part-button ${open ? 'open' : ''}`} onClick={() => togglePart(part.number)} type="button" aria-expanded={open}>
+                    <ChevronDown size={14} /><span><small>Part {part.number}</small>{part.title}</span><em>{completedInPart}/{part.modules.length}</em>
+                  </button>
+                  {open && (
+                    <div className="student-module-list">
+                      {part.modules.map(module => {
+                        const completed = completedModules.includes(module)
+                        const active = module === activeModule
+                        return (
+                          <button key={module} id={`sidebar-mod-${module}`} className={`${active ? 'active' : ''} ${completed ? 'completed' : ''}`} onClick={() => router.push(`/course/${module}`)} type="button">
+                            <span className="student-module-code">{module.toUpperCase()}</span><span>{MODULE_TITLES[module]}</span>{completed && <Check size={12} />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </nav>
+
+          <div className="student-sidebar-footer"><button onClick={handleSignOut} type="button"><LogOut size={15} /> Sign out</button></div>
+        </aside>
+
+        <main className="student-main" id="main">{children}</main>
       </div>
     </div>
   )

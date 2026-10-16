@@ -43,7 +43,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             UKATI Learning Portal
           </h2>
           <p style={{ color: '#6b6b6b', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: 12, margin: 0 }}>
-            By Team Collaboro
+            By{' '}
+            <a
+              href="https://www.teamcollaboro.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'inherit', textDecoration: 'none' }}
+              onMouseOver={e => (e.currentTarget.style.textDecoration = 'underline')}
+              onMouseOut={e => (e.currentTarget.style.textDecoration = 'none')}
+            >
+              Team Collaboro
+            </a>
           </p>
         </div>
 

@@ -65,13 +65,34 @@ export function getModuleSections(moduleId: string): SectionMeta[] {
 }
 
 export function getSectionContent(moduleId: string, sectionId: string): string {
+  const num = parseInt(moduleId.replace(/\D/g, ''), 10)
+  const secIdx = parseInt(sectionId.replace(/\D/g, ''), 10)
+  const dotNotationId = (!isNaN(num) && !isNaN(secIdx)) ? `${num}.${secIdx}` : ''
+
+  // 1. Try Cheerio parse from HTML
   const $ = getCheerio()
   const moduleEl = $(`#${moduleId}`)
-  if (!moduleEl.length) return ''
+  if (moduleEl.length) {
+    const parsed = parseModuleSections($, moduleEl)
+    const section = parsed.find(s => s.sectionId === sectionId || (dotNotationId && s.sectionId === dotNotationId))
+    if (section?.content && section.content.trim().length > 10) return section.content
+  }
 
-  const parsed = parseModuleSections($, moduleEl)
-  const section = parsed.find(s => s.sectionId === sectionId)
-  return section?.content ?? ''
+  // 2. Fallback to courseDataRaw.json
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const courseDataRaw = require('./courseDataRaw.json') as Array<{ id: string; sections?: Array<{ id: string; title?: string; contentHtml?: string }> }>
+    const rawModule = courseDataRaw.find(m => m.id === moduleId)
+    if (rawModule?.sections) {
+      const rawSec = rawModule.sections.find(s => s.id === sectionId || (dotNotationId && s.title?.startsWith(dotNotationId)) || s.title?.includes(sectionId))
+      if (rawSec?.contentHtml) {
+        const text = rawSec.contentHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        if (text) return text
+      }
+    }
+  } catch {}
+
+  return ''
 }
 
 export interface TeachingPoint {
@@ -83,13 +104,17 @@ export interface TeachingPoint {
 // content block in the HTML (paragraph, list, table, callout, sub-heading block).
 // These are the EXACT items Alex must teach, in order, from the course file.
 export function getSectionTeachingPoints(moduleId: string, sectionId: string): TeachingPoint[] {
+  const num = parseInt(moduleId.replace(/\D/g, ''), 10)
+  const secIdx = parseInt(sectionId.replace(/\D/g, ''), 10)
+  const dotNotationId = (!isNaN(num) && !isNaN(secIdx)) ? `${num}.${secIdx}` : ''
+
   const $ = getCheerio()
   const moduleEl = $(`#${moduleId}`)
   if (!moduleEl.length) return []
 
   const { parseModuleSections } = require('./courseParser') as typeof import('./courseParser')
   const sections = parseModuleSections($, moduleEl)
-  const section = sections.find(s => s.sectionId === sectionId)
+  const section = sections.find(s => s.sectionId === sectionId || (dotNotationId && s.sectionId === dotNotationId))
   if (!section) return []
 
   // Re-parse this section's raw HTML for granular blocks
@@ -111,7 +136,7 @@ export function getSectionTeachingPoints(moduleId: string, sectionId: string): T
     const text = $(el).text().replace(/\s+/g, ' ').trim()
 
     // Detect section start
-    if ((tag === 'h2' || tag === 'h3') && text.startsWith(sectionId)) {
+    if ((tag === 'h2' || tag === 'h3') && (text.startsWith(sectionId) || (dotNotationId && text.startsWith(dotNotationId)))) {
       inSection = true
       sectionLevel = tag === 'h2' ? 2 : 3
       currentSubTitle = text.replace(/^\d+\.\d+(?:\.\d+)?\s*/, '').trim()

@@ -412,10 +412,11 @@ export default function LandingPage() {
       <header className="lp-header">
         <div className="lp-container lp-header-inner">
           <Link href="/" className="lp-brand" aria-label="UKATI home">
-            <Image src="/logo-no-background.png" alt="UKATI logo" width={92} height={52} priority />
+            <Image src="/logo-no-background.png" alt="UKATI logo" width={68} height={68} priority />
             <span className="lp-brand-text">
-              <strong>UKATI</strong>
-              <span>UK Accounting &amp; Taxation Institute</span>
+              <span className="lp-brand-l1">UK</span>
+              <span className="lp-brand-l2">Accounting &amp; Taxation</span>
+              <span className="lp-brand-l3">Institute</span>
             </span>
           </Link>
 
@@ -530,9 +531,27 @@ export default function LandingPage() {
           <div className="lp-container lp-about">
             <div className="lp-about-text lp-reveal">
               <span className="lp-eyebrow">About us</span>
-              <h2 id="about-title" className="lp-h2" style={{ marginBottom: 22 }}>Team Collaboro &amp; UKATI</h2>
+              <h2 id="about-title" className="lp-h2" style={{ marginBottom: 22 }}>
+                <a
+                  href="https://www.teamcollaboro.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'inherit', textDecoration: 'none' }}
+                >
+                  Team Collaboro
+                </a>{' '}
+                &amp; UKATI
+              </h2>
               <p>
-                <strong>Team Collaboro Pvt Ltd</strong> is a strategic delegation partner for UK-based accountancy and tax firms,
+                <a
+                  href="https://www.teamcollaboro.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'inherit', textDecoration: 'underline' }}
+                >
+                  <strong>Team Collaboro Pvt Ltd</strong>
+                </a>{' '}
+                is a strategic delegation partner for UK-based accountancy and tax firms,
                 providing compliance, advisory, and HMRC tax investigation assistance through our professional team in Sri Lanka.
               </p>
               <p>
@@ -543,7 +562,18 @@ export default function LandingPage() {
             <div className="lp-card lp-about-card lp-reveal">
               <Image src="/logo-no-background.png" alt="UKATI logo" width={300} height={170} className="lp-about-logo" />
               <h3>UK Accounting &amp; Taxation Institute</h3>
-              <p>A Team Collaboro initiative</p>
+              <p>
+                A{' '}
+                <a
+                  href="https://www.teamcollaboro.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'inherit', textDecoration: 'underline' }}
+                >
+                  Team Collaboro
+                </a>{' '}
+                initiative
+              </p>
               <div className="lp-about-tags">
                 <span>Compliance</span><span>Advisory</span><span>HMRC investigations</span>
               </div>
@@ -597,8 +627,8 @@ export default function LandingPage() {
               ].map((c, i) => (
                 <div key={c.initials} className={`lp-cred-row ${c.cls} lp-reveal`} style={{ transitionDelay: `${i * 90}ms` }}>
                   <div className="lp-cred-badge">
-                    <span>{c.stage}</span>
-                    <strong>{c.initials}</strong>
+                    <span style={{ color: c.cls === 'gold' ? 'rgba(26, 18, 4, 0.75)' : 'rgba(255, 255, 255, 0.85)' }}>{c.stage}</span>
+                    <strong style={{ color: c.cls === 'gold' ? '#1A1204' : '#ffffff', letterSpacing: '0.04em' }}>{c.initials}</strong>
                   </div>
                   <div className="lp-cred-body">
                     <h3>{c.title}</h3>
@@ -663,7 +693,18 @@ export default function LandingPage() {
                 <Image src="/logo-no-background.png" alt="UKATI logo" width={96} height={54} />
                 <strong>UKATI</strong>
               </div>
-              <p>UK Accounting &amp; Taxation Institute, a wholly owned training institute of Team Collaboro Pvt Ltd, Sri Lanka.</p>
+              <p>
+                UK Accounting &amp; Taxation Institute, a wholly owned training institute of{' '}
+                <a
+                  href="https://www.teamcollaboro.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline', color: 'inherit', textDecoration: 'underline' }}
+                >
+                  Team Collaboro Pvt Ltd
+                </a>
+                , Sri Lanka.
+              </p>
             </div>
             <div>
               <h4>Programme</h4>
@@ -684,7 +725,18 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="lp-footer-bottom">
-            <span>© {new Date().getFullYear()} Team Collaboro Pvt Ltd. All rights reserved.</span>
+            <span>
+              © {new Date().getFullYear()}{' '}
+              <a
+                href="https://www.teamcollaboro.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline', color: 'inherit', textDecoration: 'underline' }}
+              >
+                Team Collaboro Pvt Ltd
+              </a>
+              . All rights reserved.
+            </span>
             <span>Built for UK accounting &amp; tax professionals</span>
           </div>
         </div>

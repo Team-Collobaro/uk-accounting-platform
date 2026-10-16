@@ -57,6 +57,40 @@
   --scrollbar-hover: #b91c1c;
 }
 
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  --bg: #061219;
+  --bg-base: #061219;
+  --bg-surface: #0a1b24;
+  --bg-elevated: rgba(255, 255, 255, 0.08);
+  --bg-hover: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-medium: rgba(255, 255, 255, 0.20);
+  --text-primary: #F3F6F7;
+  --text-secondary: rgba(229, 238, 241, 0.74);
+  --text-tertiary: rgba(229, 238, 241, 0.52);
+  --ac-cyan: #4fb3c4;
+  background: #061219;
+  color: #F3F6F7;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] body {
+  --bg: #f7f7f3;
+  --bg-base: #f7f7f3;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #e8e4d6;
+  --border-subtle: rgba(7, 54, 71, 0.12);
+  --border-medium: #c0bcae;
+  --text-primary: #0b2430;
+  --text-secondary: #3e5560;
+  --text-tertiary: #6a7f88;
+  --ac-cyan: #0f6e82;
+  background: #f7f7f3;
+  color: #0b2430;
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 
@@ -153,20 +187,24 @@ table {
   border-collapse: collapse;
   margin: 20px 0 28px;
   font-size: 15px;
-  background: #fff;
+  background: var(--table-bg, var(--card-bg, #fff));
   box-shadow: var(--shadow-sm);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle, var(--line-soft));
 }
 
 th,
 td {
   padding: 10px 14px;
   text-align: left;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--border-subtle, var(--line-soft));
   vertical-align: top;
+  color: var(--text-primary, var(--ink));
 }
 
 th {
-  background: var(--bg-dark);
+  background: var(--table-header-bg, var(--bg-dark));
   color: #fff;
   font-family: "Montserrat", sans-serif;
   font-size: 12px;
@@ -176,7 +214,7 @@ th {
 }
 
 tr:nth-child(even) td {
-  background: #fafaf6;
+  background: var(--table-row-alt, var(--bg-surface, #fafaf6));
 }
 
 table.compact th,
@@ -238,19 +276,20 @@ pre code { background: transparent; color: inherit; padding: 0; }
 
 /* LEARNING OBJECTIVES & SUMMARY --------------------------------- */
 .learning-obj {
-  background: linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%);
-  border: 1px solid #c4b5fd;
-  border-radius: 6px;
-  padding: 20px 28px;
+  background: var(--bg-surface, #f5f3ff);
+  border: 1px solid var(--border-subtle, #c4b5fd);
+  border-radius: 12px;
+  padding: 22px 28px;
   margin: 16px 0 32px;
+  color: var(--text-primary, #1e1b4b);
 }
 .learning-obj h4 {
-  margin: 0 0 10px;
-  color: #6d28d9;
+  margin: 0 0 12px;
+  color: var(--ac-violet, #6d28d9);
   font-size: 13px;
   font-family: "Montserrat", sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   font-weight: 700;
 }
 .learning-obj ul {
@@ -258,8 +297,13 @@ pre code { background: transparent; color: inherit; padding: 0; }
   padding-left: 20px;
 }
 .learning-obj li {
-  margin: 4px 0;
+  margin: 6px 0;
   font-size: 15px;
+  line-height: 1.6;
+  color: inherit;
+}
+.learning-obj li::marker {
+  color: var(--ac-violet, #6d28d9);
 }
 
 .module-summary {
@@ -862,16 +906,17 @@ pre code { background: transparent; color: inherit; padding: 0; }
 
 /* Learning Objectives */
 .section-content-html .learning-obj {
-  background: linear-gradient(135deg, #ede9fe 0%, #f3e8ff 100%);
-  border: 1px solid #c4b5fd;
-  border-radius: 6px;
-  padding: 20px 28px;
+  background: var(--bg-surface, #f5f3ff);
+  border: 1px solid var(--border-subtle, #c4b5fd);
+  border-radius: 12px;
+  padding: 22px 28px;
   margin: 16px 0 32px;
+  color: var(--text-primary, #1e1b4b);
 }
-.section-content-html .learning-obj h4 { margin: 0 0 10px; color: #6d28d9; font-size: 13px; font-family: "Montserrat", sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+.section-content-html .learning-obj h4 { margin: 0 0 12px; color: var(--ac-violet, #6d28d9); font-size: 13px; font-family: "Montserrat", sans-serif; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
 .section-content-html .learning-obj ul { margin: 0; padding-left: 20px; }
-.section-content-html .learning-obj li { margin: 4px 0; font-size: 15px; }
-.section-content-html .learning-obj li::marker { color: #6d28d9; }
+.section-content-html .learning-obj li { margin: 6px 0; font-size: 15px; line-height: 1.6; color: inherit; }
+.section-content-html .learning-obj li::marker { color: var(--ac-violet, #6d28d9); }
 
 /* Module Summary Dark Box */
 .section-content-html .module-summary {
@@ -886,11 +931,10 @@ pre code { background: transparent; color: inherit; padding: 0; }
 .section-content-html .module-summary ul li::marker { color: var(--accent); }
 .section-content-html .module-summary strong { color: #fff; }
 
-/* Tables inside content HTML */
-.section-content-html table { width: 100%; border-collapse: collapse; margin: 20px 0 28px; font-size: 15px; background: #fff; box-shadow: var(--shadow-sm); }
-.section-content-html th, .section-content-html td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
-.section-content-html th { background: var(--bg-dark); color: #fff; font-family: "Montserrat", sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-.section-content-html tr:nth-child(even) td { background: #fafaf6; }
+.section-content-html table { width: 100%; border-collapse: collapse; margin: 20px 0 28px; font-size: 15px; background: var(--table-bg, var(--card-bg, #fff)); box-shadow: var(--shadow-sm); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle, var(--line-soft)); }
+.section-content-html th, .section-content-html td { padding: 11px 16px; text-align: left; border-bottom: 1px solid var(--border-subtle, var(--line-soft)); vertical-align: top; color: var(--text-primary, var(--ink)); }
+.section-content-html th { background: var(--table-header-bg, var(--bg-dark)); color: #fff; font-family: "Montserrat", sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.section-content-html tr:nth-child(even) td { background: var(--table-row-alt, var(--bg-surface, #fafaf6)); }
 .section-content-html table.compact th, .section-content-html table.compact td { padding: 6px 10px; font-size: 13px; }
 .section-content-html table.numeric td:not(:first-child) { font-variant-numeric: tabular-nums; text-align: right; font-family: "JetBrains Mono", "Consolas", monospace; }
 .section-content-html table.wp { width: 100%; border-collapse: collapse; font-size: 11px; font-family: "JetBrains Mono", "Consolas", monospace; }

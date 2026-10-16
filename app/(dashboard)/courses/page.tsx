@@ -93,15 +93,10 @@ export default function CoursesPage() {
   }
 
   return (
-    <div style={{ padding: '0 0 80px', fontFamily: '"Charter", "Georgia", serif' }}>
+    <div className="student-courses-page">
 
       {/* ── Part header banner ── */}
-      <div className="px-6 py-10 md:px-16 md:py-12" style={{
-        background: 'linear-gradient(135deg, var(--bg-dark) 0%, #0f172a 100%)',
-        color: '#fff',
-        borderLeft: '6px solid var(--accent)',
-        position: 'relative',
-      }}>
+      <div className="student-courses-hero px-6 py-10 md:px-16 md:py-12">
         <div style={{
           display: 'inline-block', background: 'var(--accent)', color: '#fff',
           padding: '4px 14px', fontSize: 11, letterSpacing: '0.22em',
@@ -110,10 +105,10 @@ export default function CoursesPage() {
         }}>
           ACCA / ACA Grade
         </div>
-        <h1 style={{ margin: '0 0 10px', fontSize: 40, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+        <h1 className="student-courses-title">
           UK Bookkeeping, Accounting<br />&amp; Taxation
         </h1>
-        <p style={{ margin: '0 0 28px', fontSize: 17, color: '#94a3b8', fontStyle: 'italic', maxWidth: 660, lineHeight: 1.6 }}>
+        <p className="student-courses-lead">
           A 150-hour, ACCA/ACA-grade master course covering every UK business scenario —
           from incorporation through cessation, with full FRS 102/105 disclosure reasoning.
         </p>
@@ -126,12 +121,9 @@ export default function CoursesPage() {
             { num: '870+', label: 'MCQs' },
             { num: '150', label: 'Hours' },
           ].map(({ num, label }) => (
-            <div key={label} style={{
-              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 6, padding: '12px 20px', textAlign: 'center', minWidth: 88,
-            }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{num}</div>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#64748b', marginTop: 4, fontFamily: '"Montserrat", sans-serif' }}>{label}</div>
+            <div key={label} className="student-courses-stat">
+              <div>{num}</div>
+              <small>{label}</small>
             </div>
           ))}
         </div>
@@ -141,13 +133,11 @@ export default function CoursesPage() {
           onClick={() => router.push(`/course/${nextModule}`)}
           style={{
             display: 'inline-block', marginTop: 28,
-            background: 'var(--accent)', color: '#fff',
-            border: 'none', padding: '13px 32px', borderRadius: 4,
+            background: 'linear-gradient(135deg, #e2b547, #b88a22)', color: '#091820',
+            border: 'none', padding: '13px 32px', borderRadius: 12,
             fontSize: 15, fontFamily: '"Montserrat", sans-serif', fontWeight: 700,
             cursor: 'pointer', letterSpacing: '0.02em', transition: '0.15s',
           }}
-          onMouseOver={e => e.currentTarget.style.background = '#991b1b'}
-          onMouseOut={e => e.currentTarget.style.background = 'var(--accent)'}
         >
           {nextModule === 'm01' ? 'Begin with Module 1 →' : `Continue with ${nextModule.toUpperCase()} →`}
         </button>
@@ -193,11 +183,8 @@ export default function CoursesPage() {
         </div>
 
         {/* How this course works */}
-        <div style={{
-          background: 'var(--bg-dark)', color: '#e8e4d6',
-          padding: '28px 36px', borderRadius: 6, marginBottom: 40,
-        }}>
-          <h3 style={{ margin: '0 0 14px', fontSize: 18, color: '#fff', fontFamily: '"Charter", serif', borderBottom: '2px solid var(--accent)', paddingBottom: 8 }}>
+        <div className="student-how-card">
+          <h3 style={{ margin: '0 0 14px', fontSize: 18, color: 'var(--text-primary)', fontFamily: '"Montserrat", sans-serif', borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>
             How this course works
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
@@ -209,7 +196,7 @@ export default function CoursesPage() {
             ].map(({ label, desc }) => (
               <div key={label}>
                 <div style={{ fontSize: 11, fontFamily: '"Montserrat", sans-serif', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>{label}</div>
-                <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>{desc}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{desc}</div>
               </div>
             ))}
           </div>

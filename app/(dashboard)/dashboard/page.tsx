@@ -451,70 +451,44 @@ export default function DashboardPage() {
   const nearbyMods  = allModules.slice(Math.max(0, nextIdx - 1), nextIdx + 4).filter(m => m !== nextModule).slice(0, 3)
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--ink)', fontFamily: '"Montserrat", system-ui, sans-serif', padding: '0 0 100px',
-      // dashboard CSS overrides — map dark vars to old-HTML warm palette
-      ['--card-bg' as string]: '#fff',
-      ['--card-border' as string]: 'var(--line)',
-      ['--bg-elevated' as string]: 'var(--bg)',
-      ['--bg-hover' as string]: 'var(--line-soft)',
-      ['--bg-surface' as string]: '#fff',
-      ['--text-primary' as string]: 'var(--ink)',
-      ['--text-secondary' as string]: 'var(--ink-soft)',
-      ['--text-tertiary' as string]: 'var(--ink-faint)',
-      ['--border-subtle' as string]: 'var(--line)',
-      ['--border-medium' as string]: 'var(--line)',
-      ['--ac-cyan' as string]: 'var(--accent-2)',
-      ['--ac-violet' as string]: '#6d28d9',
-      ['--ac-mint' as string]: 'var(--accent-3)',
-      ['--glass-overlay' as string]: 'rgba(255,255,255,0.95)',
-    }}>
+    <div className="student-dashboard-page">
       <CelebrationBurst active={celebration} />
 
       <AnimatePresence>
         {milestone && <MilestoneToast {...milestone} onDismiss={() => setMilestone(null)} />}
       </AnimatePresence>
 
-      {/* ─ Hero banner – editorial part-header style ─ */}
+      {/* ─ Hero banner ─ */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        style={{
-          background: 'linear-gradient(135deg, var(--bg-dark) 0%, #0f172a 100%)',
-          color: '#fff', padding: '32px 36px 28px',
-          borderLeft: '6px solid var(--accent)',
-          position: 'relative', overflow: 'hidden',
-        }}>
+        className="student-dashboard-hero">
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           {/* greeting row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
             <div>
-              <div style={{ display: 'inline-block', background: 'var(--accent)', color: '#fff', padding: '3px 12px', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: '"Montserrat", sans-serif', fontWeight: 700, borderRadius: 2, marginBottom: 12 }}>
-                ACCA / ACA Grade
+              <div className="student-dashboard-kicker">
+                Student learning portal
               </div>
-              <div style={{ fontWeight: 800, letterSpacing: '-0.015em', color: '#fff', fontSize: 22, fontFamily: '"Charter", "Georgia", serif', marginBottom: 4, lineHeight: 1.2 }}>
+              <div className="student-dashboard-title">
                 <BlurText text={`Welcome back, ${studentName.split(' ')[0]}!`} className="aurora-text" delay={70} direction="top" stepDuration={0.15} />
               </div>
-              <p style={{ color: '#94a3b8', marginTop: 4, fontWeight: 400, fontSize: 14, lineHeight: 1.5, margin: '4px 0 0', fontFamily: '"Montserrat", sans-serif' }}>Ready to continue your studies? {completed} of 87 modules complete &mdash; {pct}% through the qualification.</p>
+              <p className="student-dashboard-subtitle">Ready to continue your studies? {completed} of 87 modules complete &mdash; {pct}% through the qualification.</p>
             </div>
           </div>
 
           {/* Continue Learning CTA */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '18px 22px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              flexWrap: 'wrap', gap: 16, position: 'relative', overflow: 'hidden',
-            }}>
+            className="student-continue-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                style={{ width: 48, height: 48, borderRadius: 6, background: 'rgba(185,28,28,0.2)', border: '1px solid rgba(185,28,28,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                className="student-continue-icon">
                 <Play size={20} color="var(--accent)" style={{ marginLeft: 2 }} />
               </motion.div>
               <div>
                 <p style={{ fontFamily: '"Montserrat", sans-serif', color: 'var(--accent)', letterSpacing: '0.15em', marginBottom: 4, opacity: 0.9, fontSize: 10, textTransform: 'uppercase', fontWeight: 700 }}>
                   Continue Learning &middot; {nextPart ? `Part ${nextPart.number}` : ''}
                 </p>
-                <h2 style={{ fontWeight: 700, color: '#fff', margin: '0 0 2px', lineHeight: 1.2, fontSize: 18, fontFamily: '"Charter", "Georgia", serif' }}>{nextTitle}</h2>
-                <p style={{ color: '#64748b', margin: 0, fontSize: 12, fontFamily: '"Montserrat", sans-serif' }}>{nextModule.toUpperCase()} &middot; Alex is ready to guide you</p>
+                <h2 className="student-continue-title">{nextTitle}</h2>
+                <p className="student-continue-meta">{nextModule.toUpperCase()} &middot; Alex is ready to guide you</p>
               </div>
             </div>
 
@@ -522,13 +496,7 @@ export default function DashboardPage() {
               <Link href={`/course/${nextModule}`} style={{ textDecoration: 'none' }}>
                 <motion.button
                   whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '11px 24px', borderRadius: 4,
-                    background: 'var(--accent)',
-                    border: 'none', cursor: 'pointer', fontWeight: 700, color: '#fff',
-                    fontFamily: '"Montserrat", sans-serif', fontSize: 14, letterSpacing: '0.02em',
-                  }}>
+                  className="student-primary-button">
                   Start Now <ArrowRight size={15} />
                 </motion.button>
               </Link>
@@ -537,7 +505,7 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      <div style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
+      <div className="student-dashboard-content">
 
         {/* ── Stats + Daily Goal row ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 22 }}>

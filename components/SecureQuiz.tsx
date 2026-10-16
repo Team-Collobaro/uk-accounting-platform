@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { PublicQuizQuestion } from '@/types'
+import ExamTools from '@/components/ExamTools'
+import './SecureQuiz.css'
 
 interface QuizResult {
   score: number
@@ -80,25 +82,25 @@ export default function SecureQuiz({ moduleId, moduleTitle, alreadyPassed, onPas
 
   if (!attemptId || result) {
     return (
-      <div style={{ maxWidth: 640, margin: '28px auto', padding: 28, border: '1px solid var(--line)', borderRadius: 12, background: 'var(--bg-alt)', fontFamily: 'Montserrat, sans-serif' }}>
+      <div className="secure-quiz secure-quiz-intro">
         {result ? (
           <>
-            <p style={{ margin: 0, color: result.passed ? '#15803d' : '#b91c1c', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <p className={`secure-quiz-status ${result.passed ? 'passed' : 'failed'}`}>
               {result.passed ? 'Assessment passed' : 'Review and try again'}
             </p>
-            <h3 style={{ margin: '8px 0', fontSize: 30 }}>{result.percentage}%</h3>
-            <p style={{ color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+            <h3 className="secure-quiz-score">{result.percentage}%</h3>
+            <p className="secure-quiz-copy">
               You answered {result.score} of {result.total} questions correctly. A score of 70% is required.
             </p>
-            <div style={{ display: 'grid', gap: 10, marginTop: 20 }}>
+            <div className="secure-quiz-review">
               {questions.map((question) => {
                 const explanation = result.explanations[question.id]
                 const correct = explanation?.userAnswer === explanation?.correct ||
                   explanation?.userAnswer?.trim().toUpperCase().startsWith(explanation?.correct?.trim().toUpperCase())
                 return (
-                  <div key={question.id} style={{ padding: 14, borderRadius: 8, background: correct ? 'rgba(21,128,61,0.08)' : 'rgba(185,28,28,0.08)' }}>
-                    <strong style={{ fontSize: 13 }}>{correct ? 'Correct' : `Correct answer: ${explanation?.correct}`}</strong>
-                    <p style={{ margin: '5px 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--ink-soft)' }}>{explanation?.explanation}</p>
+                  <div key={question.id} className={`secure-quiz-review-item ${correct ? 'correct' : 'incorrect'}`}>
+                    <strong>{correct ? 'Correct' : `Correct answer: ${explanation?.correct}`}</strong>
+                    <p>{explanation?.explanation}</p>
                   </div>
                 )
               })}
@@ -106,21 +108,21 @@ export default function SecureQuiz({ moduleId, moduleTitle, alreadyPassed, onPas
           </>
         ) : (
           <>
-            <p style={{ margin: 0, color: 'var(--accent)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Secure knowledge check</p>
-            <h3 style={{ margin: '8px 0 10px', fontSize: 24 }}>{alreadyPassed ? 'Module already passed' : 'Ready to begin?'}</h3>
-            <p style={{ color: 'var(--ink-soft)', lineHeight: 1.6, marginBottom: 22 }}>
+            <p className="secure-quiz-eyebrow">Secure knowledge check</p>
+            <h3 className="secure-quiz-intro-title">{alreadyPassed ? 'Module already passed' : 'Ready to begin?'}</h3>
+            <p className="secure-quiz-copy secure-quiz-intro-copy">
               {alreadyPassed
                 ? 'Your module completion is saved. You may retake this assessment for practice.'
                 : 'Answer the multiple-choice questions in a 45-minute attempt. Score 70% or more to complete this module.'}
             </p>
           </>
         )}
-        {error && <p role="alert" style={{ color: '#b91c1c', fontSize: 13 }}>{error}</p>}
+        {error && <p role="alert" className="secure-quiz-error">{error}</p>}
         <button
+          className="secure-quiz-primary-button"
           type="button"
           onClick={startQuiz}
           disabled={loading}
-          style={{ border: 0, borderRadius: 8, padding: '11px 18px', background: 'var(--accent-2)', color: '#fff', fontWeight: 800, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.65 : 1 }}
         >
           {loading ? 'Preparing questions…' : result ? 'Start a new attempt' : alreadyPassed ? 'Retake assessment' : 'Start assessment'}
         </button>
@@ -130,21 +132,22 @@ export default function SecureQuiz({ moduleId, moduleTitle, alreadyPassed, onPas
 
   const allAnswered = questions.every((question) => Boolean(answers[question.id]))
   return (
-    <div style={{ maxWidth: 720, margin: '24px auto', fontFamily: 'Montserrat, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+    <div className="secure-quiz secure-quiz-active">
+      <div className="secure-quiz-heading">
         <div>
-          <p style={{ margin: 0, color: 'var(--accent)', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Secure knowledge check</p>
-          <h3 style={{ margin: '5px 0 0' }}>{moduleTitle}</h3>
+          <p className="secure-quiz-eyebrow">Secure knowledge check</p>
+          <h3>{moduleTitle}</h3>
         </div>
-        <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{Object.keys(answers).length}/{questions.length} answered</span>
+        <span className="secure-quiz-progress">{Object.keys(answers).length}/{questions.length} answered</span>
       </div>
-      <div style={{ display: 'grid', gap: 18 }}>
+      <ExamTools />
+      <div className="secure-quiz-questions">
         {questions.map((question, questionIndex) => (
-          <fieldset key={question.id} style={{ margin: 0, padding: 20, border: '1px solid var(--line)', borderRadius: 10 }}>
-            <legend style={{ padding: '0 6px', fontWeight: 800, lineHeight: 1.5 }}>{questionIndex + 1}. {question.question}</legend>
-            <div style={{ display: 'grid', gap: 9, marginTop: 12 }}>
+          <fieldset key={question.id} className="secure-quiz-question">
+            <legend><span>{questionIndex + 1}</span>{question.question}</legend>
+            <div className="secure-quiz-options">
               {question.options.map((option) => (
-                <label key={option} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: 11, border: '1px solid var(--line-soft)', borderRadius: 8, cursor: 'pointer', background: answers[question.id] === option ? 'rgba(29,78,216,0.08)' : 'transparent' }}>
+                <label key={option} className={answers[question.id] === option ? 'selected' : ''}>
                   <input
                     type="radio"
                     name={question.id}
@@ -152,19 +155,19 @@ export default function SecureQuiz({ moduleId, moduleTitle, alreadyPassed, onPas
                     checked={answers[question.id] === option}
                     onChange={() => setAnswers((current) => ({ ...current, [question.id]: option }))}
                   />
-                  <span style={{ fontSize: 14, lineHeight: 1.5 }}>{option}</span>
+                  <span>{option}</span>
                 </label>
               ))}
             </div>
           </fieldset>
         ))}
       </div>
-      {error && <p role="alert" style={{ color: '#b91c1c', fontSize: 13 }}>{error}</p>}
+      {error && <p role="alert" className="secure-quiz-error">{error}</p>}
       <button
+        className="secure-quiz-primary-button secure-quiz-submit"
         type="button"
         onClick={submitQuiz}
         disabled={!allAnswered || submitting}
-        style={{ marginTop: 22, border: 0, borderRadius: 8, padding: '12px 20px', background: 'var(--accent-2)', color: '#fff', fontWeight: 800, cursor: allAnswered && !submitting ? 'pointer' : 'not-allowed', opacity: allAnswered && !submitting ? 1 : 0.5 }}
       >
         {submitting ? 'Submitting…' : allAnswered ? 'Submit assessment' : 'Answer every question to submit'}
       </button>
