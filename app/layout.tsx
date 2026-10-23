@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import ContentProtection from '@/components/ContentProtection'
+import SessionGuard from '@/components/SessionGuard'
 import { ThemeProvider } from '@/context/ThemeContext'
 
 export const metadata: Metadata = {
@@ -44,6 +45,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider>
           <ContentProtection />
+          <SessionGuard />
           {children}
         </ThemeProvider>
       </body>

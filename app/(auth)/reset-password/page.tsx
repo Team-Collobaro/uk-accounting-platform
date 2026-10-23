@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import { X, ArrowRight, Mail } from 'lucide-react'
 import WatchSpinner from '@/components/WatchSpinner'
+import { getAppUrl } from '@/lib/url'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -26,7 +27,7 @@ function ResetPasswordForm() {
     setLoading(true)
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/update-password`,
+        redirectTo: `${getAppUrl()}/update-password`,
       })
       if (resetError) { setError(resetError.message); return }
       setSuccess(true)

@@ -1,16 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
-import { Eye, EyeOff, X, ArrowRight, UserPlus } from 'lucide-react'
+import { Eye, EyeOff, X, ArrowRight, UserPlus, Building2 } from 'lucide-react'
+import RoleToggle, { type AuthRole } from '@/components/auth/RoleToggle'
+import { getAppUrl } from '@/lib/url'
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
 
+  const [role, setRole] = useState<AuthRole>(searchParams.get('role') === 'employer' ? 'employer' : 'student')
+  const isEmployer = role === 'employer'
+  const [companyName, setCompanyName] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName,  setLastName]  = useState('')
   const [email,     setEmail]     = useState('')
@@ -33,26 +39,33 @@ export default function RegisterPage() {
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
-            role: 'student',
+            role,
+            ...(isEmployer && { company_name: companyName.trim() }),
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${getAppUrl()}/auth/callback`,
         }
       })
       if (signUpError) { setError(signUpError.message); return }
 
       try { localStorage.setItem('uk_acct_email', email) } catch { /* ignore */ }
       if (signUpData.session) {
-        const profileResponse = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: `${firstName.trim()} ${lastName.trim()}`.trim() }),
-        })
-        if (!profileResponse.ok) console.warn('Student profile will be created on first sign-in')
+        const profileResponse = isEmployer
+          ? await fetch('/api/employer/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyName: companyName.trim() }),
+          })
+          : await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${firstName.trim()} ${lastName.trim()}`.trim() }),
+          })
+        if (!profileResponse.ok) console.warn('Profile will be created on first sign-in')
       } else {
         setConfirmationRequired(true)
       }
       setSuccess(true)
-      if (signUpData.session) setTimeout(() => { router.push('/dashboard') }, 2000)
+      if (signUpData.session) setTimeout(() => { router.push(isEmployer ? '/employer' : '/dashboard') }, 2000)
     } catch {
       setError('An unexpected error occurred. Please try again.')
     } finally {
@@ -86,10 +99,12 @@ export default function RegisterPage() {
         <p style={{ color: '#6b6b6b', lineHeight: 1.6, fontSize: 15 }}>
           {confirmationRequired
             ? `We sent a confirmation link to ${email}. Open it to activate your account, then sign in.`
-            : `Welcome to UKATI. We're redirecting you to your dashboard to begin your journey.`}
+            : isEmployer
+              ? `Welcome to UKATI. We're taking you to your employer portal to set up your team.`
+              : `Welcome to UKATI. We're redirecting you to your dashboard to begin your journey.`}
         </p>
         {confirmationRequired && (
-          <Link href="/login" style={{ display: 'inline-block', marginTop: 20, color: '#1A365D', fontWeight: 700, textDecoration: 'none' }}>
+          <Link href={isEmployer ? '/login?role=employer' : '/login'} style={{ display: 'inline-block', marginTop: 20, color: '#1A365D', fontWeight: 700, textDecoration: 'none' }}>
             Go to sign in →
           </Link>
         )}
@@ -99,16 +114,37 @@ export default function RegisterPage() {
 
   return (
     <>
+      <RoleToggle value={role} onChange={(next) => { setRole(next); setError('') }} />
+
       <div style={{ marginBottom: 28, textAlign: 'center' }}>
         <h1 style={{ fontWeight: 800, color: '#1A365D', letterSpacing: '-0.02em', margin: '0 0 6px 0', fontSize: 22 }}>
-          Create an account
+          {isEmployer ? 'Create an employer account' : 'Create an account'}
         </h1>
         <p style={{ color: '#6b6b6b', lineHeight: 1.5, fontSize: 14, margin: 0 }}>
-          Begin your UK accounting journey today
+          {isEmployer ? 'Train your team and track their progress' : 'Begin your UK accounting journey today'}
         </p>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <AnimatePresence initial={false}>
+          {isEmployer && (
+            <motion.div
+              key="company"
+              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              style={{ overflow: 'hidden' }}
+            >
+              <label style={labelStyle}>Company name</label>
+              <input
+                id="register-company-name"
+                type="text" value={companyName} onChange={e => setCompanyName(e.target.value)}
+                required={isEmployer} autoComplete="organization" placeholder="Acme Accounting Ltd" style={inputStyle}
+                onFocus={e => { e.currentTarget.style.borderColor = '#1A365D'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(26,54,93,0.1)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.boxShadow = 'none' }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>First name</label>
@@ -129,10 +165,10 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label style={labelStyle}>Email address</label>
+          <label style={labelStyle}>{isEmployer ? 'Work email' : 'Email address'}</label>
           <input
             type="email" value={email} onChange={e => setEmail(e.target.value)}
-            required autoComplete="email" placeholder="you@example.com" style={inputStyle}
+            required autoComplete="email" placeholder={isEmployer ? 'you@company.com' : 'you@example.com'} style={inputStyle}
             onFocus={e => { e.currentTarget.style.borderColor = '#1A365D'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(26,54,93,0.1)' }}
             onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.boxShadow = 'none' }}
           />
@@ -174,6 +210,8 @@ export default function RegisterPage() {
           style={{ width: '100%', padding: '14px 24px', borderRadius: 12, border: 'none', background: '#BA923A', color: '#fff', fontWeight: 700, cursor: loading || success ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 15, transition: 'all 0.2s', opacity: loading ? 0.7 : 1, marginTop: 8 }}>
           {loading ? (
             <>Creating account…</>
+          ) : isEmployer ? (
+            <><Building2 size={16} /> Create Employer Account</>
           ) : (
             <><UserPlus size={16} /> Enrol Now</>
           )}
@@ -182,16 +220,24 @@ export default function RegisterPage() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
-        <span style={{ color: '#a0aab2', letterSpacing: '0.1em', fontSize: 10, fontWeight: 600 }}>ALREADY ENROLLED?</span>
+        <span style={{ color: '#a0aab2', letterSpacing: '0.1em', fontSize: 10, fontWeight: 600 }}>{isEmployer ? 'ALREADY REGISTERED?' : 'ALREADY ENROLLED?'}</span>
         <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
       </div>
 
       <p style={{ textAlign: 'center', color: '#6b6b6b', fontSize: 14, margin: 0 }}>
         Already have an account?{' '}
-        <Link href="/login" style={{ color: '#1A365D', fontWeight: 700, textDecoration: 'none' }}>
+        <Link href={isEmployer ? '/login?role=employer' : '/login'} style={{ color: '#1A365D', fontWeight: 700, textDecoration: 'none' }}>
           Sign in →
         </Link>
       </p>
     </>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   )
 }

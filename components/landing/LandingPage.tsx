@@ -5,8 +5,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowRight, Award, BadgeCheck, BookOpen, Briefcase, Check, Download,
-  Globe, GraduationCap, Info, Laptop, Lock, Menu, ShieldCheck, Smartphone,
+  ArrowRight, Award, BadgeCheck, BookOpen, Briefcase, Building2, Check, CheckCircle2, Download,
+  ExternalLink, Globe, GraduationCap, Info, Laptop, Lock, Menu, ShieldCheck, Smartphone, Sparkles,
   UserPlus, X, Pause, Play,
 } from 'lucide-react'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -18,7 +18,7 @@ const NAV = [
   { label: 'About', href: '#about' },
   { label: 'Why UKATI', href: '#why-ukati' },
   { label: 'Credentials', href: '#credentials' },
-  { label: 'Employers', href: '/employer' },
+  { label: 'Employers', href: '/employers' },
 ]
 
 const HERO_SLIDES = [
@@ -234,9 +234,9 @@ const STEPS = [
 ] as const
 
 /* ── Small hook: reveal on scroll ── */
-function useReveal() {
+function useReveal(deps: unknown[] = []) {
   useEffect(() => {
-    const els = document.querySelectorAll<HTMLElement>('.lp-reveal')
+    const els = document.querySelectorAll<HTMLElement>('.lp-reveal:not(.in)')
     if (!('IntersectionObserver' in window)) {
       els.forEach(el => el.classList.add('in'))
       return
@@ -249,7 +249,8 @@ function useReveal() {
     )
     els.forEach(el => io.observe(el))
     return () => io.disconnect()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
 }
 
 function HowItWorks() {
@@ -386,6 +387,7 @@ export default function LandingPage() {
   const [heroPaused, setHeroPaused] = useState(false)
   const [heroHovered, setHeroHovered] = useState(false)
   const [heroFocused, setHeroFocused] = useState(false)
+
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     let timer: ReturnType<typeof setInterval> | undefined
@@ -711,6 +713,7 @@ export default function LandingPage() {
               <Link href="#how-it-works">How it works</Link>
               <Link href="/courses">Courses</Link>
               <Link href="#credentials">Credentials</Link>
+              <Link href="#employers">Hiring Employers</Link>
             </div>
             <div>
               <h4>Account</h4>
