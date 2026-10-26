@@ -22,6 +22,10 @@ jobs:
         with:
           submodules: true
           lfs: false
+      # Free plan caps the app at 250 MB; only installers linked from
+      # lib/mobileAppDownload.ts are shipped.
+      - name: Prune old installers
+        run: find public/downloads -type f ! -name 'UKATI-Mobile-v1.0.21.apk' ! -name 'UKATI-Mobile-v1.0.19.ipa' -delete
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
       - name: Get Id Token
@@ -34,6 +38,10 @@ jobs:
            result-encoding: string
       - name: Build And Deploy
         id: builddeploy
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_MUD_096D72B10 }}
