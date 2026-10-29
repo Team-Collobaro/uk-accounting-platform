@@ -32,6 +32,9 @@ const markVideoWatched = (sectionKey: string) => {
   try { sessionStorage.setItem(videoWatchedKey(sectionKey), '1') } catch { /* storage unavailable */ }
 }
 
+/** The chat API answered without any reply text; message is the server's code ('unavailable', 'busy', ...) */
+class TutorUnavailable extends Error {}
+
 // Seconds between the tutor finishing a section and the next section opening
 const AUTO_ADVANCE_SECONDS = 6
 const NO_VIDEOS: string[] = []
@@ -362,16 +365,21 @@ export default function VoiceAssistantSidebar({
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let fullResponse = ''
+      let streamError: string | null = null
+      let pending = '' // an event can arrive split across two chunks
       const phaseAtSend = phaseRef.current
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        const chunk = decoder.decode(value, { stream: true })
-        for (const line of chunk.split('\n')) {
+        pending += decoder.decode(value, { stream: true })
+        const lines = pending.split('\n')
+        pending = lines.pop() ?? ''
+        for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           try {
             const json = JSON.parse(line.slice(6))
+            if (json.error) streamError = String(json.error)
             if (json.token) {
               fullResponse += json.token
               feedSpeech(fullResponse, false)
@@ -382,9 +390,12 @@ export default function VoiceAssistantSidebar({
               })
             }
             if (json.done && json.sessionId) setSessionId(json.sessionId)
-          } catch { /* partial */ }
+          } catch { /* not JSON */ }
         }
       }
+
+      // Never leave an empty bubble: no reply text means the tutor could not answer
+      if (streamError || !fullResponse.trim()) throw new TutorUnavailable(streamError ?? 'empty')
 
       // Track consecutive misses so the tutor can change approach
       if (!isAutoStart) {
@@ -419,9 +430,15 @@ export default function VoiceAssistantSidebar({
     } catch (err) {
       console.error('AI Tutor error:', err)
       stopSpeaking()
+      const code = err instanceof TutorUnavailable ? err.message : 'network'
+      const notice = code === 'unavailable'
+        ? "I'm not available right now: the AI service isn't accepting requests. You can keep reading the lesson and watching the videos, and try me again later."
+        : code === 'busy'
+          ? "I'm a bit busy right now. Please try again in a minute."
+          : "Sorry, I couldn't connect right now. Please try again."
       setMessages((prev) => {
         const updated = [...prev]
-        updated[updated.length - 1] = { role: 'assistant', content: "Sorry, I couldn't connect right now. Please try again." }
+        updated[updated.length - 1] = { role: 'assistant', content: notice }
         return updated
       })
       setConvState('idle')

@@ -187,8 +187,14 @@ export async function POST(req: NextRequest) {
           )
           controller.close()
         } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Stream error'
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`))
+          // Full detail stays in the server log; the student gets a short code, never the upstream message
+          console.error('/api/chat stream error:', err)
+          const status = (err as { status?: number })?.status
+          const text = err instanceof Error ? err.message : ''
+          const code = /credit balance/i.test(text) || status === 401 || status === 403 ? 'unavailable'
+            : status === 429 || status === 529 ? 'busy'
+            : 'failed'
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: code })}\n\n`))
           controller.close()
         }
       },
