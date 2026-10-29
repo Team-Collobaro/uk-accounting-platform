@@ -199,6 +199,8 @@
 
 .student-main { min-width: 0; flex: 1; height: calc(100vh - 130px); overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 20px; background-color: var(--bg); background-image: radial-gradient(circle at 8% 8%, rgba(79,179,196,.10), transparent 25%), radial-gradient(circle at 94% 94%, rgba(212,165,55,.08), transparent 24%), linear-gradient(var(--line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--line-soft) 1px, transparent 1px); background-size: auto, auto, 56px 56px, 56px 56px; box-shadow: 0 18px 45px rgba(0, 0, 0, .12); }
 .student-sidebar-scrim { display: none; }
+/* Lesson pages: keep the top bar fixed; only the lesson body and chat scroll inside. */
+.student-main:has(> #lesson-screen) { display: flex; flex-direction: column; overflow: hidden; }
 
 /* Course and assessment surfaces inherit the refreshed student theme. */
 .student-shell #lesson-screen { color: var(--text-primary); }
@@ -353,6 +355,19 @@
   font-weight: 700;
   border-top: 1px solid var(--ac-cyan);
 }
+
+/* ── Numbered steps and example boxes (Theme-Aware) ── */
+.student-shell .section-content-html .step-list > li,
+.student-shell .section-content-html .example-box {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+}
+.student-shell .section-content-html .step-list > li {
+  border-top: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.student-shell .section-content-html .example-box { border-color: var(--border-subtle); }
 
 /* ── Content Callout Blocks (Theme-Aware) ── */
 .student-shell .section-content-html .callout,

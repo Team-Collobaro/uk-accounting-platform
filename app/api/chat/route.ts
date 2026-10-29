@@ -7,6 +7,13 @@ import { calculateCost } from '@/lib/costTracker'
 import type { ChatMessage } from '@/types'
 import { canAccessModule, previousModuleId } from '@/lib/course-access'
 import { MODULE_ID_PATTERN } from '@/lib/quiz-security'
+import explainers from '@/lib/explainers.json'
+import sectionExplainers from '@/lib/section-explainers.json'
+import type { StoredExplainer } from '@/lib/explainer'
+
+// Module intros ("m23") and lesson sections ("m23/s02")
+const videoStores = [explainers, sectionExplainers] as unknown as Record<string, StoredExplainer>[]
+const videoNarration = (id: string) => videoStores.find((s) => s[id])?.[id]?.scenes.map((s) => s.narration).join(' ') ?? null
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,9 +43,11 @@ export async function POST(req: NextRequest) {
       totalTeachingPoints?: number
       allTeachingPoints?: string[]
       phase?: import('@/lib/anthropic').TeachingPhase
+      struggleCount?: number
+      explainerIds?: string[]
     }
 
-    const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase } = body
+    const { message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase, struggleCount, explainerIds } = body
 
     if (!message || !MODULE_ID_PATTERN.test(moduleId ?? '') || message.length > 8_000) {
       return NextResponse.json({ error: 'message and moduleId are required' }, { status: 400 })
@@ -65,7 +74,16 @@ export async function POST(req: NextRequest) {
 
     // RAG — HTML course file is the single source of truth
     // Teaching point content (exact block from HTML) is used when available — it IS the content to teach
-    const isAutoStart = message === '__AUTO_START__'
+    // The tutor just presented the explainer video(s); open the lesson from what they covered.
+    // Only this module's videos count, whatever the client sends.
+    const afterExplainer = message === '__EXPLAINER_DONE__'
+    const isAutoStart = message === '__AUTO_START__' || afterExplainer
+    const presented = (Array.isArray(explainerIds) && explainerIds.length ? explainerIds : [moduleId])
+      .filter((id): id is string => typeof id === 'string' && (id === moduleId || id.startsWith(`${moduleId}/`)))
+      .slice(0, 3)
+    const explainerRecap = afterExplainer
+      ? (presented.map(videoNarration).filter(Boolean).join(' ') || null)
+      : null
     let ragContext = ''
     const { getModuleSections, getSectionContent } = await import('@/lib/courseHtml')
 
@@ -136,7 +154,7 @@ export async function POST(req: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of tutorStream({ student, module: mod, history, message, ragContext, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase })) {
+          for await (const chunk of tutorStream({ student, module: mod, history, message, ragContext, currentSection, completedSections, teachingPointIdx, teachingPointTitle, teachingPointContent, totalTeachingPoints, allTeachingPoints, phase, struggleCount, explainerRecap })) {
             if (typeof chunk === 'string') {
               fullResponse += chunk
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: chunk })}\n\n`))

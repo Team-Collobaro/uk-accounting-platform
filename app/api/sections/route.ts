@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import courseData from '@/lib/courseDataRaw.json'
+import explainers from '@/lib/explainers.json'
+import sectionExplainers from '@/lib/section-explainers.json'
+import type { StoredExplainer } from '@/lib/explainer'
+
+const sectionVideos = sectionExplainers as unknown as Record<string, StoredExplainer>
+
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { canAccessModule, previousModuleId } from '@/lib/course-access'
 import { MODULE_ID_PATTERN } from '@/lib/quiz-security'
@@ -35,7 +41,8 @@ export async function GET(req: NextRequest) {
       section_id: s.id,
       section_title: s.title,
       section_order: idx + 1,
-      aiPractice: s.aiPractice || null
+      aiPractice: s.aiPractice || null,
+      explainer: sectionVideos[`${moduleId}/${s.id}`]?.scenes ?? null,
     }))
 
     return NextResponse.json({ 
@@ -44,7 +51,8 @@ export async function GET(req: NextRequest) {
       learningObjHtml: module.learningObjHtml || '',
       hookHtml: module.hookHtml || '',
       hookText: module.hookText || '',
-      sections 
+      explainer: (explainers as unknown as Record<string, StoredExplainer>)[moduleId]?.scenes ?? null,
+      sections
     })
   } catch (err) {
     console.error('sections route error:', err)

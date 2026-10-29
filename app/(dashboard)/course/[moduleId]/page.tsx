@@ -9,6 +9,7 @@ interface SectionMeta {
   section_title: string
   section_order: number
   aiPractice?: any
+  explainer?: ExplainerScene[] | null
 }
 
 interface ModuleData {
@@ -17,6 +18,7 @@ interface ModuleData {
   learningObjHtml: string
   hookHtml?: string
   hookText?: string
+  explainer?: ExplainerScene[] | null
   sections: SectionMeta[]
 }
 
@@ -38,6 +40,9 @@ import AntiCheatWrapper, { SecurityIncidentItem } from '@/components/AntiCheatWr
 import ProctoringCamera from '@/components/ProctoringCamera'
 import MobileDeviceStatus from '@/components/MobileDeviceStatus'
 import VoiceAssistantSidebar from '@/components/VoiceAssistantSidebar'
+import ModuleExplainer from '@/components/ModuleExplainer'
+import type { ExplainerScene } from '@/lib/explainer'
+import { sectionVideoId, SECTION_COMPLETE_EVENT } from '@/lib/tutorPresenter'
 import SecureQuiz from '@/components/SecureQuiz'
 import { useProctoringConfig } from '@/lib/proctoringConfig'
 import { initAnimFactory } from '@/lib/animFactory'
@@ -464,6 +469,15 @@ export default function CourseLessonPage() {
     }
   }
 
+  // The AI tutor finished teaching this section: save it as done and open the next one
+  const markDoneRef = React.useRef(handleMarkDone)
+  markDoneRef.current = handleMarkDone
+  useEffect(() => {
+    const onSectionComplete = () => { void markDoneRef.current() }
+    window.addEventListener(SECTION_COMPLETE_EVENT, onSectionComplete)
+    return () => window.removeEventListener(SECTION_COMPLETE_EVENT, onSectionComplete)
+  }, [])
+
   // Handle AnimFactory initialization and extraction
   useEffect(() => {
     if (!contentHtml) return;
@@ -530,6 +544,14 @@ export default function CourseLessonPage() {
   const partName = partNameMatch ? `Part ${partNameMatch[1]}` : 'Part'
   const partNumber = partNameMatch ? parseInt(partNameMatch[1], 10) : 1
   const partTitle = moduleData?.meta.match(/Part \d+ · ([^·]+)/)?.[1]?.trim() ?? ''
+
+  // "23.2" from "23.2 Worker categories"
+  const sectionNumber = currentSection?.section_title.match(/^\d+\.\d+/)?.[0] ?? null
+  // Explainer videos the tutor presents when this section opens, in order
+  const lessonVideos = [
+    ...(currentIdx === 0 && moduleData?.explainer?.length ? [moduleId] : []),
+    ...(currentSection?.explainer?.length && !isKnowledgeCheck ? [sectionVideoId(moduleId, currentSection.section_id)] : []),
+  ]
 
   return (
     <div id="lesson-screen" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', fontFamily: '"Charter", Georgia, serif' }}>
@@ -637,7 +659,16 @@ export default function CourseLessonPage() {
                 <div className="lesson-module-badge">Module {moduleNumber}</div>
                 <h1 className="lesson-module-title">{moduleData.module_title}</h1>
                 <div className="lesson-module-meta">{moduleData.meta}</div>
-                {moduleData.hookHtml && (
+                {moduleData.explainer?.length ? (
+                  <ModuleExplainer
+                    key={moduleId}
+                    videoId={moduleId}
+                    moduleNumber={moduleNumber}
+                    moduleTitle={moduleData.module_title}
+                    scenes={moduleData.explainer}
+                    hookHtml={moduleData.hookHtml}
+                  />
+                ) : moduleData.hookHtml && (
                   <div
                     className="module-hook"
                     dangerouslySetInnerHTML={{ __html: moduleData.hookHtml }}
@@ -1075,10 +1106,23 @@ export default function CourseLessonPage() {
                     </AntiCheatWrapper>
                   )
                 ) : (
-                  <div 
-                    className="section-content-html"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }} 
-                  />
+                  <>
+                    {currentSection?.explainer?.length ? (
+                      <ModuleExplainer
+                        key={sectionVideoId(moduleId, currentSection.section_id)}
+                        videoId={sectionVideoId(moduleId, currentSection.section_id)}
+                        moduleNumber={moduleNumber}
+                        moduleTitle={currentSection.section_title}
+                        scenes={currentSection.explainer}
+                        kicker={sectionNumber ? `SECTION ${sectionNumber}` : `MODULE ${moduleNumber}`}
+                        badge={sectionNumber ?? `M${moduleNumber}`}
+                      />
+                    ) : null}
+                    <div
+                      className="section-content-html"
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(contentHtml) }}
+                    />
+                  </>
                 )}
               </div>
             </div>
@@ -1286,6 +1330,7 @@ export default function CourseLessonPage() {
           sectionTitle: currentSection.section_title,
           sectionOrder: currentSection.section_order,
         } : undefined}
+        videos={lessonVideos}
       />
     )}
   </div>

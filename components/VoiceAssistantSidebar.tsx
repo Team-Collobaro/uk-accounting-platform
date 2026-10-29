@@ -1,8 +1,12 @@
 'use client'
 
 import React, { useRef, useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import TutorMessage from './TutorMessage'
+import type { HoloMode } from './HologramHead'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
+import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState } from '@/lib/localTts'
+import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterLevel, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
 
 
 interface VoiceAssistantSidebarProps {
@@ -12,7 +16,25 @@ interface VoiceAssistantSidebarProps {
   partTitle?: string
   currentSection?: { sectionId: string; sectionTitle: string; sectionOrder: number }
   hookText?: string
+  /** Explainer video ids the page shows for this section, in the order the tutor presents them */
+  videos?: string[]
 }
+
+// none → offered (welcome + "watch with your tutor") → presenting → done
+type VideoFlow = 'none' | 'offered' | 'presenting' | 'done'
+
+// Per section ("m23/s02"), so each section's video is presented once per browser session
+const videoWatchedKey = (sectionKey: string) => `explainer-watched:${sectionKey}`
+const videoWatched = (sectionKey: string) => {
+  try { return sessionStorage.getItem(videoWatchedKey(sectionKey)) === '1' } catch { return false }
+}
+const markVideoWatched = (sectionKey: string) => {
+  try { sessionStorage.setItem(videoWatchedKey(sectionKey), '1') } catch { /* storage unavailable */ }
+}
+
+// Seconds between the tutor finishing a section and the next section opening
+const AUTO_ADVANCE_SECONDS = 6
+const NO_VIDEOS: string[] = []
 
 interface Message {
   role: 'user' | 'assistant'
@@ -20,16 +42,20 @@ interface Message {
 }
 
 const QUICK_REPLIES = [
-  { label: 'Continue', message: 'I understand. Please continue with the next point in this section.' },
+  { label: 'Continue', message: 'I understand. I am ready, please continue.' },
   { label: 'Explain simply', message: 'Could you explain that more simply?' },
   { label: 'Give an example', message: 'Could you give me an example from the course material?' },
   { label: 'Repeat that', message: 'Could you repeat the last explanation?' },
 ] as const
 
-type ConvState = 'idle' | 'listening' | 'processing' | 'speaking'
+const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75]
+
+type ConvState ='idle' | 'listening' | 'processing' | 'speaking'
 
 function stripVisualBlocks(text: string): string {
   return text
+    .replace(/\[\[(?:NEXT|STAY|DONE)\]\]/g, '')
+    .replace(/\[{1,2}[A-Z]*\]{0,2}\s*$/, '')
     .replace(/:::VISUAL\n?/g, '')
     .replace(/:::(?:PILLARS|STEPS|TERMS|MCQ)[\s\S]*?:::/g, '')
     .replace(/\*\*/g, '')
@@ -38,14 +64,28 @@ function stripVisualBlocks(text: string): string {
     .trim()
 }
 
+const HologramHead = dynamic(() => import('./HologramHead'), { ssr: false })
+
 export default function VoiceAssistantSidebar({
   moduleId,
   moduleTitle,
   partNumber,
   partTitle,
   currentSection,
+  videos = NO_VIDEOS,
 }: VoiceAssistantSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([])
+  const [videoFlow, setVideoFlowState] = useState<VideoFlow>('none')
+  const [videoInfo, setVideoInfo] = useState<ExplainerStateDetail | null>(null)
+  const videoFlowRef = useRef<VideoFlow>('none')
+  const presentingRef = useRef(false)
+  const videosRef = useRef(videos)
+  videosRef.current = videos
+  const queueRef = useRef<string[]>([])
+  const queuePosRef = useRef(0)
+  const presentedRef = useRef<string[]>([])
+  const [advanceIn, setAdvanceIn] = useState<number | null>(null)
+  const setVideoFlow = useCallback((f: VideoFlow) => { videoFlowRef.current = f; setVideoFlowState(f) }, [])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [sessionId, setSessionId] = useState<string | undefined>()
@@ -57,6 +97,18 @@ export default function VoiceAssistantSidebar({
   const [voiceSupported, setVoiceSupported] = useState(true)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isSpeechPaused, setIsSpeechPaused] = useState(false)
+  const [speed, setSpeed] = useState(1)
+  const speedRef = useRef(1)
+  const [localVoiceNote, setLocalVoiceNote] = useState('')
+  useEffect(() => {
+    startLocalTts()
+    const update = () => {
+      const { status, percent } = localTtsState()
+      setLocalVoiceNote(status === 'loading' ? `Loading natural voice\u2026 ${percent}%` : '')
+    }
+    update()
+    return subscribeLocalTts(update)
+  }, [])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -74,9 +126,53 @@ export default function VoiceAssistantSidebar({
   const discardTranscriptRef = useRef(false)
   const speechRunRef = useRef(0)
 
+  // Sentence-by-sentence speech: on-device Kokoro voice, browser voice as fallback
+  type SpeechItem = { text: string; run: number; audio: Promise<string | null> }
+  const speechQueueRef = useRef<SpeechItem[]>([])
+  const speechPlayingRef = useRef(false)
+  const speechSpokenRef = useRef(0)
+  const speechEndedRef = useRef(false)
+  const speechDoneRef = useRef<(() => void) | undefined>(undefined)
+  const audioElRef = useRef<HTMLAudioElement | null>(null)
+  const pumpRef = useRef<() => void>(() => {})
+  const struggleRef = useRef(0)
+
+  // Voice loudness for the hologram head (neural voice is routed through an analyser)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const levelBufRef = useRef<Uint8Array | null>(null)
+  const routedRef = useRef(false)
+  const isSpeakingRef = useRef(false)
+  const isPausedRef = useRef(false)
+
+  // Lesson structure: teaching points for the current section and where the student is in the loop
+  type Phase = 'PRE_NOTES' | 'EXPLAIN' | 'CONFIRM' | 'POST_NOTES' | 'WRAP'
+  const pointsRef = useRef<{ titles: string[]; contents: string[] }>({ titles: [], contents: [] })
+  const pointIdxRef = useRef(0)
+  const phaseRef = useRef<Phase>('PRE_NOTES')
+
   // Keep refs in sync
   useEffect(() => { voiceUnlockedRef.current = voiceUnlocked }, [voiceUnlocked])
   useEffect(() => { isMutedRef.current = isMuted }, [isMuted])
+  useEffect(() => { isSpeakingRef.current = isSpeaking }, [isSpeaking])
+  useEffect(() => { isPausedRef.current = isSpeechPaused }, [isSpeechPaused])
+  useEffect(() => () => { audioCtxRef.current?.close().catch(() => {}) }, [])
+
+  // Restore the saved tutor voice
+  useEffect(() => {
+    try {
+      const savedSpeed = Number(localStorage.getItem('tutor-voice-speed'))
+      if (SPEEDS.includes(savedSpeed)) { setSpeed(savedSpeed); speedRef.current = savedSpeed }
+    } catch { /* storage unavailable */ }
+  }, [])
+
+  // Applies instantly to the clip that is playing, and to every later one
+  const changeSpeed = (s: number) => {
+    setSpeed(s)
+    speedRef.current = s
+    if (audioElRef.current) audioElRef.current.playbackRate = s
+    try { localStorage.setItem('tutor-voice-speed', String(s)) } catch { /* storage unavailable */ }
+  }
 
   // Auto-scroll
   useEffect(() => {
@@ -89,9 +185,36 @@ export default function VoiceAssistantSidebar({
     speechRunRef.current += 1
     autoRestartListeningRef.current = false
     window.speechSynthesis.cancel()
+    speechQueueRef.current.forEach((i) => { i.audio.then((u) => { if (u) URL.revokeObjectURL(u) }) })
+    speechQueueRef.current = []
+    speechPlayingRef.current = false
+    speechEndedRef.current = false
+    speechDoneRef.current = undefined
+    speechSpokenRef.current = 0
+    routedRef.current = false
+    if (audioElRef.current) {
+      audioElRef.current.onended = null
+      audioElRef.current.onerror = null
+      audioElRef.current.pause()
+      audioElRef.current = null
+    }
     setIsSpeaking(false)
     setIsSpeechPaused(false)
   }, [])
+
+  // The module video explainer and the tutor never talk over each other
+  useEffect(() => {
+    const onExplainerPlay = () => {
+      if (!isSpeakingRef.current && speechQueueRef.current.length === 0) return
+      stopSpeaking()
+      setConvState((s) => (s === 'speaking' ? 'idle' : s))
+    }
+    window.addEventListener(EXPLAINER_EVENTS.play, onExplainerPlay)
+    return () => window.removeEventListener(EXPLAINER_EVENTS.play, onExplainerPlay)
+  }, [stopSpeaking])
+  useEffect(() => {
+    if (isSpeaking) window.dispatchEvent(new Event(EXPLAINER_EVENTS.tutorSpeaking))
+  }, [isSpeaking])
 
   // Chrome speechSynthesis bug fix
   useEffect(() => {
@@ -105,52 +228,116 @@ export default function VoiceAssistantSidebar({
     return () => clearInterval(interval)
   }, [isSpeaking, isSpeechPaused])
 
-  // Core TTS — stable, no stale closures
-  const doSpeak = useCallback((text: string, onDone?: () => void) => {
-    stopSpeaking()
-    const speechRun = speechRunRef.current
-    const cleaned = stripVisualBlocks(text)
-    if (!cleaned) { onDone?.(); return }
+  const fetchNeural = useCallback((text: string): Promise<string | null> => localSpeak(normaliseForSpeech(text)), [])
 
-    const utterance = new SpeechSynthesisUtterance(cleaned)
-    utterance.rate = 0.93
+  const speakBrowser = useCallback((text: string, run: number, done: () => void) => {
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.93 * speedRef.current
     utterance.pitch = 1.0
-
-    const applyVoice = () => {
-      const voices = window.speechSynthesis.getVoices()
-      const preferred = voices.find(
-        (v) => v.name.includes('Samantha') || v.name.includes('Daniel') || v.lang === 'en-GB' || v.name.includes('Google UK English')
-      )
-      if (preferred) utterance.voice = preferred
-    }
-    applyVoice()
-    if (!window.speechSynthesis.getVoices().length) {
-      window.speechSynthesis.addEventListener('voiceschanged', applyVoice, { once: true })
-    }
-
-    utterance.onstart = () => { if (speechRun !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
-    utterance.onend = () => { if (speechRun !== speechRunRef.current) return; setIsSpeaking(false); setIsSpeechPaused(false); onDone?.() }
-    utterance.onerror = () => { if (speechRun !== speechRunRef.current) return; setIsSpeaking(false); setIsSpeechPaused(false); onDone?.() }
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(
+      (v) => v.name.includes('Samantha') || v.name.includes('Daniel') || v.lang === 'en-GB' || v.name.includes('Google UK English')
+    )
+    if (preferred) utterance.voice = preferred
+    utterance.onstart = () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
+    utterance.onend = () => { if (run !== speechRunRef.current) return; done() }
+    utterance.onerror = () => { if (run !== speechRunRef.current) return; done() }
     window.speechSynthesis.speak(utterance)
-  }, [stopSpeaking])
+  }, [])
 
-  const speakText = useCallback((text: string, onDone?: () => void) => {
-    if (isMutedRef.current) { setConvState('idle'); onDone?.(); return }
-    if (!voiceUnlockedRef.current) {
-      pendingTextRef.current = text
-      setConvState('idle')
+  const pumpSpeech = useCallback(() => {
+    if (speechPlayingRef.current) return
+    const item = speechQueueRef.current[0]
+    if (!item) {
+      if (speechEndedRef.current) {
+        const done = speechDoneRef.current
+        speechDoneRef.current = undefined
+        speechEndedRef.current = false
+        setIsSpeaking(false)
+        setIsSpeechPaused(false)
+        done?.()
+      }
       return
     }
-    doSpeak(text, onDone)
-  }, [doSpeak])
+    const run = item.run
+    if (run !== speechRunRef.current) return
+    speechPlayingRef.current = true
+    const next = () => {
+      if (run !== speechRunRef.current) return
+      speechQueueRef.current.shift()
+      speechPlayingRef.current = false
+      pumpRef.current()
+    }
+    item.audio.then((url) => {
+      if (run !== speechRunRef.current) { if (url) URL.revokeObjectURL(url); return }
+      if (!url) { speakBrowser(item.text, run, next); return }
+      const el = new Audio(url)
+      audioElRef.current = el
+      routedRef.current = false
+      try {
+        const ctx = audioCtxRef.current
+        if (ctx && ctx.state === 'running' && analyserRef.current) {
+          ctx.createMediaElementSource(el).connect(analyserRef.current)
+          routedRef.current = true
+        }
+      } catch { routedRef.current = false }
+      el.playbackRate = speedRef.current
+      el.onplay = () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
+      el.onended = () => { routedRef.current = false; URL.revokeObjectURL(url); next() }
+      el.onerror = () => { URL.revokeObjectURL(url); if (run === speechRunRef.current) speakBrowser(item.text, run, next) }
+      el.play().catch(() => { URL.revokeObjectURL(url); if (run === speechRunRef.current) speakBrowser(item.text, run, next) })
+    })
+  }, [speakBrowser])
+  pumpRef.current = pumpSpeech
+
+  // Speak each sentence as soon as it has streamed in, instead of waiting for the whole reply
+  const feedSpeech = useCallback((full: string, final: boolean) => {
+    if (isMutedRef.current || !voiceUnlockedRef.current) return
+    let cut = full.length
+    for (const marker of [':::', '[[']) {
+      const i = full.indexOf(marker)
+      if (i >= 0 && i < cut) cut = i
+    }
+    const text = full.slice(0, cut).replace(/\*\*/g, '').replace(/^\s*(?:#{1,3}\s+|[-*•]\s+|\d+[.)]\s+)/gm, '')
+    const from = Math.min(speechSpokenRef.current, text.length)
+    const rest = text.slice(from)
+    let end = 0
+    if (final) end = rest.length
+    else {
+      const re = /[.!?…]["')\]]*\s+|\n+/g
+      let m: RegExpExecArray | null
+      while ((m = re.exec(rest))) end = m.index + m[0].length
+    }
+    if (end === 0) return
+    const chunk = rest.slice(0, end)
+    const minLen = from === 0 ? 25 : 60
+    if (!final && chunk.trim().length < minLen) return
+    speechSpokenRef.current = from + end
+    const trimmed = chunk.trim()
+    if (!trimmed) return
+    speechQueueRef.current.push({ text: trimmed, run: speechRunRef.current, audio: fetchNeural(trimmed) })
+    pumpRef.current()
+  }, [fetchNeural])
+
+  const beginSpeech = useCallback(() => { stopSpeaking() }, [stopSpeaking])
+
+  const endSpeech = useCallback((full: string, onDone: () => void) => {
+    if (isMutedRef.current) { setConvState('idle'); onDone(); return }
+    if (!voiceUnlockedRef.current) { pendingTextRef.current = full; setConvState('idle'); return }
+    feedSpeech(full, true)
+    speechDoneRef.current = onDone
+    speechEndedRef.current = true
+    pumpRef.current()
+  }, [feedSpeech])
 
   // sendMessage — stable via ref
   const sendMessageImpl = useCallback(async (message: string) => {
     if (isStreaming) return
     setIsStreaming(true)
     setConvState('processing')
+    beginSpeech()
 
-    const isAutoStart = message === '__AUTO_START__'
+    const isAutoStart = message === '__AUTO_START__' || message === '__EXPLAINER_DONE__'
     if (!isAutoStart) setMessages((prev) => [...prev, { role: 'user', content: message }])
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
 
@@ -158,7 +345,17 @@ export default function VoiceAssistantSidebar({
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, phase: 'EXPLAIN' }),
+        body: JSON.stringify({
+          message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection,
+          phase: phaseRef.current,
+          struggleCount: struggleRef.current,
+          teachingPointIdx: pointIdxRef.current,
+          teachingPointTitle: phaseRef.current === 'WRAP' ? null : (pointsRef.current.titles[pointIdxRef.current] ?? null),
+          teachingPointContent: phaseRef.current === 'WRAP' ? null : (pointsRef.current.contents[pointIdxRef.current] ?? null),
+          totalTeachingPoints: pointsRef.current.titles.length,
+          allTeachingPoints: pointsRef.current.titles,
+          explainerIds: message === '__EXPLAINER_DONE__' ? presentedRef.current : undefined,
+        }),
       })
 
       if (!res.ok || !res.body) throw new Error('Chat API error')
@@ -166,6 +363,7 @@ export default function VoiceAssistantSidebar({
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let fullResponse = ''
+      const phaseAtSend = phaseRef.current
 
       while (true) {
         const { done, value } = await reader.read()
@@ -177,6 +375,7 @@ export default function VoiceAssistantSidebar({
             const json = JSON.parse(line.slice(6))
             if (json.token) {
               fullResponse += json.token
+              feedSpeech(fullResponse, false)
               setMessages((prev) => {
                 const updated = [...prev]
                 updated[updated.length - 1] = { role: 'assistant', content: fullResponse }
@@ -188,13 +387,39 @@ export default function VoiceAssistantSidebar({
         }
       }
 
+      // Track consecutive misses so the tutor can change approach
+      if (!isAutoStart) {
+        if (phaseAtSend === 'CONFIRM' && /\[\[STAY\]\]/.test(fullResponse)) struggleRef.current += 1
+        else struggleRef.current = 0
+      }
+
+      // Move the lesson forward when the tutor signals the step is complete
+      if (!isAutoStart && /\[\[NEXT\]\]/.test(fullResponse) && pointsRef.current.titles.length > 0) {
+        const order: Phase[] = ['PRE_NOTES', 'EXPLAIN', 'CONFIRM', 'POST_NOTES']
+        const cur = phaseRef.current
+        if (cur === 'POST_NOTES') {
+          if (pointIdxRef.current >= pointsRef.current.titles.length - 1) phaseRef.current = 'WRAP'
+          else { pointIdxRef.current += 1; phaseRef.current = 'PRE_NOTES' }
+        } else if (cur !== 'WRAP') {
+          phaseRef.current = order[order.indexOf(cur) + 1]
+        }
+      }
+
+      // The tutor has finished the whole section: move on by itself once it stops talking
+      const sectionDone = !isAutoStart
+        && (/\[\[DONE\]\]/.test(fullResponse) || (phaseAtSend === 'WRAP' && /\[\[NEXT\]\]/.test(fullResponse)))
+
       // After AI speaks, auto-restart listening
-      speakText(fullResponse, () => {
+      endSpeech(fullResponse, () => {
         setConvState('idle')
-        autoRestartListeningRef.current = true
+        if (sectionDone) setAdvanceIn(AUTO_ADVANCE_SECONDS)
+        else autoRestartListeningRef.current = true
       })
+      // Without voice there is no speech to wait for
+      if (sectionDone && (!voiceUnlockedRef.current || isMutedRef.current)) setAdvanceIn(AUTO_ADVANCE_SECONDS)
     } catch (err) {
       console.error('AI Tutor error:', err)
+      stopSpeaking()
       setMessages((prev) => {
         const updated = [...prev]
         updated[updated.length - 1] = { role: 'assistant', content: "Sorry, I couldn't connect right now. Please try again." }
@@ -205,7 +430,7 @@ export default function VoiceAssistantSidebar({
       setIsStreaming(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, isStreaming, speakText])
+  }, [moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection, isStreaming, beginSpeech, feedSpeech, endSpeech, stopSpeaking])
 
   const sendMessageRef = useRef(sendMessageImpl)
   useEffect(() => { sendMessageRef.current = sendMessageImpl }, [sendMessageImpl])
@@ -331,20 +556,189 @@ export default function VoiceAssistantSidebar({
     }
   }, [])
 
-  // Start recognition directly from the user's gesture, including permission retries.
-  const unlockAndStart = useCallback(() => {
+  // Create the audio graph inside the user's tap so the browser lets the tutor's voice play
+  const unlockAudio = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const AC = window.AudioContext ?? (window as any).webkitAudioContext
+        if (AC) {
+          const ctx: AudioContext = new AC()
+          const analyser = ctx.createAnalyser()
+          analyser.fftSize = 512
+          analyser.connect(ctx.destination)
+          audioCtxRef.current = ctx
+          analyserRef.current = analyser
+          levelBufRef.current = new Uint8Array(analyser.fftSize)
+        }
+      }
+      audioCtxRef.current?.resume().catch(() => {})
+    } catch { /* head falls back to a simulated mouth */ }
     voiceUnlockedRef.current = true
     setVoiceUnlocked(true)
+  }, [])
+
+  // Start recognition directly from the user's gesture, including permission retries.
+  const unlockAndStart = useCallback(() => {
+    unlockAudio()
     startListeningFn()
-  }, [startListeningFn])
+  }, [unlockAudio, startListeningFn])
+
+  // ── Teaching with explainer videos: the module intro (first section) and each section's own video ──
+  const sectionMatch = currentSection?.sectionTitle.match(/^(\d+\.\d+)\s+(.*)$/)
+  const sectionName = sectionMatch ? `Section ${sectionMatch[1]}: ${sectionMatch[2]}` : (currentSection?.sectionTitle ?? 'This section')
+  const welcomeLine = videos[0] === moduleId
+    ? `Welcome to Module ${parseInt(moduleId.replace(/\D/g, ''), 10) || ''}${moduleTitle ? `: ${moduleTitle}` : ''}. `
+      + `Let's start with a short video overview. I'll talk you through it, then we'll go through the details together.`
+    : `${sectionName}. Let's watch a short video on it first. I'll talk you through it, then we'll work through it together.`
+  const welcomeLineRef = useRef(welcomeLine)
+  welcomeLineRef.current = welcomeLine
+  const watchKey = `${moduleId}/${currentSection?.sectionId ?? ''}`
+  const watchKeyRef = useRef(watchKey)
+  watchKeyRef.current = watchKey
+
+  const presentVideo = useCallback((id: string) => {
+    setVideoFlow('presenting')
+    window.dispatchEvent(new CustomEvent<ExplainerIdDetail>(EXPLAINER_EVENTS.present, { detail: { id } }))
+  }, [setVideoFlow])
+
+  // Present the videos one after another; the tutor follows up after the last one
+  const presentQueue = useCallback((ids: string[]) => {
+    if (!ids.length) return
+    queueRef.current = ids
+    queuePosRef.current = 0
+    presentVideo(ids[0])
+  }, [presentVideo])
+
+  // Say the welcome line, then start the videos
+  const introduceVideo = useCallback(() => {
+    setVideoFlow('presenting')
+    beginSpeech()
+    endSpeech(welcomeLineRef.current, () => { setConvState('idle'); presentQueue(videosRef.current) })
+  }, [setVideoFlow, beginSpeech, endSpeech, presentQueue])
+
+  const offerVideo = useCallback(() => {
+    setVideoFlow('offered')
+    setVideoInfo(null)
+    setMessages([{ role: 'assistant', content: welcomeLineRef.current }])
+    // With voice on, the tutor goes straight into the video; otherwise it waits for a tap
+    if (voiceUnlockedRef.current) introduceVideo()
+  }, [setVideoFlow, introduceVideo])
+
+  const watchWithTutor = () => {
+    unlockAudio()
+    introduceVideo()
+  }
+
+  // Any time: the tutor stops what it is saying and presents this section's video (again)
+  const explainWithVideo = () => {
+    const list = videosRef.current
+    const id = list.find((v) => v !== moduleId) ?? list[0]
+    if (!id) return
+    unlockAudio()
+    stopSpeaking()
+    setAdvanceIn(null)
+    setConvState('idle')
+    presentQueue([id])
+  }
+
+  const skipVideo = () => {
+    markVideoWatched(watchKeyRef.current)
+    setVideoFlow('done')
+    window.dispatchEvent(new CustomEvent<ExplainerControlDetail>(EXPLAINER_EVENTS.control, { detail: { action: 'pause' } }))
+    stopSpeaking()
+    sendMessageRef.current('__AUTO_START__')
+  }
+
+  const controlVideo = (action: ExplainerControlDetail['action']) => {
+    window.dispatchEvent(new CustomEvent<ExplainerControlDetail>(EXPLAINER_EVENTS.control, { detail: { id: videoInfo?.id, action } }))
+  }
+
+  // Opens each section: the tutor presents its video(s) first, then teaches
+  const startLesson = useCallback(() => {
+    if (videosRef.current.length && !videoWatched(watchKeyRef.current)) offerVideo()
+    else sendMessageRef.current('__AUTO_START__')
+  }, [offerVideo])
+  const startLessonRef = useRef(startLesson)
+  startLessonRef.current = startLesson
+
+  // Follow the videos: the hologram speaks while one narrates, and the tutor teaches on after the last
+  useEffect(() => {
+    const onState = (e: Event) => {
+      const d = (e as CustomEvent<ExplainerStateDetail>).detail
+      if (d.state === 'stopped') {
+        setVideoInfo((prev) => {
+          if (prev?.id !== d.id) return prev
+          presentingRef.current = false
+          return null
+        })
+        return
+      }
+      presentingRef.current = d.state === 'playing'
+      setVideoInfo(d)
+      const flow = videoFlowRef.current
+      if (d.state === 'playing' && flow === 'offered') {
+        // The student pressed play on a video themselves: present from that one
+        setVideoFlow('presenting')
+        const pos = videosRef.current.indexOf(d.id)
+        queueRef.current = pos >= 0 ? videosRef.current.slice(pos) : [d.id]
+        queuePosRef.current = 0
+      }
+      if (d.state === 'ended' && (flow === 'offered' || flow === 'presenting') && d.id === queueRef.current[queuePosRef.current]) {
+        const next = queueRef.current[queuePosRef.current + 1]
+        if (next) {
+          queuePosRef.current += 1
+          setTimeout(() => { if (videoFlowRef.current === 'presenting') presentVideo(next) }, 800)
+          return
+        }
+        markVideoWatched(watchKeyRef.current)
+        setVideoFlow('done')
+        presentedRef.current = [...queueRef.current]
+        sendMessageRef.current('__EXPLAINER_DONE__')
+      }
+    }
+    window.addEventListener(EXPLAINER_EVENTS.state, onState)
+    return () => window.removeEventListener(EXPLAINER_EVENTS.state, onState)
+  }, [setVideoFlow, presentVideo])
+
+  // Section finished: after a short countdown the page marks it done and opens the next one
+  useEffect(() => {
+    if (advanceIn === null) return
+    if (advanceIn <= 0) {
+      setAdvanceIn(null)
+      window.dispatchEvent(new Event(SECTION_COMPLETE_EVENT))
+      return
+    }
+    const t = setTimeout(() => setAdvanceIn((s) => (s === null ? null : s - 1)), 1000)
+    return () => clearTimeout(t)
+  }, [advanceIn])
 
   // Auto-start AI greeting on mount
   useEffect(() => {
     if (hasStarted.current || !moduleId) return
     hasStarted.current = true
-    const t = setTimeout(() => sendMessageRef.current('__AUTO_START__'), 600)
+    const t = setTimeout(() => startLessonRef.current(), 600)
     return () => clearTimeout(t)
   }, [moduleId])
+
+  // Load the section's teaching points and reset the lesson loop
+  useEffect(() => {
+    const sectionId = currentSection?.sectionId
+    pointsRef.current = { titles: [], contents: [] }
+    pointIdxRef.current = 0
+    phaseRef.current = 'PRE_NOTES'
+    struggleRef.current = 0
+    if (!sectionId || !moduleId) return
+    let cancelled = false
+    fetch(`/api/teaching-points?moduleId=${encodeURIComponent(moduleId)}&sectionId=${encodeURIComponent(sectionId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return
+        pointsRef.current = { titles: d.points ?? [], contents: d.pointContents ?? [] }
+      })
+      .catch(() => { /* tutor falls back to free conversation */ })
+    return () => { cancelled = true }
+  }, [moduleId, currentSection?.sectionId])
 
   // Restart on section change
   useEffect(() => {
@@ -363,7 +757,12 @@ export default function VoiceAssistantSidebar({
     setIsSpeaking(false)
     pendingTextRef.current = ''
     hasStarted.current = false
-    const t = setTimeout(() => { hasStarted.current = true; sendMessageRef.current('__AUTO_START__') }, 400)
+    setVideoFlow('none')
+    setVideoInfo(null)
+    setAdvanceIn(null)
+    presentingRef.current = false
+    queueRef.current = []
+    const t = setTimeout(() => { hasStarted.current = true; startLessonRef.current() }, 400)
     return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSection?.sectionId])
@@ -372,6 +771,8 @@ export default function VoiceAssistantSidebar({
     const msg = message.trim()
     if (!msg || isStreaming) return
     setInput('')
+    setAdvanceIn(null) // they want to keep talking about this section
+    if (videoFlowRef.current === 'offered') setVideoFlow('done') // they chose to talk instead
     stopSpeaking()
     discardTranscriptRef.current = true
     finalTranscriptRef.current = ''
@@ -383,7 +784,8 @@ export default function VoiceAssistantSidebar({
   const handleTextSend = () => sendReply(input)
   const lastMessage = messages[messages.length - 1]
   const showQuickReplies = lastMessage?.role === 'assistant' && Boolean(lastMessage.content.trim())
-    && !isStreaming && !isSpeaking && (convState === 'idle' || convState === 'listening')
+    && !isStreaming && convState !== 'processing'
+    && videoFlow !== 'offered' && videoFlow !== 'presenting' && advanceIn === null
 
   const toggleMute = () => {
     const next = !isMuted
@@ -399,9 +801,11 @@ export default function VoiceAssistantSidebar({
   const togglePause = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (isSpeechPaused) {
+      audioElRef.current?.play().catch(() => {})
       window.speechSynthesis.resume()
       setIsSpeechPaused(false)
     } else {
+      audioElRef.current?.pause()
       window.speechSynthesis.pause()
       setIsSpeechPaused(true)
     }
@@ -415,6 +819,29 @@ export default function VoiceAssistantSidebar({
 
   const canListen = convState === 'idle' && voiceUnlocked && voiceSupported
 
+  // Loudness 0..1 for the hologram's jaw: real audio when available, a natural-looking pulse otherwise
+  const getLevel = useCallback(() => {
+    if (presentingRef.current) return presenterLevel() // speaking the video's narration
+    if (!isSpeakingRef.current || isPausedRef.current) return 0
+    const analyser = analyserRef.current
+    const buf = levelBufRef.current
+    if (routedRef.current && analyser && buf) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      analyser.getByteTimeDomainData(buf as any)
+      let sum = 0
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
+      return Math.min(1, Math.sqrt(sum / buf.length) * 5)
+    }
+    const t = performance.now()
+    return 0.12 + 0.5 * Math.abs(Math.sin(t / 105)) * Math.abs(Math.sin(t / 290 + 1))
+  }, [])
+
+  const holoMode: HoloMode =
+    (isSpeaking && !isSpeechPaused) || (videoInfo?.state === 'playing' && videoInfo.voiced) ? 'speaking'
+    : convState === 'listening' ? 'listening'
+    : (convState === 'processing' || isStreaming) ? 'thinking'
+    : 'idle'
+
   return (
     <div style={{ width: '340px', flexShrink: 0, borderLeft: '1px solid rgba(148,163,184,0.2)', background: 'var(--bg-alt)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
@@ -427,6 +854,17 @@ export default function VoiceAssistantSidebar({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select
+            value={speed}
+            onChange={(e) => changeSpeed(Number(e.target.value))}
+            title="Speaking speed"
+            aria-label="Speaking speed"
+            style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: 'var(--ink)', background: 'transparent', border: '1px solid rgba(148,163,184,0.35)', borderRadius: 8, padding: '3px 4px', cursor: 'pointer' }}
+          >
+            {SPEEDS.map((s) => (
+              <option key={s} value={s} style={{ background: 'var(--bg-alt)', color: 'var(--ink)' }}>{s}x</option>
+            ))}
+          </select>
           {voiceUnlocked && (
             <button onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isMuted ? '#94a3b8' : '#64748b', display: 'flex', alignItems: 'center', padding: 4 }}>
               {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
@@ -440,8 +878,70 @@ export default function VoiceAssistantSidebar({
         </div>
       </div>
 
+      {/* Hologram tutor */}
+      <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
+        <HologramHead mode={holoMode} getLevel={getLevel} height={190} />
+        {localVoiceNote && (
+          <div role="status" style={{ marginTop: 6, textAlign: 'center', fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: '#94a3b8' }}>{localVoiceNote}</div>
+        )}
+      </div>
+
+      {/* Video overview: offer, then what the tutor is presenting */}
+      {videoFlow === 'offered' && videoInfo === null && (
+        <div style={{ margin: '10px 12px 0', padding: '12px 14px', borderRadius: 12, background: 'linear-gradient(135deg, rgba(53,224,255,0.1), rgba(79,123,255,0.12))', border: '1px solid rgba(53,224,255,0.35)', flexShrink: 0 }}>
+          <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', color: '#35a9d6', marginBottom: 8 }}>
+            {videos[0] === moduleId ? 'VIDEO OVERVIEW' : 'SECTION VIDEO'} · ABOUT {videos.length > 1 ? 2 : 1} MIN
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" onClick={watchWithTutor}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 12px', border: 0, borderRadius: 999, background: 'linear-gradient(135deg, #35e0ff, #4f7bff)', color: '#05101f', fontFamily: '"Montserrat", sans-serif', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <Play size={14} fill="currentColor" /> Watch with your tutor
+            </button>
+            <button type="button" onClick={skipVideo}
+              style={{ padding: '9px 6px', border: 0, background: 'none', color: 'var(--ink)', opacity: 0.7, fontFamily: '"Montserrat", sans-serif', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+      {videoInfo && videoInfo.state !== 'ended' && (videoFlow === 'offered' || videoFlow === 'presenting') && (
+        <div style={{ margin: '10px 12px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(53,224,255,0.08)', border: '1px solid rgba(53,224,255,0.3)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <button type="button" onClick={() => controlVideo(videoInfo.state === 'playing' ? 'pause' : 'play')}
+            aria-label={videoInfo.state === 'playing' ? 'Pause the video' : 'Resume the video'}
+            style={{ width: 32, height: 32, flexShrink: 0, display: 'grid', placeItems: 'center', borderRadius: '50%', border: 0, background: 'linear-gradient(135deg, #35e0ff, #4f7bff)', color: '#05101f', cursor: 'pointer' }}>
+            {videoInfo.state === 'playing' ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: '#35a9d6' }}>
+              {videoInfo.state === 'playing' ? 'PRESENTING' : 'PAUSED'} · {videoInfo.scene + 1}/{videoInfo.total}
+            </div>
+            <div style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{videoInfo.heading}</div>
+          </div>
+          <button type="button" onClick={skipVideo}
+            style={{ padding: '6px 4px', border: 0, background: 'none', color: 'var(--ink)', opacity: 0.7, fontFamily: '"Montserrat", sans-serif', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Skip to lesson
+          </button>
+        </div>
+      )}
+      {advanceIn !== null && (
+        <div role="status" style={{ margin: '10px 12px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.35)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, fontFamily: '"Montserrat", sans-serif' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', color: '#22a55a' }}>SECTION COMPLETE</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>Moving on in {advanceIn}s…</div>
+          </div>
+          <button type="button" onClick={() => setAdvanceIn(0)}
+            style={{ padding: '7px 12px', border: 0, borderRadius: 999, background: '#22a55a', color: '#fff', fontFamily: '"Montserrat", sans-serif', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Next now
+          </button>
+          <button type="button" onClick={() => setAdvanceIn(null)}
+            style={{ padding: '6px 4px', border: 0, background: 'none', color: 'var(--ink)', opacity: 0.7, fontFamily: '"Montserrat", sans-serif', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Stay here
+          </button>
+        </div>
+      )}
+
       {/* Unlock prompt */}
-      {!voiceUnlocked && (
+      {!voiceUnlocked && videoFlow !== 'offered' && (
         <div onClick={unlockAndStart} style={{ margin: '10px 12px 0', padding: '10px 14px', borderRadius: 10, background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.35)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Mic size={14} style={{ color: '#7c3aed', flexShrink: 0 }} />
           <span style={{ fontFamily: '"Montserrat", sans-serif', fontSize: 12, color: '#7c3aed', lineHeight: 1.4, fontWeight: 600 }}>
@@ -561,6 +1061,12 @@ export default function VoiceAssistantSidebar({
         <div role="group" aria-label="Suggested replies" style={{ padding: '8px 12px 10px', flexShrink: 0 }}>
           <span style={{ display: 'block', marginBottom: 7, fontSize: 11, color: 'var(--ink)', opacity: 0.65 }}>Quick replies</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {videos.length > 0 && (
+              <button type="button" onClick={explainWithVideo}
+                style={{ padding: '7px 10px', borderRadius: 16, border: '1px solid rgba(124,58,237,0.5)', background: 'rgba(124,58,237,0.14)', color: 'var(--ink)', fontFamily: '"Montserrat", sans-serif', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Explain with the video
+              </button>
+            )}
             {QUICK_REPLIES.map(reply => (
               <button key={reply.label} type="button" onClick={() => sendReply(reply.message)}
                 style={{ padding: '7px 10px', borderRadius: 16, border: '1px solid rgba(124,58,237,0.25)', background: 'rgba(124,58,237,0.06)', color: 'var(--ink)', fontFamily: '"Montserrat", sans-serif', fontSize: 12, cursor: 'pointer' }}>

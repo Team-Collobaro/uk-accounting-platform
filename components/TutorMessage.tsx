@@ -10,7 +10,11 @@ function inline(text: string) {
 
 /** Render tutor text as React elements, never as model-supplied HTML. */
 export default function TutorMessage({ content }: { content: string }) {
-  const lines = content.replace(/:::VISUAL/g, '').split('\n')
+  const lines = content
+    .replace(/\[\[(?:NEXT|STAY|DONE)\]\]/g, '')
+    .replace(/\[{1,2}[A-Z]*\]{0,2}\s*$/, '')
+    .replace(/:::VISUAL/g, '')
+    .split('\n')
   const blocks: React.ReactNode[] = []
   let paragraph: string[] = []
   let items: string[] = []

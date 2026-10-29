@@ -4,7 +4,8 @@ import type { Student, Module, ChatMessage, QuizQuestion, QuizResult, ProgressAn
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001'
-const MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '380', 10)
+const TUTOR_MODEL = process.env.TUTOR_MODEL ?? MODEL
+const MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '600', 10)
 
 // ─── History compression ──────────────────────────────────────────────────────
 
@@ -47,6 +48,9 @@ export async function* tutorStream(params: {
   totalTeachingPoints?: number
   allTeachingPoints?: string[]
   phase?: TeachingPhase
+  struggleCount?: number
+  /** Narration of the module explainer video the tutor has just presented */
+  explainerRecap?: string | null
 }): AsyncGenerator<string | { done: true; inputTokens: number; outputTokens: number }> {
   const {
     student, module: mod, history, message, ragContext,
@@ -54,9 +58,11 @@ export async function* tutorStream(params: {
     teachingPointIdx = 0, teachingPointTitle, teachingPointContent,
     totalTeachingPoints = 0, allTeachingPoints = [],
     phase = 'EXPLAIN',
+    struggleCount = 0,
+    explainerRecap = null,
   } = params
 
-  const isAutoStart = message === '__AUTO_START__'
+  const isAutoStart = message === '__AUTO_START__' || message === '__EXPLAINER_DONE__'
   const sectionLabel = currentSection ? `${currentSection.sectionId} — ${currentSection.sectionTitle}` : mod.title
   const completedLabel = completedSections.length > 0 ? `Completed so far: ${completedSections.join(', ')}` : 'No sections completed yet'
   const pointLabel = teachingPointTitle ?? null
@@ -65,6 +71,14 @@ export async function* tutorStream(params: {
   const topicOutline = allTeachingPoints.length > 0
     ? allTeachingPoints.map((t, i) => `  ${i + 1}. ${t}`).join('\n')
     : '  (topics loading)'
+
+  // Notice a struggling or frustrated student, the way a teacher reads the room
+  const frustrated = /\b(give up|too hard|too difficult|don'?t (get|understand)|do not understand|confus|i'?m lost|no idea|stuck|makes no sense)/i.test(message)
+  const supportNote = struggleCount >= 3
+    ? `\n\nSUPPORT: The student has missed this ${struggleCount} times in a row. Stop quizzing. Work the example through aloud yourself in 2–3 short steps with the numbers, say this is a common stumbling block, then ask a fresh, easier question.`
+    : (struggleCount >= 2 || frustrated)
+      ? `\n\nSUPPORT: The student is struggling or sounds frustrated. Open with a few warm words ("That's a tricky one, let's slow down."), then explain it a completely different way — a new everyday analogy or smaller steps — before asking anything.`
+      : ''
 
   // Default turn: respond to whatever the student just said, the way a one-to-one tutor would
   const conversationInstruction = `RESPOND to the student's last message. Read the conversation so far and do the ONE thing that fits:
@@ -75,12 +89,20 @@ export async function* tutorStream(params: {
 - They said they're ready or asked to continue → move to the next idea in COURSE CONTENT: explain it in 1–2 sentences, make it concrete with a small £ example, then ask one question.
 - Their reply is empty, unclear or hesitant → check in gently: "Do you need a little more time, or are you ready for the next example?"
 - After two or three ideas have been practised → check recall without notes: "Without looking at your notes, complete this: ..."
-- After a recall check → offer: "Would you like one more practice question or to finish here?"
-- They want to finish → in 1–2 sentences, say what they can now do, say honestly where they needed a hint and that you'll revisit it briefly later, and close.
+- After a recall check → offer: "Would you like one more practice question, or shall we move on to the next section?"
+- Every idea in COURSE CONTENT has been taught and practised and they've done a recall check, or they ask to move on → in 1–2 sentences, say what they can now do, say honestly where they needed a hint, and say you're moving on to the next section. End with [[DONE]].
 Maximum 4 short sentences.`
 
   // Phase-specific instruction blocks
   const phaseInstruction = (() => {
+    if (isAutoStart && explainerRecap) {
+      return `OPENING AFTER THE VIDEO — you have just presented the short explainer video for this lesson to ${student.name}. Its narration was:
+"${explainerRecap}"
+1. Do not greet again or summarise the whole video. In one sentence, bridge from the video into working through today's section (${currentSection?.sectionTitle ?? sectionLabel}) together, e.g. "That's the picture; now let's make sure it sticks."
+2. Ask ONE question that checks they caught a key point from the video that is also in COURSE CONTENT${pointLabel ? `, ideally about "${pointLabel}"` : ''}.
+3. Stop there. Do not explain anything yet, list the topics, or add a visual block.
+Maximum 3 sentences.`
+    }
     if (isAutoStart) {
       return `OPENING — keep it short, then hand the turn to the student:
 1. Greet ${student.name} by first name and say in one sentence what today's section (${currentSection?.sectionTitle ?? sectionLabel}) is about, e.g. "Today we'll learn how assets, liabilities, and equity connect."
@@ -95,22 +117,26 @@ Maximum 3 sentences.`
     switch (phase) {
       case 'PRE_NOTES':
         return `BEFORE TOPIC "${pointLabel}" (${pointProgress}):
+- If the student just answered a question, acknowledge it in a few words first.
 - In one sentence, say why "${pointLabel}" matters in UK accounting practice (from COURSE CONTENT only).
 - Ask the student to write the heading "${pointLabel}" in their notes and tell you when they're ready.
-- Do not explain the topic yet. Maximum 3 sentences.`
+- Do not explain the topic yet. Maximum 3 sentences. End with [[NEXT]].
+- If the student asked a question instead, answer it in 1–2 sentences, repeat the request to write the heading, and end with [[STAY]].`
 
       case 'EXPLAIN':
         return `EXPLAIN "${pointLabel}" (${pointProgress}):
 - If the student has just asked a question or interrupted, answer that first instead.
-- Otherwise explain ONE idea from "${pointLabel}" in 1–2 plain sentences using COURSE CONTENT, then make it concrete with a small £ example.
-- If the topic has named pillars, steps, categories, rates, or rules: add :::VISUAL on its own line, then the matching :::PILLARS / :::STEPS / :::TERMS block.
-- End with a choice: "Would you like another example, or shall we try one together?"
+- If this is your first explanation of "${pointLabel}" (look at the conversation): explain ONE idea in 1–2 plain sentences using COURSE CONTENT, then make it concrete with a small £ example. If the topic has named pillars, steps, categories, rates, or rules: add :::VISUAL on its own line, then the matching :::PILLARS / :::STEPS / :::TERMS block. End with a choice: "Would you like another example, or shall we try one together?" End with [[STAY]].
+- If the student asked for another example or said they are unsure: give a different angle or a new small example, then offer the same choice. End with [[STAY]].
+- If the student said they understand or want to try one: set ONE short practice question on "${pointLabel}" using simple numbers, e.g. "A business has £8,000 in assets and £3,000 in liabilities. What is its equity?" Do not give the answer. End with [[NEXT]].
 - Maximum 4 sentences.`
 
       case 'CONFIRM':
         return `CONFIRM "${pointLabel}" (${pointProgress}):
-- If the student asked a follow-up question, answer it directly in 1–2 sentences from COURSE CONTENT, then ask whether they're ready to carry on.
-- If they said they're ready, set ONE short practice question on "${pointLabel}" using simple numbers or a scenario, e.g. "A business has £8,000 in assets and £3,000 in liabilities. What is its equity?"
+- You have already set a practice question on "${pointLabel}". The student's message is their answer. Judge it against COURSE CONTENT.
+- Correct: say "Correct." and why in a few words, then give one line to write down — Add this note: "..." — and ask them to explain the idea in their own words. End with [[NEXT]].
+- Incorrect: say what they did (e.g. "You added the two amounts."). Do not say "wrong" or "don't worry". Give one hint towards the method from COURSE CONTENT and ask a smaller question. Do not give the answer. End with [[STAY]].
+- If instead they asked a question or look lost, answer in 1–2 sentences, then ask the practice question again. End with [[STAY]].
 - Do not explain the topic again. Maximum 3 sentences. No visual block.`
 
       case 'CHECK':
@@ -122,15 +148,16 @@ Maximum 3 sentences.`
 
       case 'POST_NOTES':
         return `CONSOLIDATE "${pointLabel}" (${pointProgress}):
-- Give the student one line to add to their notes, in quotes: Add this note: "...".
-- Then ask them to explain the idea in their own words, e.g. "In your own words, why did we subtract the liabilities?"
+- The student has just explained "${pointLabel}" in their own words. React to what they actually said: confirm what is right, and gently fix anything missing or wrong from COURSE CONTENT.
+- If their explanation is wrong or empty, clarify in one sentence and ask them to try once more. End with [[STAY]].
+- Otherwise finish with a one-sentence recap and ask whether they're ready for the next topic. End with [[NEXT]].
 - Maximum 3 sentences. No visual block.`
 
       case 'WRAP':
         return `WRAP-UP for section ${currentSection?.sectionId ?? 'this'}:
 - If the student hasn't yet done a recall check, ask ONE question without notes linking ideas from this section: "Without looking at your notes, complete this: ..."
-- If they have, say in one sentence what they can now do, say honestly where they needed a hint and that you'll revisit it briefly later, then ask: "Would you like one more practice question or to finish here?"
-- Maximum 3 sentences. No visual block.
+- If they have, say in one sentence what they can now do, say honestly where they needed a hint and that you'll revisit it briefly later, then ask: "Would you like one more practice question, or shall we move on to the next section?"
+- Maximum 3 sentences. No visual block. End with [[STAY]] until the student chooses to move on; then say you're moving on to the next section and end with [[DONE]].
 
 Topics covered:
 ${topicOutline}`
@@ -147,6 +174,7 @@ Module: ${mod.title} (Part ${mod.partNumber}: ${mod.partTitle})
 Section: ${sectionLabel}
 ${completedLabel}
 Student: ${student.name} | ${student.completedModules.length}/87 modules | avg quiz ${student.avgQuizScore}%
+Topics ${student.name} has found hard before: ${student.weakTopics.length ? student.weakTopics.slice(-8).join('; ') : 'none recorded yet'}. If one of these comes up, mention it naturally ("This links to something that was tricky before") and go a little slower.
 
 ━━━ CRITICAL CONTENT RULE ━━━
 You MUST teach ONLY from the COURSE CONTENT section below.
@@ -168,6 +196,8 @@ You MUST teach ONLY from the COURSE CONTENT section below.
 - If they interrupt, drop what you were saying and answer them first. Never carry on with the old point as if they hadn't spoken.
 - Keep using the example already on the table rather than switching to a new one.
 - Ask the student questions in plain sentences. Do not write multiple-choice options — the student answers by voice.
+- Talk like a person: use contractions (it's, you've, let's) and start replies in different ways ("Right,", "Okay,", "Good,", "Mm, nearly."). Never start two replies in a row with the same word. Vary sentence length: short ones for the key point.
+- Read how the student sounds. If they sound unsure, slow down and reassure in a few words. If they answer quickly and correctly, pick up the pace.
 
 ━━━ WHAT REAL TEACHERS DO ━━━
 - Build rapport: use the student's first name now and then (not every turn), and sound like a person who is glad to be teaching them.
@@ -238,8 +268,11 @@ Visual block rules:
 - Every item line MUST have a label AND a description separated by " — "
 - Speech text before the block must be complete natural sentences, ending with your question to the student
 
+━━━ CONTROL TAG ━━━
+When CURRENT TASK tells you to end with [[NEXT]], [[STAY]] or [[DONE]], put exactly that tag alone on the very last line. The system hides it from the student and uses it to move the lesson on. Never mention it. [[NEXT]] = this step of the lesson is done and the student's next message belongs to the next step. [[STAY]] = stay on this step. [[DONE]] = this whole section is finished; the system marks it complete and opens the next section by itself, so only use it when the section really is finished.
+
 ━━━ CURRENT TASK ━━━
-${phaseInstruction}
+${phaseInstruction}${supportNote}
 
 ━━━ COURSE CONTENT ━━━
 ${teachingPointContent && teachingPointContent.trim().length > 20
@@ -256,13 +289,13 @@ ${ragContext.slice(0, 1000)}`
       role: m.role as 'user' | 'assistant',
       content: m.content,
     })),
-    { role: 'user', content: isAutoStart ? 'Please begin the lesson.' : message },
+    { role: 'user', content: isAutoStart ? (explainerRecap ? "I've watched the video overview. Please begin the lesson." : 'Please begin the lesson.') : message },
   ]
 
   const stream = client.messages.stream({
-    model: MODEL,
+    model: TUTOR_MODEL,
     max_tokens: MAX_TOKENS,
-    temperature: 0.3,
+    temperature: 0.5,
     system: systemPrompt,
     messages,
   })
