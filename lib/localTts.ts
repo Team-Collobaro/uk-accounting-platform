@@ -87,6 +87,31 @@ export function localSpeak(text: string): Promise<string | null> {
   })
 }
 
+/**
+ * Browser fallback voice: an on-device British male voice when there is one. On-device voices start
+ * the moment they say they do; network voices (e.g. Chrome's "Google UK English") report starting
+ * up to a second before they can be heard.
+ */
+export function pickBrowserVoice(): SpeechSynthesisVoice | undefined {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return undefined
+  const gb = window.speechSynthesis.getVoices().filter((v) => /^en[-_]GB$/i.test(v.lang))
+  const male = /\b(george|ryan|daniel|arthur|oliver|thomas|male)\b/i
+  return gb.find((v) => v.localService && male.test(v.name))
+    ?? gb.find((v) => v.localService)
+    ?? gb.find((v) => male.test(v.name))
+    ?? gb[0]
+}
+
+/** Calls `audible` once an utterance can actually be heard (not when the browser first reports it started). */
+export function whenAudible(u: SpeechSynthesisUtterance, audible: () => void): void {
+  let fired = false
+  const fire = () => { if (!fired) { fired = true; audible() } }
+  const onDevice = u.voice?.localService ?? true
+  // The first word boundary is the most reliable sign; network voices may not send boundaries at all
+  u.addEventListener('boundary', fire)
+  u.addEventListener('start', () => { if (onDevice) fire(); else setTimeout(fire, 900) })
+}
+
 /** Make money, percentages and acronyms read the way a UK teacher would say them. */
 export function normaliseForSpeech(text: string): string {
   return text

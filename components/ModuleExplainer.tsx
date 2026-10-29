@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ExplainerScene, ExplainerKind } from '@/lib/explainer'
-import { startLocalTts, localSpeak, normaliseForSpeech } from '@/lib/localTts'
+import { startLocalTts, localSpeak, normaliseForSpeech, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, setPresenterLevelSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
 
 // Must match ICONS in scripts/build-explainers.mjs
@@ -140,6 +140,12 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     return p
   }, [scenes])
 
+  // Warm up the first clip while the tutor is still introducing the video, so it starts without a pause
+  useEffect(() => {
+    const t = setTimeout(() => { void fetchAudio(0) }, 1500)
+    return () => clearTimeout(t)
+  }, [fetchAudio])
+
   // Stops whatever is narrating and invalidates its callbacks. Leaves speechSynthesis alone
   // unless this player owns it, so the AI tutor's own speech is never cut off from here.
   const haltNarration = useCallback(() => {
@@ -180,9 +186,9 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     const u = new SpeechSynthesisUtterance(scene.narration)
     u.lang = 'en-GB'
     u.rate = 0.95 * speedRef.current
-    const gb = window.speechSynthesis.getVoices().find((v) => v.lang === 'en-GB')
+    const gb = pickBrowserVoice()
     if (gb) u.voice = gb
-    u.onstart = () => { if (run === runRef.current) setVoice(true) }
+    whenAudible(u, () => { if (run === runRef.current && playingRef.current) setVoice(true) })
     u.onboundary = (e) => { if (run === runRef.current) setP(e.charIndex / scene.narration.length) }
     u.onend = () => { if (run === runRef.current) nextRef.current() }
     u.onerror = (e) => {

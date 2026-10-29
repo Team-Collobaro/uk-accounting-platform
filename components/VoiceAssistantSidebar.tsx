@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import TutorMessage from './TutorMessage'
 import type { HoloMode } from './HologramHead'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
-import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState } from '@/lib/localTts'
+import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterLevel, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
 
 
@@ -234,12 +234,10 @@ export default function VoiceAssistantSidebar({
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.rate = 0.93 * speedRef.current
     utterance.pitch = 1.0
-    const voices = window.speechSynthesis.getVoices()
-    const preferred = voices.find(
-      (v) => v.name.includes('Samantha') || v.name.includes('Daniel') || v.lang === 'en-GB' || v.name.includes('Google UK English')
-    )
+    const preferred = pickBrowserVoice()
     if (preferred) utterance.voice = preferred
-    utterance.onstart = () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
+    // The mouth starts with the sound, not when the browser first reports the utterance started
+    whenAudible(utterance, () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) })
     utterance.onend = () => { if (run !== speechRunRef.current) return; done() }
     utterance.onerror = () => { if (run !== speechRunRef.current) return; done() }
     window.speechSynthesis.speak(utterance)
@@ -270,7 +268,7 @@ export default function VoiceAssistantSidebar({
     }
     item.audio.then((url) => {
       if (run !== speechRunRef.current) { if (url) URL.revokeObjectURL(url); return }
-      if (!url) { speakBrowser(item.text, run, next); return }
+      if (!url) { audioElRef.current = null; speakBrowser(item.text, run, next); return }
       const el = new Audio(url)
       audioElRef.current = el
       routedRef.current = false
@@ -282,10 +280,11 @@ export default function VoiceAssistantSidebar({
         }
       } catch { routedRef.current = false }
       el.playbackRate = speedRef.current
-      el.onplay = () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
+      // 'playing' fires when sound actually starts ('play' fires before the audio is ready)
+      el.onplaying = () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
       el.onended = () => { routedRef.current = false; URL.revokeObjectURL(url); next() }
-      el.onerror = () => { URL.revokeObjectURL(url); if (run === speechRunRef.current) speakBrowser(item.text, run, next) }
-      el.play().catch(() => { URL.revokeObjectURL(url); if (run === speechRunRef.current) speakBrowser(item.text, run, next) })
+      el.onerror = () => { URL.revokeObjectURL(url); if (run === speechRunRef.current) { audioElRef.current = null; speakBrowser(item.text, run, next) } }
+      el.play().catch(() => { URL.revokeObjectURL(url); if (run === speechRunRef.current) { audioElRef.current = null; speakBrowser(item.text, run, next) } })
     })
   }, [speakBrowser])
   pumpRef.current = pumpSpeech
@@ -823,6 +822,9 @@ export default function VoiceAssistantSidebar({
   const getLevel = useCallback(() => {
     if (presentingRef.current) return presenterLevel() // speaking the video's narration
     if (!isSpeakingRef.current || isPausedRef.current) return 0
+    // Between sentences, while the next clip is still being made, there is nothing to hear
+    const el = audioElRef.current
+    if (el && (el.paused || el.ended)) return 0
     const analyser = analyserRef.current
     const buf = levelBufRef.current
     if (routedRef.current && analyser && buf) {
