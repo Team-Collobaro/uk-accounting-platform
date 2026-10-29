@@ -7,7 +7,7 @@ import type { TutorMode } from './TutorAvatar'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
 import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterMouth, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
-import { MOUTH_REST, TextLipSync, VoiceShaper, type MouthShape } from '@/lib/lipSync'
+import { AudioLipTrack, MOUTH_REST, TextLipSync, type MouthShape } from '@/lib/lipSync'
 
 
 interface VoiceAssistantSidebarProps {
@@ -141,12 +141,9 @@ export default function VoiceAssistantSidebar({
   const pumpRef = useRef<() => void>(() => {})
   const struggleRef = useRef(0)
 
-  // Lip sync: the neural voice is routed through an analyser; the browser voice follows the words
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const shaperRef = useRef<VoiceShaper | null>(null)
+  // Lip sync: each neural-voice clip is analysed before it plays; the browser voice follows the words
+  const trackRef = useRef<AudioLipTrack | null>(null)
   const textSyncRef = useRef<TextLipSync | null>(null)
-  const routedRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isPausedRef = useRef(false)
 
@@ -161,7 +158,6 @@ export default function VoiceAssistantSidebar({
   useEffect(() => { isMutedRef.current = isMuted }, [isMuted])
   useEffect(() => { isSpeakingRef.current = isSpeaking }, [isSpeaking])
   useEffect(() => { isPausedRef.current = isSpeechPaused }, [isSpeechPaused])
-  useEffect(() => () => { audioCtxRef.current?.close().catch(() => {}) }, [])
 
   // Restore the saved tutor voice
   useEffect(() => {
@@ -196,7 +192,7 @@ export default function VoiceAssistantSidebar({
     speechEndedRef.current = false
     speechDoneRef.current = undefined
     speechSpokenRef.current = 0
-    routedRef.current = false
+    trackRef.current = null
     textSyncRef.current = null
     if (audioElRef.current) {
       audioElRef.current.onended = null
@@ -275,24 +271,20 @@ export default function VoiceAssistantSidebar({
       speechPlayingRef.current = false
       pumpRef.current()
     }
-    item.audio.then((url) => {
+    item.audio.then(async (url) => {
       if (run !== speechRunRef.current) { if (url) URL.revokeObjectURL(url); return }
       if (!url) { audioElRef.current = null; speakBrowser(item.text, run, next); return }
+      // Takes a few milliseconds: the mouth then follows the clip exactly
+      const track = await AudioLipTrack.load(url)
+      if (run !== speechRunRef.current) { URL.revokeObjectURL(url); return }
       const el = new Audio(url)
       audioElRef.current = el
+      trackRef.current = track
       textSyncRef.current = new TextLipSync(item.text)
-      routedRef.current = false
-      try {
-        const ctx = audioCtxRef.current
-        if (ctx && ctx.state === 'running' && analyserRef.current) {
-          ctx.createMediaElementSource(el).connect(analyserRef.current)
-          routedRef.current = true
-        }
-      } catch { routedRef.current = false }
       el.playbackRate = speedRef.current
       // 'playing' fires when sound actually starts ('play' fires before the audio is ready)
       el.onplaying = () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) }
-      el.onended = () => { routedRef.current = false; URL.revokeObjectURL(url); next() }
+      el.onended = () => { trackRef.current = null; URL.revokeObjectURL(url); next() }
       el.onerror = () => { URL.revokeObjectURL(url); if (run === speechRunRef.current) { audioElRef.current = null; speakBrowser(item.text, run, next) } }
       el.play().catch(() => { URL.revokeObjectURL(url); if (run === speechRunRef.current) { audioElRef.current = null; speakBrowser(item.text, run, next) } })
     })
@@ -576,24 +568,8 @@ export default function VoiceAssistantSidebar({
     }
   }, [])
 
-  // Create the audio graph inside the user's tap so the browser lets the tutor's voice play
+  // Called from the user's tap, which lets the browser play the tutor's voice
   const unlockAudio = useCallback(() => {
-    try {
-      if (!audioCtxRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const AC = window.AudioContext ?? (window as any).webkitAudioContext
-        if (AC) {
-          const ctx: AudioContext = new AC()
-          const analyser = ctx.createAnalyser()
-          analyser.fftSize = 1024
-          analyser.connect(ctx.destination)
-          audioCtxRef.current = ctx
-          analyserRef.current = analyser
-          shaperRef.current = new VoiceShaper(analyser)
-        }
-      }
-      audioCtxRef.current?.resume().catch(() => {})
-    } catch { /* head falls back to a simulated mouth */ }
     voiceUnlockedRef.current = true
     setVoiceUnlocked(true)
   }, [])
@@ -839,7 +815,7 @@ export default function VoiceAssistantSidebar({
 
   const canListen = convState === 'idle' && voiceUnlocked && voiceSupported
 
-  // The avatar's mouth: from the sound itself for the neural voice, from the words for the browser voice
+  // The avatar's mouth: from the clip's sound for the neural voice, from the words for the browser voice
   const getMouth = useCallback((): MouthShape => {
     if (presentingRef.current) return presenterMouth() // speaking the video's narration
     if (!isSpeakingRef.current || isPausedRef.current) return MOUTH_REST
@@ -848,7 +824,7 @@ export default function VoiceAssistantSidebar({
     if (el) {
       // Between sentences, while the next clip is still being made, there is nothing to hear
       if (el.paused || el.ended) return MOUTH_REST
-      if (routedRef.current && shaperRef.current) return shaperRef.current.shape()
+      if (trackRef.current) return trackRef.current.shapeAt(el.currentTime)
       return sync && el.duration ? sync.shapeAt(el.currentTime / el.duration) : MOUTH_REST
     }
     return sync ? sync.shape() : MOUTH_REST

@@ -56,7 +56,10 @@ export function startLocalTts(): void {
     const m = e.data
     if (m.type === 'progress') {
       const p = m.progress
-      if (p && typeof p.progress === 'number') { percent = Math.max(percent, Math.round(p.progress)); notify() }
+      // Only the model file is big; the small config files finish first and would show a false 100%
+      if (p && typeof p.progress === 'number' && String(p.file).endsWith('.onnx')) {
+        percent = Math.max(percent, Math.min(99, Math.round(p.progress))); notify()
+      }
     } else if (m.type === 'ready') {
       status = 'ready'; percent = 100; notify()
     } else if (m.type === 'error') {
@@ -67,9 +70,9 @@ export function startLocalTts(): void {
       pending.delete(m.id)
       if (!resolve) return
       if (m.error || !m.blob) { resolve(null); return }
-      // Too slow to keep up with speech? Give up after a few in a row.
-      slowStreak = m.ms / 1000 > m.seconds * 1.5 ? slowStreak + 1 : 0
-      if (slowStreak >= 3) { fail(); resolve(URL.createObjectURL(m.blob)); return }
+      // Hopelessly slow (several times slower than speech, repeatedly)? Give up. Merely slow still sounds better than the browser voice.
+      slowStreak = m.ms / 1000 > m.seconds * 3 ? slowStreak + 1 : 0
+      if (slowStreak >= 5) { fail(); resolve(URL.createObjectURL(m.blob)); return }
       resolve(URL.createObjectURL(m.blob))
     }
   }

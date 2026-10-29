@@ -42,6 +42,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/inngest') ||
     pathname.startsWith('/downloads/') ||
     pathname.startsWith('/_next') ||
+    pathname === '/kokoro-worker.js' ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/update-password') ||

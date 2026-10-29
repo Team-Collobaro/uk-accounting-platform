@@ -28,7 +28,7 @@ const FACE = {
   view: [6, 192], // rows shown in the panel: head and shoulders, cut above the book
   centerX: 168,
 }
-const MAX_JAW = 8 // px the lips part at full volume
+const MAX_JAW = 6.5 // px the lips part on a wide-open "ah"
 
 const MODE_GLOW: Record<TutorMode, [number, number, number]> = {
   idle: [0.55, 0.75, 1.0],
@@ -38,6 +38,11 @@ const MODE_GLOW: Record<TutorMode, [number, number, number]> = {
 }
 const MODE_LABEL: Record<TutorMode, string> = {
   idle: 'Tutor ready', listening: 'Tutor listening', thinking: 'Tutor thinking', speaking: 'Tutor speaking',
+}
+
+const smoothstep = (e0: number, e1: number, x: number) => {
+  const k = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)))
+  return k * k * (3 - 2 * k)
 }
 
 const VERT = `
@@ -130,25 +135,33 @@ void main() {
   vec2 mq = vec2(dx / (uMouth.z * 1.7), (s.y - lineY) / 9.0);
   s.x = uMouth.x + dx / (1.0 + (0.14 * uWide - 0.3 * uRound) * exp(-dot(mq, mq)));
 
-  // Jaw: the lips part along the smile line and the chin drops with them
+  // Lips part: the lower lip drops most, the upper lip lifts a little, and the skin below follows
+  // less and less down to the chin, fading into the cheeks, so the jaw never moves as one block
   dx = s.x - uMouth.x;
   lineY = uMouth.y + uMouthCurve.x * dx * dx + uMouthCurve.y * dx;
-  float t = dx / (uMouth.z * (1.0 + 0.1 * uWide - 0.4 * uRound));
-  float gap = uJaw * pow(max(0.0, 1.0 - t * t), 0.6 - 0.3 * uWide - 0.1 * uRound);
-  float below = s.y - lineY;
+  float t = dx / (uMouth.z * (1.0 + 0.1 * uWide - 0.35 * uRound));
+  float gap = uJaw * pow(max(0.0, 1.0 - t * t), 0.6 - 0.3 * uWide - 0.15 * uRound);
+  float lower = gap * 0.78;
+  float upper = gap - lower;
+  float rel = s.y - lineY;
   float mouth = 0.0;
-  if (below > 0.0) {
-    float jawDrop = uJaw * (1.0 - smoothstep(0.7, 2.6, abs(t)));
-    float fall = 1.0 - smoothstep(uChinY + 1.0, uChinY + 12.0, s.y);
-    mouth = smoothstep(0.0, 0.7, below) * smoothstep(0.0, 0.7, gap - below);
-    s.y -= mix(gap, jawDrop, smoothstep(1.5, 8.0, below)) * fall;
+  if (rel > -upper && rel < lower && gap > 0.05) {
+    mouth = smoothstep(0.0, 0.6, rel + upper) * smoothstep(0.0, 0.6, lower - rel);
+  }
+  if (rel >= 0.0) {
+    float chinRel = uChinY - lineY;
+    float chin = 0.38 * uJaw * exp(-pow(dx / (uMouth.z * 1.9), 2.0));
+    float drop = mix(lower, chin, smoothstep(lower, chinRel, rel));
+    s.y -= drop * (1.0 - smoothstep(chinRel, chinRel + 12.0, rel));
+  } else {
+    s.y += upper * exp(-pow(max(0.0, -rel - upper) / 4.0, 2.0));
   }
 
   vec4 tex = picture(s); // premultiplied
   vec3 col = tex.rgb;
 
   if (mouth > 0.0) {
-    float g = clamp(below / max(gap, 0.001), 0.0, 1.0);
+    float g = clamp((rel + upper) / max(gap, 0.001), 0.0, 1.0);
     vec3 m = mix(vec3(0.2, 0.05, 0.06), vec3(0.38, 0.11, 0.12), g);
     m = mix(m, vec3(0.78, 0.4, 0.4), smoothstep(0.55, 1.0, g) * (1.0 - smoothstep(0.4, 0.85, abs(t))) * 0.85);
     m *= mix(0.6, 1.0, smoothstep(0.0, 0.4, g));
@@ -308,15 +321,22 @@ export default function TutorAvatar({ mode, getMouth, height = 190 }: TutorAvata
     const glow = new THREE.Color()
     const startedAt = performance.now()
     const mouth = { ...MOUTH_REST }
+    let phrase = 0 // how much is being said over the last half second: drives brows and nods
     let nextBlink = 1.5 + Math.random() * 2
     let blinkStart = -1
+    let last = startedAt
     let raf = 0
 
-    const ease = (current: number, target: number, rate: number) => current + (target - current) * rate
+    let dt = 1 / 60
+    // Moves `current` towards `target` with this time constant in seconds, at any frame rate
+    const ease = (current: number, target: number, tau: number) => current + (target - current) * (1 - Math.exp(-dt / tau))
 
     const frame = () => {
       raf = requestAnimationFrame(frame)
-      const t = (performance.now() - startedAt) / 1000
+      const now = performance.now()
+      dt = Math.min(0.1, (now - last) / 1000)
+      last = now
+      const t = (now - startedAt) / 1000
       const m = modeRef.current
       const talking = m === 'speaking'
 
@@ -325,11 +345,12 @@ export default function TutorAvatar({ mode, getMouth, height = 190 }: TutorAvata
       if (talking) {
         try { target = mouthRef.current?.() ?? MOUTH_REST } catch { target = MOUTH_REST }
       }
-      // Opening is quick, closing a little slower, as real lips move between sounds
-      mouth.open = ease(mouth.open, target.open, target.open > mouth.open ? 0.55 : 0.35)
-      mouth.wide = ease(mouth.wide, target.wide, 0.3)
-      mouth.round = ease(mouth.round, target.round, 0.3)
-      mouth.press = ease(mouth.press, target.press, 0.45)
+      // Lips have weight: they open quickly and settle a little slower between sounds
+      mouth.open = ease(mouth.open, target.open, target.open > mouth.open ? 0.04 : 0.07)
+      mouth.wide = ease(mouth.wide, target.wide, 0.08)
+      mouth.round = ease(mouth.round, target.round, 0.08)
+      mouth.press = ease(mouth.press, target.press, 0.05)
+      phrase = ease(phrase, mouth.open, 0.5)
       uniforms.uJaw.value = MAX_JAW * mouth.open
       uniforms.uWide.value = mouth.wide
       uniforms.uRound.value = mouth.round
@@ -338,7 +359,7 @@ export default function TutorAvatar({ mode, getMouth, height = 190 }: TutorAvata
       glow.setRGB(...MODE_GLOW[m])
       uniforms.uGlow.value.lerp(glow, 0.06)
 
-      uniforms.uBrow.value = ease(uniforms.uBrow.value, talking ? Math.max(0, mouth.open - 0.6) * 1.8 : m === 'listening' ? 0.35 : 0, 0.15)
+      uniforms.uBrow.value = ease(uniforms.uBrow.value, talking ? smoothstep(0.3, 0.6, phrase) * 0.7 : m === 'listening' ? 0.35 : 0, 0.25)
 
       // Natural blinks every few seconds, now and then a double blink
       if (blinkStart < 0 && t > nextBlink) blinkStart = t
@@ -353,12 +374,12 @@ export default function TutorAvatar({ mode, getMouth, height = 190 }: TutorAvata
       }
       uniforms.uBlink.value = blink
 
-      // The head moves while talking (a gentle sway, small nods on stressed words) or tilts to listen
+      // The head moves with the phrase, not each syllable: a gentle sway while talking, a tilt to listen
       if (!reduceMotion) {
-        const tilt = talking ? Math.sin(t * 1.1) * 0.035 + Math.sin(t * 0.47) * 0.02 : m === 'listening' ? 0.04 : 0
-        const nod = talking ? mouth.open * 1.6 + Math.sin(t * 2.3) * 0.4 : 0
-        uniforms.uTilt.value = ease(uniforms.uTilt.value, tilt, 0.08)
-        uniforms.uNod.value = ease(uniforms.uNod.value, nod, 0.15)
+        const tilt = talking ? Math.sin(t * 1.1) * 0.03 + Math.sin(t * 0.47) * 0.02 : m === 'listening' ? 0.04 : 0
+        const nod = talking ? phrase * 1.2 + Math.sin(t * 1.7) * 0.4 : 0
+        uniforms.uTilt.value = ease(uniforms.uTilt.value, tilt, 0.3)
+        uniforms.uNod.value = ease(uniforms.uNod.value, nod, 0.3)
       }
 
       renderer.render(scene, camera)

@@ -17,7 +17,7 @@ import {
 import type { ExplainerScene, ExplainerKind } from '@/lib/explainer'
 import { startLocalTts, localSpeak, normaliseForSpeech, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, setPresenterMouthSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
-import { MOUTH_REST, TextLipSync, VoiceShaper } from '@/lib/lipSync'
+import { AudioLipTrack, MOUTH_REST, TextLipSync } from '@/lib/lipSync'
 
 // Must match ICONS in scripts/build-explainers.mjs
 const ICONS: Record<string, LucideIcon> = {
@@ -92,12 +92,10 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
   const rafRef = useRef(0)
   const holdRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const audioCache = useRef(new Map<number, Promise<string | null>>())
-  // Narration mouth shapes for the tutor's lips
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const shaperRef = useRef<VoiceShaper | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
+  // Narration mouth shapes for the tutor's lips: each clip analysed once, before it first plays
+  const trackCache = useRef(new Map<number, Promise<AudioLipTrack | null>>())
+  const trackRef = useRef<AudioLipTrack | null>(null)
   const textSyncRef = useRef<TextLipSync | null>(null)
-  const routedRef = useRef(false)
   const playRef = useRef<() => void>(() => {})
   const pauseRef = useRef<() => void>(() => {})
 
@@ -246,6 +244,10 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     const url = await fetchAudio(i)
     if (run !== runRef.current) return
     if (!url) { speakBrowser(scene, run); return }
+    let track = trackCache.current.get(i)
+    if (!track) { track = AudioLipTrack.load(url); trackCache.current.set(i, track) }
+    trackRef.current = await track
+    if (run !== runRef.current) return
 
     const el = new Audio(url)
     el.playbackRate = speedRef.current
@@ -253,14 +255,6 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     audioRef.current = el
     modeRef.current = 'audio'
     textSyncRef.current = new TextLipSync(scene.narration)
-    routedRef.current = false
-    try {
-      const ctx = audioCtxRef.current
-      if (ctx && ctx.state === 'running' && analyserRef.current) {
-        ctx.createMediaElementSource(el).connect(analyserRef.current)
-        routedRef.current = true
-      }
-    } catch { routedRef.current = false }
     el.onplaying = () => { if (run === runRef.current) setVoice(true) } // the voice is audible: the mouth may move
     el.ontimeupdate = () => { if (run === runRef.current && el.duration) setP(el.currentTime / el.duration) }
     el.onended = () => nextRef.current()
@@ -271,22 +265,6 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
   const play = useCallback(() => {
     // The AI tutor stops talking, and any other video on the page pauses
     window.dispatchEvent(new CustomEvent<ExplainerIdDetail>(EXPLAINER_EVENTS.play, { detail: { id: videoId } }))
-    try {
-      if (!audioCtxRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const AC = window.AudioContext ?? (window as any).webkitAudioContext
-        if (AC) {
-          const ctx: AudioContext = new AC()
-          const analyser = ctx.createAnalyser()
-          analyser.fftSize = 1024
-          analyser.connect(ctx.destination)
-          audioCtxRef.current = ctx
-          analyserRef.current = analyser
-          shaperRef.current = new VoiceShaper(analyser)
-        }
-      }
-      audioCtxRef.current?.resume().catch(() => {})
-    } catch { /* the tutor's lips follow the words instead */ }
     const sp = Number(readSetting('tutor-voice-speed'))
     speedRef.current = sp >= 0.5 && sp <= 2 ? sp : 1
     setStarted(true)
@@ -405,8 +383,8 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
       if (!playingRef.current || !voicedRef.current || progressRef.current >= 1) return MOUTH_REST
       const sync = textSyncRef.current
       if (modeRef.current === 'audio') {
-        if (routedRef.current && shaperRef.current) return shaperRef.current.shape()
         const el = audioRef.current
+        if (el && trackRef.current) return trackRef.current.shapeAt(el.currentTime)
         return sync && el?.duration ? sync.shapeAt(el.currentTime / el.duration) : MOUTH_REST
       }
       return sync ? sync.shape() : MOUTH_REST
@@ -421,7 +399,6 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
       haltNarration()
       cache.forEach((p) => p.then((u) => { if (u) URL.revokeObjectURL(u) }))
       cache.clear()
-      audioCtxRef.current?.close().catch(() => {})
       window.dispatchEvent(new CustomEvent(EXPLAINER_EVENTS.state, {
         detail: { id: videoId, state: 'stopped', scene: 0, total: 0, heading: '' } satisfies ExplainerStateDetail,
       }))
