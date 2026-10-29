@@ -16,7 +16,8 @@ import {
 } from 'lucide-react'
 import type { ExplainerScene, ExplainerKind } from '@/lib/explainer'
 import { startLocalTts, localSpeak, normaliseForSpeech, pickBrowserVoice, whenAudible } from '@/lib/localTts'
-import { EXPLAINER_EVENTS, setPresenterLevelSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { EXPLAINER_EVENTS, setPresenterMouthSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { MOUTH_REST, TextLipSync, VoiceShaper } from '@/lib/lipSync'
 
 // Must match ICONS in scripts/build-explainers.mjs
 const ICONS: Record<string, LucideIcon> = {
@@ -91,10 +92,11 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
   const rafRef = useRef(0)
   const holdRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const audioCache = useRef(new Map<number, Promise<string | null>>())
-  // Narration loudness for the tutor's hologram jaw
+  // Narration mouth shapes for the tutor's lips
   const audioCtxRef = useRef<AudioContext | null>(null)
+  const shaperRef = useRef<VoiceShaper | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const levelBufRef = useRef<Uint8Array | null>(null)
+  const textSyncRef = useRef<TextLipSync | null>(null)
   const routedRef = useRef(false)
   const playRef = useRef<() => void>(() => {})
   const pauseRef = useRef<() => void>(() => {})
@@ -188,9 +190,15 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     u.rate = 0.95 * speedRef.current
     const gb = pickBrowserVoice()
     if (gb) u.voice = gb
-    whenAudible(u, () => { if (run === runRef.current && playingRef.current) setVoice(true) })
-    u.onboundary = (e) => { if (run === runRef.current) setP(e.charIndex / scene.narration.length) }
-    u.onend = () => { if (run === runRef.current) nextRef.current() }
+    const sync = new TextLipSync(scene.narration, u.rate)
+    textSyncRef.current = sync
+    whenAudible(u, () => { if (run === runRef.current && playingRef.current) { sync.start(); setVoice(true) } })
+    u.onboundary = (e) => {
+      if (run !== runRef.current) return
+      sync.boundary(e.charIndex, e.name)
+      setP(e.charIndex / scene.narration.length)
+    }
+    u.onend = () => { if (run === runRef.current) { sync.finish(); nextRef.current() } }
     u.onerror = (e) => {
       if (run !== runRef.current) return
       // Cancelled by someone else (e.g. the AI tutor started talking): stop here, resume later
@@ -244,6 +252,7 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     el.muted = mutedRef.current
     audioRef.current = el
     modeRef.current = 'audio'
+    textSyncRef.current = new TextLipSync(scene.narration)
     routedRef.current = false
     try {
       const ctx = audioCtxRef.current
@@ -269,15 +278,15 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
         if (AC) {
           const ctx: AudioContext = new AC()
           const analyser = ctx.createAnalyser()
-          analyser.fftSize = 512
+          analyser.fftSize = 1024
           analyser.connect(ctx.destination)
           audioCtxRef.current = ctx
           analyserRef.current = analyser
-          levelBufRef.current = new Uint8Array(analyser.fftSize)
+          shaperRef.current = new VoiceShaper(analyser)
         }
       }
       audioCtxRef.current?.resume().catch(() => {})
-    } catch { /* the tutor's jaw falls back to a simulated mouth */ }
+    } catch { /* the tutor's lips follow the words instead */ }
     const sp = Number(readSetting('tutor-voice-speed'))
     speedRef.current = sp >= 0.5 && sp <= 2 ? sp : 1
     setStarted(true)
@@ -376,7 +385,7 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     }
   }, [videoId])
 
-  // Tell the tutor what the video is doing, so its hologram speaks along with the narration
+  // Tell the tutor what the video is doing, so its avatar speaks along with the narration
   useEffect(() => {
     if (!started) return
     const detail: ExplainerStateDetail = {
@@ -391,22 +400,18 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
   }, [videoId, started, playing, ended, voiced, sceneIdx, scenes])
 
   useEffect(() => {
-    setPresenterLevelSource(videoId, () => {
+    setPresenterMouthSource(videoId, () => {
       // Silent while paused, while a clip loads, and in the short gap between scenes
-      if (!playingRef.current || !voicedRef.current || progressRef.current >= 1) return 0
-      const analyser = analyserRef.current
-      const buf = levelBufRef.current
-      if (modeRef.current === 'audio' && routedRef.current && analyser && buf) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        analyser.getByteTimeDomainData(buf as any)
-        let sum = 0
-        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
-        return Math.min(1, Math.sqrt(sum / buf.length) * 5)
+      if (!playingRef.current || !voicedRef.current || progressRef.current >= 1) return MOUTH_REST
+      const sync = textSyncRef.current
+      if (modeRef.current === 'audio') {
+        if (routedRef.current && shaperRef.current) return shaperRef.current.shape()
+        const el = audioRef.current
+        return sync && el?.duration ? sync.shapeAt(el.currentTime / el.duration) : MOUTH_REST
       }
-      const t = performance.now()
-      return 0.12 + 0.5 * Math.abs(Math.sin(t / 105)) * Math.abs(Math.sin(t / 290 + 1))
+      return sync ? sync.shape() : MOUTH_REST
     })
-    return () => setPresenterLevelSource(videoId, null)
+    return () => setPresenterMouthSource(videoId, null)
   }, [videoId])
 
   // Clean up audio and object URLs

@@ -1,5 +1,7 @@
+import { MOUTH_REST, type MouthShape } from '@/lib/lipSync'
+
 // Lets the AI tutor present the explainer videos (module intro and each lesson section): a video
-// publishes its narration state and loudness, the tutor's hologram speaks along with it, and the
+// publishes its narration state and mouth shape, the tutor's avatar speaks along with it, and the
 // tutor carries on teaching afterwards. Each video has an id: the module id ("m23") for the intro,
 // "m23/s02" for a section.
 
@@ -42,18 +44,21 @@ export const SECTION_COMPLETE_EVENT = 'lesson:section-complete'
 /** Key of a lesson section's explainer video */
 export const sectionVideoId = (moduleId: string, sectionId: string) => `${moduleId}/${sectionId}`
 
-// Loudness (0 to 1) of the narration currently playing, for the hologram's jaw
-const levelSources = new Map<string, () => number>()
+// Mouth shape of the narration currently playing, for the tutor's lips
+const mouthSources = new Map<string, () => MouthShape>()
 
-export function setPresenterLevelSource(id: string, fn: (() => number) | null) {
-  if (fn) levelSources.set(id, fn)
-  else levelSources.delete(id)
+export function setPresenterMouthSource(id: string, fn: (() => MouthShape) | null) {
+  if (fn) mouthSources.set(id, fn)
+  else mouthSources.delete(id)
 }
 
-export function presenterLevel(): number {
-  let level = 0
-  levelSources.forEach((fn) => {
-    try { level = Math.max(level, fn()) } catch { /* ignore a broken source */ }
+export function presenterMouth(): MouthShape {
+  let mouth = MOUTH_REST
+  mouthSources.forEach((fn) => {
+    try {
+      const m = fn()
+      if (m.open > mouth.open || m.press > mouth.press) mouth = m
+    } catch { /* ignore a broken source */ }
   })
-  return level
+  return mouth
 }

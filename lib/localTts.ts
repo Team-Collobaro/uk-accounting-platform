@@ -107,8 +107,9 @@ export function whenAudible(u: SpeechSynthesisUtterance, audible: () => void): v
   let fired = false
   const fire = () => { if (!fired) { fired = true; audible() } }
   const onDevice = u.voice?.localService ?? true
-  // The first word boundary is the most reliable sign; network voices may not send boundaries at all
-  u.addEventListener('boundary', fire)
+  // The first word boundary is the most reliable sign ('sentence' arrives before any sound);
+  // network voices may not send boundaries at all
+  u.addEventListener('boundary', (e) => { if (e.name !== 'sentence') fire() })
   u.addEventListener('start', () => { if (onDevice) fire(); else setTimeout(fire, 900) })
 }
 

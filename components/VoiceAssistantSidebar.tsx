@@ -3,10 +3,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import TutorMessage from './TutorMessage'
-import type { HoloMode } from './HologramHead'
+import type { TutorMode } from './TutorAvatar'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
 import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState, pickBrowserVoice, whenAudible } from '@/lib/localTts'
-import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterLevel, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterMouth, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { MOUTH_REST, TextLipSync, VoiceShaper, type MouthShape } from '@/lib/lipSync'
 
 
 interface VoiceAssistantSidebarProps {
@@ -67,7 +68,7 @@ function stripVisualBlocks(text: string): string {
     .trim()
 }
 
-const HologramHead = dynamic(() => import('./HologramHead'), { ssr: false })
+const TutorAvatar = dynamic(() => import('./TutorAvatar'), { ssr: false })
 
 export default function VoiceAssistantSidebar({
   moduleId,
@@ -140,10 +141,11 @@ export default function VoiceAssistantSidebar({
   const pumpRef = useRef<() => void>(() => {})
   const struggleRef = useRef(0)
 
-  // Voice loudness for the hologram head (neural voice is routed through an analyser)
+  // Lip sync: the neural voice is routed through an analyser; the browser voice follows the words
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const levelBufRef = useRef<Uint8Array | null>(null)
+  const shaperRef = useRef<VoiceShaper | null>(null)
+  const textSyncRef = useRef<TextLipSync | null>(null)
   const routedRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isPausedRef = useRef(false)
@@ -195,6 +197,7 @@ export default function VoiceAssistantSidebar({
     speechDoneRef.current = undefined
     speechSpokenRef.current = 0
     routedRef.current = false
+    textSyncRef.current = null
     if (audioElRef.current) {
       audioElRef.current.onended = null
       audioElRef.current.onerror = null
@@ -239,9 +242,12 @@ export default function VoiceAssistantSidebar({
     utterance.pitch = 1.0
     const preferred = pickBrowserVoice()
     if (preferred) utterance.voice = preferred
+    const sync = new TextLipSync(text, utterance.rate)
+    textSyncRef.current = sync
+    utterance.addEventListener('boundary', (e) => { if (run === speechRunRef.current) sync.boundary(e.charIndex, e.name) })
     // The mouth starts with the sound, not when the browser first reports the utterance started
-    whenAudible(utterance, () => { if (run !== speechRunRef.current) return; setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) })
-    utterance.onend = () => { if (run !== speechRunRef.current) return; done() }
+    whenAudible(utterance, () => { if (run !== speechRunRef.current) return; sync.start(); setIsSpeaking(true); setConvState('speaking'); setIsSpeechPaused(false) })
+    utterance.onend = () => { if (run !== speechRunRef.current) return; sync.finish(); done() }
     utterance.onerror = () => { if (run !== speechRunRef.current) return; done() }
     window.speechSynthesis.speak(utterance)
   }, [])
@@ -274,6 +280,7 @@ export default function VoiceAssistantSidebar({
       if (!url) { audioElRef.current = null; speakBrowser(item.text, run, next); return }
       const el = new Audio(url)
       audioElRef.current = el
+      textSyncRef.current = new TextLipSync(item.text)
       routedRef.current = false
       try {
         const ctx = audioCtxRef.current
@@ -344,31 +351,36 @@ export default function VoiceAssistantSidebar({
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection,
-          phase: phaseRef.current,
-          struggleCount: struggleRef.current,
-          teachingPointIdx: pointIdxRef.current,
-          teachingPointTitle: phaseRef.current === 'WRAP' ? null : (pointsRef.current.titles[pointIdxRef.current] ?? null),
-          teachingPointContent: phaseRef.current === 'WRAP' ? null : (pointsRef.current.contents[pointIdxRef.current] ?? null),
-          totalTeachingPoints: pointsRef.current.titles.length,
-          allTeachingPoints: pointsRef.current.titles,
-          explainerIds: message === '__EXPLAINER_DONE__' ? presentedRef.current : undefined,
-        }),
-      })
+      const body = {
+        message, moduleId, sessionId, moduleTitle, partNumber, partTitle, currentSection,
+        phase: phaseRef.current,
+        struggleCount: struggleRef.current,
+        teachingPointIdx: pointIdxRef.current,
+        teachingPointTitle: phaseRef.current === 'WRAP' ? null : (pointsRef.current.titles[pointIdxRef.current] ?? null),
+        teachingPointContent: phaseRef.current === 'WRAP' ? null : (pointsRef.current.contents[pointIdxRef.current] ?? null),
+        totalTeachingPoints: pointsRef.current.titles.length,
+        allTeachingPoints: pointsRef.current.titles,
+        explainerIds: message === '__EXPLAINER_DONE__' ? presentedRef.current : undefined,
+      }
+      let fullResponse = ''
+      let streamError: string | null = null
+      const phaseAtSend = phaseRef.current
+      const addToken = (token: string) => {
+        fullResponse += token
+        feedSpeech(fullResponse, false)
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: fullResponse }
+          return updated
+        })
+      }
 
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok || !res.body) throw new Error('Chat API error')
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let fullResponse = ''
-      let streamError: string | null = null
       let pending = '' // an event can arrive split across two chunks
-      const phaseAtSend = phaseRef.current
-
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -380,15 +392,7 @@ export default function VoiceAssistantSidebar({
           try {
             const json = JSON.parse(line.slice(6))
             if (json.error) streamError = String(json.error)
-            if (json.token) {
-              fullResponse += json.token
-              feedSpeech(fullResponse, false)
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = { role: 'assistant', content: fullResponse }
-                return updated
-              })
-            }
+            if (json.token) addToken(json.token)
             if (json.done && json.sessionId) setSessionId(json.sessionId)
           } catch { /* not JSON */ }
         }
@@ -581,11 +585,11 @@ export default function VoiceAssistantSidebar({
         if (AC) {
           const ctx: AudioContext = new AC()
           const analyser = ctx.createAnalyser()
-          analyser.fftSize = 512
+          analyser.fftSize = 1024
           analyser.connect(ctx.destination)
           audioCtxRef.current = ctx
           analyserRef.current = analyser
-          levelBufRef.current = new Uint8Array(analyser.fftSize)
+          shaperRef.current = new VoiceShaper(analyser)
         }
       }
       audioCtxRef.current?.resume().catch(() => {})
@@ -835,27 +839,22 @@ export default function VoiceAssistantSidebar({
 
   const canListen = convState === 'idle' && voiceUnlocked && voiceSupported
 
-  // Loudness 0..1 for the hologram's jaw: real audio when available, a natural-looking pulse otherwise
-  const getLevel = useCallback(() => {
-    if (presentingRef.current) return presenterLevel() // speaking the video's narration
-    if (!isSpeakingRef.current || isPausedRef.current) return 0
-    // Between sentences, while the next clip is still being made, there is nothing to hear
+  // The avatar's mouth: from the sound itself for the neural voice, from the words for the browser voice
+  const getMouth = useCallback((): MouthShape => {
+    if (presentingRef.current) return presenterMouth() // speaking the video's narration
+    if (!isSpeakingRef.current || isPausedRef.current) return MOUTH_REST
+    const sync = textSyncRef.current
     const el = audioElRef.current
-    if (el && (el.paused || el.ended)) return 0
-    const analyser = analyserRef.current
-    const buf = levelBufRef.current
-    if (routedRef.current && analyser && buf) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      analyser.getByteTimeDomainData(buf as any)
-      let sum = 0
-      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
-      return Math.min(1, Math.sqrt(sum / buf.length) * 5)
+    if (el) {
+      // Between sentences, while the next clip is still being made, there is nothing to hear
+      if (el.paused || el.ended) return MOUTH_REST
+      if (routedRef.current && shaperRef.current) return shaperRef.current.shape()
+      return sync && el.duration ? sync.shapeAt(el.currentTime / el.duration) : MOUTH_REST
     }
-    const t = performance.now()
-    return 0.12 + 0.5 * Math.abs(Math.sin(t / 105)) * Math.abs(Math.sin(t / 290 + 1))
+    return sync ? sync.shape() : MOUTH_REST
   }, [])
 
-  const holoMode: HoloMode =
+  const tutorMode: TutorMode =
     (isSpeaking && !isSpeechPaused) || (videoInfo?.state === 'playing' && videoInfo.voiced) ? 'speaking'
     : convState === 'listening' ? 'listening'
     : (convState === 'processing' || isStreaming) ? 'thinking'
@@ -897,9 +896,9 @@ export default function VoiceAssistantSidebar({
         </div>
       </div>
 
-      {/* Hologram tutor */}
+      {/* Animated tutor */}
       <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
-        <HologramHead mode={holoMode} getLevel={getLevel} height={190} />
+        <TutorAvatar mode={tutorMode} getMouth={getMouth} height={190} />
         {localVoiceNote && (
           <div role="status" style={{ marginTop: 6, textAlign: 'center', fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: '#94a3b8' }}>{localVoiceNote}</div>
         )}

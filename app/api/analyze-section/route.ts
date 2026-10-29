@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { CLAUDE_MODEL, NO_THINKING, responseText } from '@/lib/claude'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || ''
@@ -31,13 +32,14 @@ Base everything strictly on what the section says. Do not use outside knowledge.
     const userPrompt = `Section title: ${sectionTitle}\n\nContent:\n${plainText}\n\nDecide: does this student need an extra question or example right now?`
 
     const response = await anthropic.messages.create({
-      model: process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001',
+      model: CLAUDE_MODEL,
       max_tokens: 400,
+      ...NO_THINKING,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : 'ACTION:NONE'
+    const text = responseText(response, 'ACTION:NONE')
 
     if (text.includes('ACTION:NONE')) {
       return NextResponse.json({ action: 'NONE' })

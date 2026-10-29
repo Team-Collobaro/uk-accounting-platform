@@ -1,9 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Student, Module, ChatMessage, QuizQuestion, QuizResult, ProgressAnalysis } from '@/types'
+import { CLAUDE_MODEL, NO_THINKING, responseText } from '@/lib/claude'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-const MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001'
+const MODEL = CLAUDE_MODEL
 const TUTOR_MODEL = process.env.TUTOR_MODEL ?? MODEL
 const MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '600', 10)
 
@@ -295,7 +296,7 @@ ${ragContext.slice(0, 1000)}`
   const stream = client.messages.stream({
     model: TUTOR_MODEL,
     max_tokens: MAX_TOKENS,
-    temperature: 0.5,
+    ...NO_THINKING,
     system: systemPrompt,
     messages,
   })
@@ -360,11 +361,11 @@ Return ONLY a valid JSON array with no markdown, no preamble, no explanation:
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 2000,
-      temperature: 0.1,
+      ...NO_THINKING,
       messages: [{ role: 'user', content: prompt + extra }],
     })
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+    const raw = responseText(response)
 
     // Strip markdown fences if present
     let cleaned = raw.trim()
@@ -423,11 +424,11 @@ Return ONLY valid JSON with no markdown:
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 300,
-    temperature: 0.2,
+    ...NO_THINKING,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : '{}'
+  const raw = responseText(response, '{}')
   const cleaned = raw
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/i, '')

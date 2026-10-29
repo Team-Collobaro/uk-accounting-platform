@@ -1,6 +1,7 @@
 import { inngest } from '../client'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import Anthropic from '@anthropic-ai/sdk'
+import { CLAUDE_MODEL, NO_THINKING, responseText } from '@/lib/claude'
 
 const PROCTOR_PROMPT = `You are an exam integrity AI. This image was taken from a student's phone rear camera during an online exam.
 
@@ -56,8 +57,9 @@ export const analyzeFrame = inngest.createFunction(
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
       
       const response = await anthropic.messages.create({
-        model: process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001',
+        model: CLAUDE_MODEL,
         max_tokens: 200,
+        ...NO_THINKING,
         messages: [
           {
             role: 'user',
@@ -79,7 +81,7 @@ export const analyzeFrame = inngest.createFunction(
         ],
       })
 
-      const text = response.content[0].type === 'text' ? response.content[0].text : ''
+      const text = responseText(response)
       return JSON.parse(text.trim()) as {
         violation: boolean
         type: string

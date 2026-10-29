@@ -16,7 +16,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 
-const MODEL = process.env.EXPLAINER_MODEL ?? 'claude-opus-5-5'
+// Sonnet is accurate enough with the strict prompt below at half Opus's price; set EXPLAINER_MODEL to override
+const MODEL = process.env.EXPLAINER_MODEL ?? 'claude-sonnet-5-5'
 const CONCURRENCY = 4
 
 const KINDS = ['title', 'stats', 'steps', 'compare', 'timeline', 'cards', 'example', 'warning', 'checklist']

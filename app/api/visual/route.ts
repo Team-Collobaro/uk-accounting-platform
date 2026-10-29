@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { CLAUDE_MODEL, NO_THINKING, responseText } from '@/lib/claude'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const MODEL  = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001'
+const MODEL  = CLAUDE_MODEL
 
 // ─── Shared SVG defs + background (injected into every template) ─────────────
 const DEFS = `<defs>
@@ -181,12 +182,12 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 300,
-      temperature: 0,
+      ...NO_THINKING,
       system: PROMPT,
       messages: [{ role: 'user', content: content.slice(0, 700) }],
     })
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+    const raw = responseText(response).trim()
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
 
     type VisualData =

@@ -1,11 +1,10 @@
 import { supabaseAdmin } from './supabase-server'
 import type { CostReport } from '@/types'
-
-const HAIKU_INPUT_COST = 1.00 / 1_000_000
-const HAIKU_OUTPUT_COST = 5.00 / 1_000_000
+import { CLAUDE_MODEL, tokenPrice } from '@/lib/claude'
 
 export function calculateCost(inputTokens: number, outputTokens: number): number {
-  return inputTokens * HAIKU_INPUT_COST + outputTokens * HAIKU_OUTPUT_COST
+  const price = tokenPrice()
+  return inputTokens * price.input + outputTokens * price.output
 }
 
 export async function logUsage(
@@ -22,7 +21,7 @@ export async function logUsage(
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     cost_usd: costUsd,
-    model: process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001',
+    model: CLAUDE_MODEL,
   })
 
   if (insertError) throw insertError
