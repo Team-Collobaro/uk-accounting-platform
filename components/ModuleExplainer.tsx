@@ -17,7 +17,7 @@ import {
 import type { ExplainerScene, ExplainerKind } from '@/lib/explainer'
 import { startLocalTts, localSpeak, normaliseForSpeech, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, setPresenterMouthSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
-import { AudioLipTrack, MOUTH_REST, TextLipSync } from '@/lib/lipSync'
+import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, wordStarts } from '@/lib/lipSync'
 
 // Must match ICONS in scripts/build-explainers.mjs
 const ICONS: Record<string, LucideIcon> = {
@@ -156,7 +156,6 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     if (audioRef.current) {
       audioRef.current.onended = null
       audioRef.current.onerror = null
-      audioRef.current.ontimeupdate = null
       audioRef.current.pause()
       audioRef.current = null
     }
@@ -181,6 +180,18 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     tick()
   }, [setP])
 
+  // Moves the picture and subtitles with the browser voice, following the words as it reaches them
+  const followSpeech = useCallback((sync: TextLipSync, run: number) => {
+    const tick = () => {
+      if (run !== runRef.current || !playingRef.current) return
+      const p = sync.progress()
+      if (Math.abs(p - progressRef.current) > 0.002) setP(p)
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    cancelAnimationFrame(rafRef.current)
+    tick()
+  }, [setP])
+
   const speakBrowser = useCallback((scene: ExplainerScene, run: number) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) { startTimer(scene, run); return }
     const u = new SpeechSynthesisUtterance(scene.narration)
@@ -190,11 +201,10 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     if (gb) u.voice = gb
     const sync = new TextLipSync(scene.narration, u.rate)
     textSyncRef.current = sync
-    whenAudible(u, () => { if (run === runRef.current && playingRef.current) { sync.start(); setVoice(true) } })
+    whenAudible(u, () => { if (run === runRef.current && playingRef.current) { sync.start(); setVoice(true); followSpeech(sync, run) } })
     u.onboundary = (e) => {
       if (run !== runRef.current) return
       sync.boundary(e.charIndex, e.name)
-      setP(e.charIndex / scene.narration.length)
     }
     u.onend = () => { if (run === runRef.current) { sync.finish(); nextRef.current() } }
     u.onerror = (e) => {
@@ -210,7 +220,19 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     }
     modeRef.current = 'speech'
     window.speechSynthesis.speak(u)
-  }, [setP, setVoice, startTimer])
+  }, [setP, setVoice, startTimer, followSpeech])
+
+  // Moves the picture and subtitles every frame with the narration heard (not the coarse timeupdate event)
+  const followClip = useCallback((el: HTMLAudioElement, run: number) => {
+    const tick = () => {
+      if (run !== runRef.current || audioRef.current !== el || el.paused || !el.duration) return
+      const p = Math.min(1, heardTime(el) / el.duration)
+      if (Math.abs(p - progressRef.current) > 0.002) setP(p)
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    cancelAnimationFrame(rafRef.current)
+    tick()
+  }, [setP])
 
   const playScene = useCallback(async (i: number) => {
     haltNarration()
@@ -239,7 +261,10 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     }
 
     if (mutedRef.current) { startTimer(scene, run); return }
-    if (i + 1 < scenes.length) void fetchAudio(i + 1) // prefetch so the next scene starts instantly
+    if (i + 1 < scenes.length) {
+      // Prefetch the next clip and its lip track so the next scene starts instantly
+      void fetchAudio(i + 1).then((u) => { if (u && !trackCache.current.has(i + 1)) trackCache.current.set(i + 1, AudioLipTrack.load(u)) })
+    }
 
     const url = await fetchAudio(i)
     if (run !== runRef.current) return
@@ -255,16 +280,17 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     audioRef.current = el
     modeRef.current = 'audio'
     textSyncRef.current = new TextLipSync(scene.narration)
-    el.onplaying = () => { if (run === runRef.current) setVoice(true) } // the voice is audible: the mouth may move
-    el.ontimeupdate = () => { if (run === runRef.current && el.duration) setP(el.currentTime / el.duration) }
+    // The voice is audible: the mouth may move, and the picture and subtitles follow the narration
+    el.onplaying = () => { if (run === runRef.current) { setVoice(true); followClip(el, run) } }
     el.onended = () => nextRef.current()
     el.onerror = () => { if (run === runRef.current) speakBrowser(scene, run) }
     el.play().catch(() => { if (run === runRef.current) speakBrowser(scene, run) })
-  }, [scenes, haltNarration, fetchAudio, speakBrowser, startTimer, setP, setVoice])
+  }, [scenes, haltNarration, fetchAudio, speakBrowser, startTimer, setP, setVoice, followClip])
 
   const play = useCallback(() => {
     // The AI tutor stops talking, and any other video on the page pauses
     window.dispatchEvent(new CustomEvent<ExplainerIdDetail>(EXPLAINER_EVENTS.play, { detail: { id: videoId } }))
+    startOutputClock()
     const sp = Number(readSetting('tutor-voice-speed'))
     speedRef.current = sp >= 0.5 && sp <= 2 ? sp : 1
     setStarted(true)
@@ -277,7 +303,11 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     setPlaying(true)
     const mode = modeRef.current
     if (mode === 'audio' && audioRef.current) audioRef.current.play().catch(() => void playScene(i))
-    else if (mode === 'speech') { window.speechSynthesis.resume(); setVoice(true) }
+    else if (mode === 'speech') {
+      window.speechSynthesis.resume()
+      setVoice(true)
+      if (textSyncRef.current) { textSyncRef.current.resume(); followSpeech(textSyncRef.current, runRef.current) }
+    }
     else if (mode === 'timer') startTimer(scenes[i], runRef.current, progressRef.current)
     else void playScene(i)
   }, [videoId, ended, started, scenes, playScene, startTimer, setVoice])
@@ -288,8 +318,9 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     clearTimeout(holdRef.current)
     setVoice(false)
     const mode = modeRef.current
+    cancelAnimationFrame(rafRef.current) // stops the timer, or the picture following the narration
     if (mode === 'audio') audioRef.current?.pause()
-    else if (mode === 'speech') window.speechSynthesis.pause()
+    else if (mode === 'speech') { window.speechSynthesis.pause(); textSyncRef.current?.hold() }
     else if (mode === 'timer') cancelAnimationFrame(rafRef.current)
   }, [setVoice])
 
@@ -384,7 +415,7 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
       const sync = textSyncRef.current
       if (modeRef.current === 'audio') {
         const el = audioRef.current
-        if (el && trackRef.current) return trackRef.current.shapeAt(el.currentTime)
+        if (el && trackRef.current) return trackRef.current.shapeAt(heardTime(el))
         return sync && el?.duration ? sync.shapeAt(el.currentTime / el.duration) : MOUTH_REST
       }
       return sync ? sync.shape() : MOUTH_REST
@@ -572,17 +603,14 @@ function Backdrop({ accent, reduceMotion }: { accent: string; reduceMotion: bool
 }
 
 function Subtitle({ text, progress, accent }: { text: string; progress: number; accent: string }) {
-  // Highlight the words already spoken, estimated from narration progress
+  // Highlight each word as the narrator reaches it, on the same timing model as the lips
   const words = text.split(/\s+/)
-  const spokenChars = progress * text.length
-  let acc = 0
+  const starts = useMemo(() => wordStarts(text), [text])
   return (
     <div aria-live="off" style={{ position: 'absolute', left: '50%', bottom: '4%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: '88%', zIndex: 2, pointerEvents: 'none' }}>
       <p style={{ margin: 0, padding: '0.55em 0.9em', borderRadius: 10, background: 'rgba(3,7,16,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', fontFamily: SANS, fontWeight: 600, fontSize: fs(1.85, 12), lineHeight: 1.45, textAlign: 'center' }}>
         {words.map((w, i) => {
-          const start = acc
-          acc += w.length + 1
-          const spoken = start < spokenChars
+          const spoken = starts[i] < progress
           return (
             <span key={i} style={{ color: spoken ? '#ffffff' : 'rgba(232,240,252,0.55)', textShadow: spoken ? `0 0 12px ${accent}55` : 'none', transition: 'color 0.15s' }}>
               {w}{i < words.length - 1 ? ' ' : ''}

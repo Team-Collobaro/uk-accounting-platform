@@ -7,7 +7,7 @@ import type { TutorMode } from './TutorAvatar'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
 import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterMouth, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
-import { AudioLipTrack, MOUTH_REST, TextLipSync, type MouthShape } from '@/lib/lipSync'
+import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, type MouthShape } from '@/lib/lipSync'
 
 
 interface VoiceAssistantSidebarProps {
@@ -570,6 +570,7 @@ export default function VoiceAssistantSidebar({
 
   // Called from the user's tap, which lets the browser play the tutor's voice
   const unlockAudio = useCallback(() => {
+    startOutputClock()
     voiceUnlockedRef.current = true
     setVoiceUnlocked(true)
   }, [])
@@ -799,10 +800,12 @@ export default function VoiceAssistantSidebar({
     if (isSpeechPaused) {
       audioElRef.current?.play().catch(() => {})
       window.speechSynthesis.resume()
+      textSyncRef.current?.resume()
       setIsSpeechPaused(false)
     } else {
       audioElRef.current?.pause()
       window.speechSynthesis.pause()
+      textSyncRef.current?.hold()
       setIsSpeechPaused(true)
     }
   }
@@ -824,7 +827,7 @@ export default function VoiceAssistantSidebar({
     if (el) {
       // Between sentences, while the next clip is still being made, there is nothing to hear
       if (el.paused || el.ended) return MOUTH_REST
-      if (trackRef.current) return trackRef.current.shapeAt(el.currentTime)
+      if (trackRef.current) return trackRef.current.shapeAt(heardTime(el))
       return sync && el.duration ? sync.shapeAt(el.currentTime / el.duration) : MOUTH_REST
     }
     return sync ? sync.shape() : MOUTH_REST

@@ -29,6 +29,33 @@ const mix = (a: MouthShape, b: MouthShape, k: number): MouthShape => ({
   press: a.press + (b.press - a.press) * k,
 })
 
+// ── Timing ──
+
+// Sound reaches the ear a moment after the browser hands it to the speakers (longer over Bluetooth).
+// The lips and the picture should wait for that moment, or they run ahead of what is heard.
+let clock: AudioContext | null = null
+
+/** Call from a tap: starts a clock that reports the output delay. */
+export function startOutputClock(): void {
+  if (clock) return
+  try {
+    const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AC) return
+    clock = new AC()
+    clock.resume().catch(() => {})
+  } catch { clock = null }
+}
+
+/** Seconds between playing a sound and hearing it. 0 where the browser does not report it. */
+export function outputDelay(): number {
+  return clock ? (clock.outputLatency || 0) + (clock.baseLatency || 0) : 0
+}
+
+/** The point in a clip that is being heard now, from its playback position. */
+export function heardTime(el: HTMLMediaElement): number {
+  return Math.max(0, el.currentTime - outputDelay())
+}
+
 // ── From the sound ──
 
 const RATE = 24000 // the clip is resampled to this before analysis
@@ -230,6 +257,26 @@ function wordVisemes(word: string): Array<[Viseme, number]> {
   return out.map((v) => [v, VOWELS.has(v) ? 1.6 : v === 'M' ? 1 : 0.9])
 }
 
+/**
+ * Where each word starts, as a fraction (0 to 1) of the spoken time. Uses the mouth's timing model
+ * (vowels last longer, punctuation pauses), so subtitles can follow the narration without the audio.
+ * Words are split the same way the subtitles split them.
+ */
+export function wordStarts(text: string): number[] {
+  const spans = text.split(/\s+/).map((token) => {
+    const punctuation = Array.from(token).find((c) => c in PAUSE_MS)
+    const weight = wordVisemes(token).reduce((n, [, w]) => n + w, 0) + GAP
+    return weight + (punctuation ? PAUSE_MS[punctuation] / unitMs : 0)
+  })
+  const total = spans.reduce((n, s) => n + s, 0) || 1
+  let at = 0
+  return spans.map((span) => {
+    const start = at / total
+    at += span
+    return start
+  })
+}
+
 /** Within a word, glide into the next sound over the second half of each one, as lips do. */
 function glide(visemes: Array<[Viseme, number]>, j: number, into: number, then: MouthShape): MouthShape {
   const next = j + 1 < visemes.length ? SHAPES[visemes[j + 1][0]] : then
@@ -242,6 +289,8 @@ export class TextLipSync {
   private index = -1
   private since = 0
   private startedAt = 0
+  private pausedAt = 0
+  private high = 0
   private boundaries = false
 
   constructor(text: string, private rate = 1) {
@@ -298,7 +347,7 @@ export class TextLipSync {
 
   /** The shape right now, following the voice's word events. */
   shape(): MouthShape {
-    const now = performance.now()
+    const now = this.clock()
     for (;;) {
       const word = this.words[this.index]
       if (!word) return MOUTH_REST
@@ -314,6 +363,56 @@ export class TextLipSync {
       const rest = GAP * unit + word.pause * pace
       if (left < rest) return MOUTH_REST
       this.since += word.weight * unit + rest
+      this.index++
+    }
+  }
+
+  /** The voice was paused: its clock stops too. */
+  hold(): void {
+    this.pausedAt = performance.now()
+  }
+
+  /** The voice carries on: the clock moves past the pause, so the words do not run ahead. */
+  resume(): void {
+    if (!this.pausedAt) return
+    this.since += performance.now() - this.pausedAt
+    this.pausedAt = 0
+  }
+
+  /** How far through the text the voice is (0 to 1): smooth between words, re-synced at each word the voice reports. */
+  progress(): number {
+    if (this.index < 0) return 0
+    const { into } = this.locate(this.clock()) // may move the index on, so read it after
+    let value = 1
+    if (this.index < this.words.length) {
+      const span = (i: number) => this.words[i].weight + GAP + this.words[i].pause / this.unit
+      let total = 0
+      for (let i = 0; i < this.words.length; i++) total += span(i)
+      let done = 0
+      for (let i = 0; i < this.index; i++) done += span(i)
+      value = (done + into * span(this.index)) / (total || 1)
+    }
+    // Never back up: a word reported earlier than estimated must not hide what is already on screen
+    this.high = Math.max(this.high, value)
+    return this.high
+  }
+
+  /** The time the voice has been speaking for; stands still while paused. */
+  private clock(): number {
+    return this.pausedAt || performance.now()
+  }
+
+  /** The word being spoken at this time, and how far through it (0 to 1). Moves on for voices that report no words. */
+  private locate(now: number): { into: number } {
+    const unit = this.boundaries ? this.unit : this.unit * pace
+    for (;;) {
+      const word = this.words[this.index]
+      if (!word) return { into: 1 }
+      const length = (word.weight + GAP) * unit + word.pause * (this.boundaries ? 1 : pace)
+      const elapsed = now - this.since
+      if (elapsed < length) return { into: elapsed / length }
+      if (this.boundaries) return { into: 1 } // wait for the voice to reach the next word
+      this.since += length
       this.index++
     }
   }
