@@ -62,3 +62,19 @@ export function presenterMouth(): MouthShape {
   })
   return mouth
 }
+
+// The narration's sound itself, for the tutor's voice display: a source fills `out` and returns
+// true while its narration is heard
+const waveSources = new Map<string, (out: Float32Array) => boolean>()
+
+export function setPresenterWaveSource(id: string, fn: ((out: Float32Array) => boolean) | null) {
+  if (fn) waveSources.set(id, fn)
+  else waveSources.delete(id)
+}
+
+export function presenterWave(out: Float32Array): boolean {
+  for (const fn of waveSources.values()) {
+    try { if (fn(out)) return true } catch { /* ignore a broken source */ }
+  }
+  return false
+}

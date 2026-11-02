@@ -1,8 +1,13 @@
-// Mouth shapes for the tutor avatar, kept in step with whatever is speaking.
+// Mouth shapes for the tutor avatar, and how far through its words a voice is, kept in step with
+// whatever is speaking.
 //  - Neural voice (an audio clip): the whole clip is analysed before it plays, then looked up by its
-//    playback position, so the lips follow the sound exactly.
+//    playback position, so the lips and the words follow the sound exactly.
 //  - Browser speech (its audio cannot be analysed): shaped by the words, re-synced every time the
 //    voice reports reaching the next word.
+// "How far through" is counted in words as subtitles show them (split on spaces), so a subtitle word
+// is spoken once progress × words passes its index.
+
+import { normaliseForSpeech } from './localTts'
 
 export interface MouthShape {
   /** Jaw opening, 0 closed to 1 wide open */
@@ -64,6 +69,11 @@ const WIN = 512
 const FPS = RATE / HOP
 // Lips move slightly before the sound they make
 const LEAD = 0.04
+// Speech starts and ends where the clip gets this loud; quieter than SILENT_DB is a pause (dB below its loud parts)
+const SPEECH_DB = -25
+const SILENT_DB = -32
+// The sound kept for drawing: averaged down to this rate, which keeps the voice's pitch and lower harmonics
+const WAVE_RATE = 2400
 
 /** In-place radix-2 FFT. */
 function fft(re: Float32Array, im: Float32Array): void {
@@ -112,7 +122,13 @@ function blur(x: Float32Array, sigma: number): Float32Array {
 
 /** A neural-voice clip analysed before it plays: a mouth shape every 10 ms, looked up by playback time. */
 export class AudioLipTrack {
-  private constructor(private open: Float32Array, private wide: Float32Array, private round: Float32Array, private press: Float32Array) {}
+  private constructor(
+    private open: Float32Array, private wide: Float32Array, private round: Float32Array, private press: Float32Array,
+    /** Loudness every 10 ms, in dB below the clip's loud parts */
+    private db: Float32Array,
+    /** The sound itself at WAVE_RATE, scaled so the clip's loud parts reach about ±1 */
+    private wave: Float32Array,
+  ) {}
 
   static async load(url: string): Promise<AudioLipTrack | null> {
     try {
@@ -191,7 +207,133 @@ export class AudioLipTrack {
       if (f > 0 && end < n && end - f <= 12) for (let k = f; k < end; k++) press[k] = 0.6
       f = end
     }
-    return new AudioLipTrack(blur(open, 1.5), blur(wide, 3), blur(round, 3), blur(press, 1.5))
+    const step = RATE / WAVE_RATE
+    const wave = new Float32Array(Math.floor(pcm.length / step))
+    for (let i = 0; i < wave.length; i++) {
+      let sum = 0
+      for (let k = 0; k < step; k++) sum += pcm[i * step + k]
+      wave[i] = sum / step
+    }
+    const sizes = Array.from(wave, Math.abs).sort((a, b) => a - b)
+    const peak = sizes[Math.floor(sizes.length * 0.995)] || 1
+    for (let i = 0; i < wave.length; i++) wave[i] /= peak
+
+    return new AudioLipTrack(blur(open, 1.5), blur(wide, 3), blur(round, 3), blur(press, 1.5), Float32Array.from(db), wave)
+  }
+
+  /**
+   * The sound itself around a playback time, for drawing: fills `out` with the waveform over `span`
+   * seconds centred on that time (the clip's loud parts near ±1, silence at 0). Lined up on the
+   * nearest upward zero crossing, as an oscilloscope does, so a steady sound holds still on screen.
+   */
+  waveAt(seconds: number, out: Float32Array, span = 0.25): void {
+    const w = this.wave
+    let centre = seconds * WAVE_RATE
+    const at = Math.floor(centre)
+    const reach = Math.round(0.012 * WAVE_RATE)
+    for (let d = 0; d <= reach; d++) {
+      const up = (i: number) => i > 0 && i < w.length && w[i - 1] < 0 && w[i] >= 0
+      if (up(at + d)) { centre = at + d; break }
+      if (up(at - d)) { centre = at - d; break }
+    }
+    const n = out.length
+    for (let k = 0; k < n; k++) {
+      const x = centre + (k / Math.max(1, n - 1) - 0.5) * span * WAVE_RATE
+      const i = Math.floor(x)
+      out[k] = i < 0 || i + 1 >= w.length ? 0 : w[i] + (w[i + 1] - w[i]) * (x - i)
+    }
+  }
+
+  /**
+   * How far through `text` (0 to 1, in subtitle words) the voice is at a playback time in this clip.
+   * The text's timing model is fitted to the clip itself: where the speech really starts and ends,
+   * and the pauses the voice really made at full stops and commas.
+   */
+  timeline(text: string): (seconds: number) => number {
+    const model = tokenModel(text, BASE_UNIT)
+    const n = model.length
+    const db = this.db
+    let first = 0
+    while (first < db.length && db[first] < SPEECH_DB) first++
+    let last = db.length - 1
+    while (last > first && db[last] < SPEECH_DB) last--
+    if (!n || last <= first) {
+      const length = Math.max(0.1, db.length / FPS)
+      return (seconds) => Math.min(1, Math.max(0, seconds / length))
+    }
+    const t0 = first / FPS
+    const t1 = (last + 1) / FPS
+
+    // The pauses the voice made: at least 100 ms of near silence
+    const pauses: Array<{ from: number; to: number }> = []
+    for (let f = first; f <= last;) {
+      if (db[f] >= SILENT_DB) { f++; continue }
+      let end = f
+      while (end <= last && db[end] < SILENT_DB) end++
+      if (end - f >= 10) pauses.push({ from: f / FPS, to: end / FPS })
+      f = end
+    }
+
+    // The text's own timeline, in units: word k is said from s[k] for model[k].speak
+    const s: number[] = []
+    let u = 0
+    for (const w of model) { s.push(u); u += w.speak + w.rest }
+    const spoken = s[n - 1] + model[n - 1].speak
+    // Where the text expects a pause: after each word with punctuation, but not the last
+    const slots = model.flatMap((w, k) => (w.stop && k < n - 1 ? [k] : []))
+    const expected = (k: number) => t0 + ((s[k] + model[k].speak + model[k].rest / 2) / spoken) * (t1 - t0)
+
+    // Pair the pauses with those places, in order, at the least cost: a pause far from where the text
+    // expects it costs more, and so does leaving out a full stop or a long pause
+    const P = pauses.length
+    const m = slots.length
+    const cost = Array.from({ length: P + 1 }, () => new Array<number>(m + 1).fill(Infinity))
+    const how = Array.from({ length: P + 1 }, () => new Array<number>(m + 1).fill(0))
+    const skipPause = (i: number) => 0.8 * Math.min(1.5, (pauses[i].to - pauses[i].from) / 0.25)
+    const skipSlot = (j: number) => model[slots[j]].stop / PAUSE_MS['.']
+    const pair = (i: number, j: number) => {
+      const off = ((pauses[i].from + pauses[i].to) / 2 - expected(slots[j])) / (t1 - t0)
+      return 12 * off * off
+    }
+    cost[0][0] = 0
+    for (let i = 0; i <= P; i++) {
+      for (let j = 0; j <= m; j++) {
+        const c = cost[i][j]
+        if (!Number.isFinite(c)) continue
+        if (i < P && c + skipPause(i) < cost[i + 1][j]) { cost[i + 1][j] = c + skipPause(i); how[i + 1][j] = 1 }
+        if (j < m && c + skipSlot(j) < cost[i][j + 1]) { cost[i][j + 1] = c + skipSlot(j); how[i][j + 1] = 2 }
+        if (i < P && j < m && c + pair(i, j) < cost[i + 1][j + 1]) { cost[i + 1][j + 1] = c + pair(i, j); how[i + 1][j + 1] = 3 }
+      }
+    }
+    // Each paired pause pins the end of the word before it and the start of the word after it
+    const pins: Array<[number, number]> = [[0, t0], [spoken, t1]]
+    for (let i = P, j = m; i > 0 || j > 0;) {
+      if (how[i][j] === 3) {
+        const k = slots[j - 1]
+        pins.push([s[k] + model[k].speak, pauses[i - 1].from], [s[k + 1], pauses[i - 1].to])
+        i--
+        j--
+      } else if (how[i][j] === 1) i--
+      else j--
+    }
+    pins.sort((a, b) => a[0] - b[0])
+    const timeOf = (x: number) => {
+      let k = 0
+      while (k + 2 < pins.length && pins[k + 1][0] <= x) k++
+      const [ua, ta] = pins[k]
+      const [ub, tb] = pins[k + 1]
+      return ub > ua ? ta + ((x - ua) / (ub - ua)) * (tb - ta) : ta
+    }
+    const starts = s.map(timeOf)
+
+    return (seconds) => {
+      if (seconds <= starts[0]) return 0
+      if (seconds >= t1) return 1
+      let k = 0
+      while (k + 1 < n && starts[k + 1] <= seconds) k++
+      const next = k + 1 < n ? starts[k + 1] : t1
+      return (k + Math.min(1, (seconds - starts[k]) / Math.max(1e-3, next - starts[k]))) / n
+    }
   }
 
   /** The shape at this point of the clip's playback, in seconds. */
@@ -236,8 +378,10 @@ const RULES: Array<[string, Viseme[]]> = [
 const VOWELS = new Set<Viseme>(['A', 'E', 'I', 'O', 'U'])
 const GAP = 1 // between words, in consonant units
 const PAUSE_MS: Record<string, number> = { ',': 180, ';': 220, ':': 220, '.': 380, '!': 380, '?': 380 }
-// One consonant at rate 1 (vowels last longer): a starting guess, then learnt from the voice's word events
-let unitMs = 55
+// One consonant at rate 1 (vowels last longer)
+const BASE_UNIT = 55
+// ...a starting guess for the browser voice, then learnt from its word events
+let unitMs = BASE_UNIT
 // For voices that never report words: how their pace compares with the estimate, learnt per sentence
 let pace = 1
 
@@ -257,23 +401,23 @@ function wordVisemes(word: string): Array<[Viseme, number]> {
   return out.map((v) => [v, VOWELS.has(v) ? 1.6 : v === 'M' ? 1 : 0.9])
 }
 
+/** The words of a text as subtitles show them: split on spaces, punctuation attached. */
+export function textTokens(text: string): string[] {
+  return text.match(/\S+/g) ?? []
+}
+
 /**
- * Where each word starts, as a fraction (0 to 1) of the spoken time. Uses the mouth's timing model
- * (vowels last longer, punctuation pauses), so subtitles can follow the narration without the audio.
- * Words are split the same way the subtitles split them.
+ * Each subtitle word's speaking time, and the rest after it (the gap to the next word, plus a pause
+ * at punctuation), in consonant units of `unit` ms. Words are timed as they are said ("£10,000" as
+ * "10000 pounds"), since that is what the voice reads.
  */
-export function wordStarts(text: string): number[] {
-  const spans = text.split(/\s+/).map((token) => {
+function tokenModel(text: string, unit: number): Array<{ speak: number; rest: number; stop: number }> {
+  return textTokens(text).map((token) => {
+    const said = normaliseForSpeech(token).split(/\s+/).filter(Boolean)
+    const speak = said.reduce((n, w) => n + wordVisemes(w).reduce((m, [, x]) => m + x, 0), 0) + GAP * Math.max(0, said.length - 1)
     const punctuation = Array.from(token).find((c) => c in PAUSE_MS)
-    const weight = wordVisemes(token).reduce((n, [, w]) => n + w, 0) + GAP
-    return weight + (punctuation ? PAUSE_MS[punctuation] / unitMs : 0)
-  })
-  const total = spans.reduce((n, s) => n + s, 0) || 1
-  let at = 0
-  return spans.map((span) => {
-    const start = at / total
-    at += span
-    return start
+    const stop = punctuation ? PAUSE_MS[punctuation] : 0
+    return { speak, rest: GAP + stop / unit, stop }
   })
 }
 
@@ -284,7 +428,9 @@ function glide(visemes: Array<[Viseme, number]>, j: number, into: number, then: 
 }
 
 export class TextLipSync {
-  private words: Array<{ end: number; visemes: Array<[Viseme, number]>; weight: number; pause: number }>
+  /** Each word, with the subtitle word it belongs to ("anti-money" is one subtitle word, two here) */
+  private words: Array<{ end: number; visemes: Array<[Viseme, number]>; weight: number; pause: number; token: number; part: number; parts: number }>
+  private tokens: number
   private unit: number
   private index = -1
   private since = 0
@@ -295,16 +441,30 @@ export class TextLipSync {
 
   constructor(text: string, private rate = 1) {
     this.unit = unitMs / rate
+    const tokenEnds = Array.from(text.matchAll(/\S+/g), (m) => (m.index ?? 0) + m[0].length)
+    this.tokens = tokenEnds.length
     this.words = Array.from(text.matchAll(/([A-Za-z0-9']+)([^A-Za-z0-9']*)/g), (m) => {
       const visemes = wordVisemes(m[1])
       const punctuation = Array.from(m[2]).find((c) => c in PAUSE_MS)
+      const at = m.index ?? 0
       return {
-        end: (m.index ?? 0) + m[1].length,
+        end: at + m[1].length,
         visemes,
         weight: visemes.reduce((n, [, w]) => n + w, 0),
         pause: punctuation ? PAUSE_MS[punctuation] : 0,
+        token: Math.max(0, tokenEnds.findIndex((end) => end > at)),
+        part: 0,
+        parts: 1,
       }
     })
+    for (let i = 0; i < this.words.length; i++) {
+      const prev = this.words[i - 1]
+      if (prev && prev.token === this.words[i].token) this.words[i].part = prev.part + 1
+    }
+    for (let i = this.words.length - 1; i >= 0; i--) {
+      const next = this.words[i + 1]
+      this.words[i].parts = next && next.token === this.words[i].token ? next.parts : this.words[i].part + 1
+    }
   }
 
   /** The voice became audible. */
@@ -379,19 +539,12 @@ export class TextLipSync {
     this.pausedAt = 0
   }
 
-  /** How far through the text the voice is (0 to 1): smooth between words, re-synced at each word the voice reports. */
+  /** How far through the text the voice is (0 to 1, in subtitle words): smooth within a word, re-synced at each word the voice reports. */
   progress(): number {
     if (this.index < 0) return 0
     const { into } = this.locate(this.clock()) // may move the index on, so read it after
-    let value = 1
-    if (this.index < this.words.length) {
-      const span = (i: number) => this.words[i].weight + GAP + this.words[i].pause / this.unit
-      let total = 0
-      for (let i = 0; i < this.words.length; i++) total += span(i)
-      let done = 0
-      for (let i = 0; i < this.index; i++) done += span(i)
-      value = (done + into * span(this.index)) / (total || 1)
-    }
+    const word = this.words[this.index]
+    const value = word && this.tokens ? (word.token + (word.part + into) / word.parts) / this.tokens : 1
     // Never back up: a word reported earlier than estimated must not hide what is already on screen
     this.high = Math.max(this.high, value)
     return this.high

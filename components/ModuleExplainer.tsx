@@ -16,8 +16,9 @@ import {
 } from 'lucide-react'
 import type { ExplainerScene, ExplainerKind } from '@/lib/explainer'
 import { startLocalTts, localSpeak, normaliseForSpeech, pickBrowserVoice, whenAudible } from '@/lib/localTts'
-import { EXPLAINER_EVENTS, setPresenterMouthSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
-import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, wordStarts } from '@/lib/lipSync'
+import { EXPLAINER_EVENTS, setPresenterMouthSource, setPresenterWaveSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, textTokens } from '@/lib/lipSync'
+import { itemCues } from '@/lib/explainerCues'
 
 // Must match ICONS in scripts/build-explainers.mjs
 const ICONS: Record<string, LucideIcon> = {
@@ -95,6 +96,8 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
   // Narration mouth shapes for the tutor's lips: each clip analysed once, before it first plays
   const trackCache = useRef(new Map<number, Promise<AudioLipTrack | null>>())
   const trackRef = useRef<AudioLipTrack | null>(null)
+  // How far through the narration's words the clip is at a playback time, fitted to the clip's own pauses
+  const wordsAtRef = useRef<((seconds: number) => number) | null>(null)
   const textSyncRef = useRef<TextLipSync | null>(null)
   const playRef = useRef<() => void>(() => {})
   const pauseRef = useRef<() => void>(() => {})
@@ -222,11 +225,12 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     window.speechSynthesis.speak(u)
   }, [setP, setVoice, startTimer, followSpeech])
 
-  // Moves the picture and subtitles every frame with the narration heard (not the coarse timeupdate event)
+  // Moves the picture and subtitles every frame with the words heard (not the coarse timeupdate event)
   const followClip = useCallback((el: HTMLAudioElement, run: number) => {
     const tick = () => {
       if (run !== runRef.current || audioRef.current !== el || el.paused || !el.duration) return
-      const p = Math.min(1, heardTime(el) / el.duration)
+      const heard = heardTime(el)
+      const p = wordsAtRef.current ? wordsAtRef.current(heard) : Math.min(1, heard / el.duration)
       if (Math.abs(p - progressRef.current) > 0.002) setP(p)
       rafRef.current = requestAnimationFrame(tick)
     }
@@ -234,7 +238,8 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     tick()
   }, [setP])
 
-  const playScene = useCallback(async (i: number) => {
+  // Shows scene i, and starts its narration after `wait` ms (the time the picture takes to change)
+  const playScene = useCallback(async (i: number, wait = 0) => {
     haltNarration()
     const run = runRef.current
     const scene = scenes[i]
@@ -244,6 +249,9 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
     setEnded(false)
     playingRef.current = true
     setPlaying(true)
+    trackRef.current = null
+    wordsAtRef.current = null
+    const changed = new Promise<void>((resolve) => { holdRef.current = setTimeout(resolve, wait) })
 
     nextRef.current = () => {
       if (run !== runRef.current) return
@@ -255,12 +263,15 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
         setEnded(true)
         return
       }
-      holdRef.current = setTimeout(() => {
-        if (run === runRef.current && playingRef.current) void playScene(i + 1)
-      }, HOLD_BETWEEN_SCENES_MS)
+      // The next picture comes in during the pause, so it is there when its narration starts
+      void playScene(i + 1, HOLD_BETWEEN_SCENES_MS)
     }
 
-    if (mutedRef.current) { startTimer(scene, run); return }
+    if (mutedRef.current) {
+      await changed
+      if (run === runRef.current) startTimer(scene, run)
+      return
+    }
     if (i + 1 < scenes.length) {
       // Prefetch the next clip and its lip track so the next scene starts instantly
       void fetchAudio(i + 1).then((u) => { if (u && !trackCache.current.has(i + 1)) trackCache.current.set(i + 1, AudioLipTrack.load(u)) })
@@ -268,11 +279,18 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
 
     const url = await fetchAudio(i)
     if (run !== runRef.current) return
-    if (!url) { speakBrowser(scene, run); return }
+    if (!url) {
+      await changed
+      if (run === runRef.current) speakBrowser(scene, run)
+      return
+    }
     let track = trackCache.current.get(i)
     if (!track) { track = AudioLipTrack.load(url); trackCache.current.set(i, track) }
-    trackRef.current = await track
+    const loaded = await track
+    await changed
     if (run !== runRef.current) return
+    trackRef.current = loaded
+    wordsAtRef.current = loaded ? loaded.timeline(scene.narration) : null
 
     const el = new Audio(url)
     el.playbackRate = speedRef.current
@@ -420,7 +438,18 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
       }
       return sync ? sync.shape() : MOUTH_REST
     })
-    return () => setPresenterMouthSource(videoId, null)
+    // The narration's own sound, while it is heard (the browser voice's cannot be read)
+    setPresenterWaveSource(videoId, (out) => {
+      const el = audioRef.current
+      const track = trackRef.current
+      if (!playingRef.current || !voicedRef.current || modeRef.current !== 'audio' || !el || !track || el.paused) return false
+      track.waveAt(heardTime(el), out)
+      return true
+    })
+    return () => {
+      setPresenterMouthSource(videoId, null)
+      setPresenterWaveSource(videoId, null)
+    }
   }, [videoId])
 
   // Clean up audio and object URLs
@@ -447,6 +476,7 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
 
   const scene = scenes[sceneIdx]
   const accent = ACCENT[scene.kind]
+  const cues = useMemo(() => itemCues(scene.narration, scene.items), [scene])
   // Items appear as the narrator reaches them; a paused, untouched scene shows everything
   const reveal = started && (playing || progress > 0) ? progress : 1
 
@@ -479,9 +509,9 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
             <motion.div
               key={sceneIdx}
               initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18, filter: 'blur(6px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, filter: 'blur(4px)' }}
-              transition={{ duration: 0.45, ease: 'easeOut' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.4, ease: 'easeOut' } }}
+              // Out and in within the pause between scenes (HOLD_BETWEEN_SCENES_MS)
+              exit={reduceMotion ? { opacity: 0, transition: { duration: 0.25 } } : { opacity: 0, y: -12, filter: 'blur(4px)', transition: { duration: 0.25, ease: 'easeIn' } }}
               style={{
                 position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', zIndex: 1,
                 // Leave room at the bottom for the subtitles, or for the play button on the poster
@@ -489,7 +519,7 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
                 transition: 'padding 0.4s ease',
               }}
             >
-              <SceneView scene={scene} accent={accent} reveal={reveal} compact={compact} kicker={kicker} reduceMotion={reduceMotion} />
+              <SceneView scene={scene} accent={accent} reveal={reveal} cues={cues} compact={compact} kicker={kicker} reduceMotion={reduceMotion} />
             </motion.div>
           </AnimatePresence>
 
@@ -602,18 +632,51 @@ function Backdrop({ accent, reduceMotion }: { accent: string; reduceMotion: bool
   )
 }
 
+const ENDS_SENTENCE = /[.!?]["'’”)]*$/
+const ENDS_CLAUSE = /[,;:]["'’”)]*$/
+const CAPTION_WORDS = 14
+
+/** Captions a sentence at a time, and a long sentence in parts, broken at a comma near the even split. Each is [first word, end). */
+function captionLines(words: string[]): Array<[number, number]> {
+  const lines: Array<[number, number]> = []
+  let start = 0
+  for (let i = 0; i < words.length; i++) {
+    if (i < words.length - 1 && !ENDS_SENTENCE.test(words[i])) continue
+    const length = i + 1 - start
+    const parts = Math.ceil(length / CAPTION_WORDS)
+    let from = start
+    for (let k = 1; k < parts; k++) {
+      const even = start + Math.round((length * k) / parts)
+      let cut = even
+      for (let d = 0; d <= 3; d++) {
+        if (ENDS_CLAUSE.test(words[even - 1 + d] ?? '')) { cut = even + d; break }
+        if (ENDS_CLAUSE.test(words[even - 1 - d] ?? '')) { cut = even - d; break }
+      }
+      if (cut > from && cut <= i) { lines.push([from, cut]); from = cut }
+    }
+    lines.push([from, i + 1])
+    start = i + 1
+  }
+  return lines
+}
+
 function Subtitle({ text, progress, accent }: { text: string; progress: number; accent: string }) {
-  // Highlight each word as the narrator reaches it, on the same timing model as the lips
-  const words = text.split(/\s+/)
-  const starts = useMemo(() => wordStarts(text), [text])
+  // The line being said, each word lighting up as the narrator reaches it
+  const words = useMemo(() => textTokens(text), [text])
+  const lines = useMemo(() => captionLines(words), [words])
+  const reached = progress * words.length // words started so far
+  let line = 0
+  while (line + 1 < lines.length && lines[line + 1][0] < reached) line++
+  const [from, to] = lines[line] ?? [0, 0]
   return (
     <div aria-live="off" style={{ position: 'absolute', left: '50%', bottom: '4%', transform: 'translateX(-50%)', width: 'max-content', maxWidth: '88%', zIndex: 2, pointerEvents: 'none' }}>
       <p style={{ margin: 0, padding: '0.55em 0.9em', borderRadius: 10, background: 'rgba(3,7,16,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', fontFamily: SANS, fontWeight: 600, fontSize: fs(1.85, 12), lineHeight: 1.45, textAlign: 'center' }}>
-        {words.map((w, i) => {
-          const spoken = starts[i] < progress
+        {words.slice(from, to).map((w, k) => {
+          const i = from + k
+          const spoken = i < reached
           return (
-            <span key={i} style={{ color: spoken ? '#ffffff' : 'rgba(232,240,252,0.55)', textShadow: spoken ? `0 0 12px ${accent}55` : 'none', transition: 'color 0.15s' }}>
-              {w}{i < words.length - 1 ? ' ' : ''}
+            <span key={i} style={{ color: spoken ? '#ffffff' : 'rgba(232,240,252,0.55)', textShadow: spoken ? `0 0 12px ${accent}55` : 'none', transition: 'color 0.1s' }}>
+              {w}{i < to - 1 ? ' ' : ''}
             </span>
           )
         })}
@@ -625,7 +688,10 @@ function Subtitle({ text, progress, accent }: { text: string; progress: number; 
 interface SceneProps {
   scene: ExplainerScene
   accent: string
+  /** How far the narration has got (0 to 1, in words) */
   reveal: number
+  /** Where in the narration each item is talked about, on the same scale */
+  cues: number[]
   compact: boolean
   kicker: string
   reduceMotion: boolean
@@ -636,7 +702,8 @@ const appear = (shown: boolean, delay = 0) => ({
   animate: shown ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 14, scale: 0.97 },
   transition: { duration: 0.45, delay, ease: 'easeOut' as const },
 })
-const shownAt = (i: number, n: number, reveal: number) => reveal >= (n <= 1 ? 0 : (i / n) * 0.75)
+// An item shows once the narration reaches the point where it is talked about
+const shownAt = (i: number, cues: number[], reveal: number) => reveal >= (cues[i] ?? 0)
 
 function SceneHeading({ scene, accent }: { scene: ExplainerScene; accent: string }) {
   return (
@@ -718,14 +785,14 @@ function CountUpValue({ value, active }: { value: string; active: boolean }) {
   return <>{m[1]}{shown}{m[3]}</>
 }
 
-function StatsScene({ scene, accent, reveal, compact }: SceneProps) {
+function StatsScene({ scene, accent, reveal, cues, compact }: SceneProps) {
   const n = scene.items.length
   return (
     <>
       <SceneHeading scene={scene} accent={accent} />
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${compact ? Math.min(n, 2) : n}, 1fr)`, gap: '2.2cqw', alignContent: 'center' }}>
         {scene.items.map((it, i) => {
-          const shown = shownAt(i, n, reveal)
+          const shown = shownAt(i, cues, reveal)
           return (
             <motion.div key={i} {...appear(shown)}>
               <Card accent={accent} style={{ textAlign: 'center', padding: '2.6cqw 1.6cqw' }}>
@@ -744,14 +811,14 @@ function StatsScene({ scene, accent, reveal, compact }: SceneProps) {
   )
 }
 
-function StepsScene({ scene, accent, reveal, compact }: SceneProps) {
+function StepsScene({ scene, accent, reveal, cues, compact }: SceneProps) {
   const n = scene.items.length
   return (
     <>
       <SceneHeading scene={scene} accent={accent} />
       <div style={{ flex: 1, display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center', gap: compact ? '2cqw' : 0 }}>
         {scene.items.map((it, i) => {
-          const shown = shownAt(i, n, reveal)
+          const shown = shownAt(i, cues, reveal)
           return (
             <React.Fragment key={i}>
               {i > 0 && !compact && (
@@ -779,13 +846,13 @@ function StepsScene({ scene, accent, reveal, compact }: SceneProps) {
   )
 }
 
-function CompareScene({ scene, accent, reveal, compact }: SceneProps) {
+function CompareScene({ scene, accent, reveal, cues, compact }: SceneProps) {
   const [a, b] = scene.items
   const side = (it: typeof a, i: number) => it && (
-    <motion.div {...appear(shownAt(i, 2, reveal))} style={{ flex: 1, minWidth: 0 }}>
+    <motion.div {...appear(shownAt(i, cues, reveal))} style={{ flex: 1, minWidth: 0 }}>
       <Card accent={i === 0 ? accent : '#35e0ff'} style={{ height: '100%', textAlign: 'center', padding: '2.8cqw 2cqw' }}>
         <Icon name={it.icon} size={fs(4, 24)} color={i === 0 ? accent : '#35e0ff'} />
-        {it.value && <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: fs(4.4, 20), color: '#fff', marginTop: '1cqw' }}><CountUpValue value={it.value} active={shownAt(i, 2, reveal)} /></div>}
+        {it.value && <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: fs(4.4, 20), color: '#fff', marginTop: '1cqw' }}><CountUpValue value={it.value} active={shownAt(i, cues, reveal)} /></div>}
         <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: fs(2.1, 13), color: '#f3f7ff', marginTop: '1cqw' }}>{it.label}</div>
         {it.detail && <div style={{ marginTop: '0.8cqw', fontFamily: SANS, fontSize: fs(1.55, 10.5), color: 'rgba(232,240,252,0.62)', lineHeight: 1.4 }}>{it.detail}</div>}
       </Card>
@@ -803,9 +870,9 @@ function CompareScene({ scene, accent, reveal, compact }: SceneProps) {
   )
 }
 
-function TimelineScene({ scene, accent, reveal, compact }: SceneProps) {
+function TimelineScene({ scene, accent, reveal, cues, compact }: SceneProps) {
   const n = scene.items.length
-  if (compact) return <CardsScene scene={scene} accent={accent} reveal={reveal} compact kicker="" reduceMotion />
+  if (compact) return <CardsScene scene={scene} accent={accent} reveal={reveal} cues={cues} compact kicker="" reduceMotion />
   return (
     <>
       <SceneHeading scene={scene} accent={accent} />
@@ -813,13 +880,14 @@ function TimelineScene({ scene, accent, reveal, compact }: SceneProps) {
         <div style={{ position: 'absolute', left: '4%', right: '4%', top: '50%', height: 2, background: 'rgba(232,240,252,0.12)' }} />
         <motion.div
           initial={false}
-          animate={{ scaleX: Math.min(1, reveal / 0.8) }}
+          // The line reaches each point as it is talked about
+          animate={{ scaleX: (() => { const last = scene.items.reduce((l, _, i) => (shownAt(i, cues, reveal) ? i : l), -1); return last < 0 ? 0 : last === n - 1 ? 1 : (last + 0.5) / n })() }}
           transition={{ duration: 0.3 }}
           style={{ position: 'absolute', left: '4%', right: '4%', top: '50%', height: 2, background: `linear-gradient(90deg, ${accent}55, ${accent})`, transformOrigin: 'left', boxShadow: `0 0 10px ${accent}` }}
         />
         <div style={{ position: 'relative', width: '100%', display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)` }}>
           {scene.items.map((it, i) => {
-            const shown = shownAt(i, n, reveal)
+            const shown = shownAt(i, cues, reveal)
             return (
               <motion.div key={i} {...appear(shown)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '0 1cqw' }}>
                 <div style={{ height: '11cqw', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', paddingBottom: '1.6cqw' }}>
@@ -840,7 +908,7 @@ function TimelineScene({ scene, accent, reveal, compact }: SceneProps) {
   )
 }
 
-function CardsScene({ scene, accent, reveal, compact }: SceneProps) {
+function CardsScene({ scene, accent, reveal, cues, compact }: SceneProps) {
   const n = scene.items.length
   const cols = compact ? 1 : n === 4 ? 2 : Math.min(n, 3)
   return (
@@ -848,7 +916,7 @@ function CardsScene({ scene, accent, reveal, compact }: SceneProps) {
       <SceneHeading scene={scene} accent={accent} />
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2cqw', alignContent: 'center' }}>
         {scene.items.map((it, i) => (
-          <motion.div key={i} {...appear(shownAt(i, n, reveal))}>
+          <motion.div key={i} {...appear(shownAt(i, cues, reveal))}>
             <Card accent={accent} style={{ display: 'flex', gap: '1.6cqw', alignItems: 'flex-start' }}>
               <span style={{ display: 'grid', placeItems: 'center', width: fs(5, 30), height: fs(5, 30), borderRadius: '1.2cqw', background: `${accent}1a`, flexShrink: 0 }}>
                 <Icon name={it.icon} size={fs(2.8, 17)} color={accent} />
@@ -867,7 +935,7 @@ function CardsScene({ scene, accent, reveal, compact }: SceneProps) {
   )
 }
 
-function ExampleScene({ scene, accent, reveal }: SceneProps) {
+function ExampleScene({ scene, accent, reveal, cues }: SceneProps) {
   const n = scene.items.length
   return (
     <>
@@ -876,7 +944,7 @@ function ExampleScene({ scene, accent, reveal }: SceneProps) {
         <Card accent={accent} style={{ width: '100%', maxWidth: '78cqw', padding: '2.6cqw 3cqw' }}>
           <div style={{ fontFamily: MONO, fontSize: fs(1.3, 9.5), letterSpacing: '0.24em', color: accent, marginBottom: '1.6cqw' }}>EXAMPLE</div>
           {scene.items.map((it, i) => (
-            <motion.div key={i} {...appear(shownAt(i, n, reveal))} style={{ display: 'flex', gap: '1.6cqw', alignItems: 'flex-start', padding: '1.1cqw 0', borderTop: i ? '1px dashed rgba(232,240,252,0.12)' : 'none' }}>
+            <motion.div key={i} {...appear(shownAt(i, cues, reveal))} style={{ display: 'flex', gap: '1.6cqw', alignItems: 'flex-start', padding: '1.1cqw 0', borderTop: i ? '1px dashed rgba(232,240,252,0.12)' : 'none' }}>
               <Icon name={it.icon} size={fs(2.4, 15)} color={accent} />
               <div style={{ flex: 1, minWidth: 0, fontFamily: SANS, fontSize: fs(1.8, 12), color: '#f3f7ff', lineHeight: 1.4 }}>
                 <strong style={{ fontWeight: 700 }}>{it.label}</strong>
@@ -891,7 +959,7 @@ function ExampleScene({ scene, accent, reveal }: SceneProps) {
   )
 }
 
-function WarningScene({ scene, accent, reveal, reduceMotion }: SceneProps) {
+function WarningScene({ scene, accent, reveal, cues, reduceMotion }: SceneProps) {
   const n = scene.items.length
   return (
     <>
@@ -907,7 +975,7 @@ function WarningScene({ scene, accent, reveal, reduceMotion }: SceneProps) {
       </div>
       <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '3cqw', paddingBottom: '1cqw' }}>
         {scene.items.map((it, i) => {
-          const shown = shownAt(i, n, reveal)
+          const shown = shownAt(i, cues, reveal)
           const h = n === 1 ? 70 : 35 + (i / (n - 1)) * 60
           return (
             <div key={i} style={{ flex: '0 1 24cqw', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', textAlign: 'center' }}>
@@ -932,14 +1000,14 @@ function WarningScene({ scene, accent, reveal, reduceMotion }: SceneProps) {
   )
 }
 
-function ChecklistScene({ scene, accent, reveal, compact }: SceneProps) {
+function ChecklistScene({ scene, accent, reveal, cues, compact }: SceneProps) {
   const n = scene.items.length
   return (
     <>
       <SceneHeading scene={scene} accent={accent} />
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: compact || n <= 3 ? '1fr' : '1fr 1fr', gap: '1.6cqw 3cqw', alignContent: 'center' }}>
         {scene.items.map((it, i) => {
-          const shown = shownAt(i, n, reveal)
+          const shown = shownAt(i, cues, reveal)
           return (
             <motion.div key={i} {...appear(shown)} style={{ display: 'flex', alignItems: 'center', gap: '1.4cqw', padding: '1.3cqw 1.6cqw', borderRadius: '1.2cqw', background: 'rgba(20,32,60,0.6)', border: '1px solid rgba(232,240,252,0.08)' }}>
               <svg viewBox="0 0 24 24" style={{ width: fs(3, 18), height: fs(3, 18), flexShrink: 0 }} aria-hidden="true">
