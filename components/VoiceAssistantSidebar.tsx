@@ -3,11 +3,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import TutorMessage from './TutorMessage'
-import type { VoiceMode as TutorMode } from './VoiceLine'
+import type { VoiceMode as TutorMode } from './VoiceBars'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
 import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState, pickBrowserVoice, whenAudible } from '@/lib/localTts'
-import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterMouth, presenterWave, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
-import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, type MouthShape } from '@/lib/lipSync'
+import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterMouth, presenterSound, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, type HeardSound, type MouthShape } from '@/lib/lipSync'
 
 
 interface VoiceAssistantSidebarProps {
@@ -68,7 +68,7 @@ function stripVisualBlocks(text: string): string {
     .trim()
 }
 
-const VoiceLine = dynamic(() => import('./VoiceLine'), { ssr: false })
+const VoiceBars = dynamic(() => import('./VoiceBars'), { ssr: false })
 
 export default function VoiceAssistantSidebar({
   moduleId,
@@ -832,15 +832,14 @@ export default function VoiceAssistantSidebar({
     }
     return sync ? sync.shape() : MOUTH_REST
   }, [])
-  // The voice line draws the sound being heard: the clip's own waveform for the neural voice and the
-  // videos' narration; the browser voice's sound cannot be read, so its line follows the lip sync
-  const getWave = useCallback((out: Float32Array): boolean => {
-    if (presentingRef.current) return presenterWave(out)
+  // The bars follow the sound being heard: the clip itself for the neural voice and the videos'
+  // narration; the browser voice's sound cannot be read, so its bars follow the lip sync
+  const getSound = useCallback((): HeardSound | null => {
+    if (presentingRef.current) return presenterSound()
     const el = audioElRef.current
     const track = trackRef.current
-    if (!isSpeakingRef.current || isPausedRef.current || !el || !track || el.paused || el.ended) return false
-    track.waveAt(heardTime(el), out)
-    return true
+    if (!isSpeakingRef.current || isPausedRef.current || !el || !track || el.paused || el.ended) return null
+    return { track, seconds: heardTime(el) }
   }, [])
   const getLevel = useCallback(() => getMouth().open, [getMouth])
 
@@ -888,7 +887,7 @@ export default function VoiceAssistantSidebar({
 
       {/* Animated tutor */}
       <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
-        <VoiceLine mode={tutorMode} getWave={getWave} getLevel={getLevel} height={150} />
+        <VoiceBars mode={tutorMode} getSound={getSound} getLevel={getLevel} height={150} />
         {localVoiceNote && (
           <div role="status" style={{ marginTop: 6, textAlign: 'center', fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: '#94a3b8' }}>{localVoiceNote}</div>
         )}

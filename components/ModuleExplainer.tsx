@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import type { ExplainerScene, ExplainerKind } from '@/lib/explainer'
 import { startLocalTts, localSpeak, normaliseForSpeech, pickBrowserVoice, whenAudible } from '@/lib/localTts'
-import { EXPLAINER_EVENTS, setPresenterMouthSource, setPresenterWaveSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
+import { EXPLAINER_EVENTS, setPresenterMouthSource, setPresenterSoundSource, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
 import { AudioLipTrack, MOUTH_REST, TextLipSync, heardTime, startOutputClock, textTokens } from '@/lib/lipSync'
 import { itemCues } from '@/lib/explainerCues'
 
@@ -439,16 +439,15 @@ export default function ModuleExplainer({ videoId, moduleNumber, moduleTitle, sc
       return sync ? sync.shape() : MOUTH_REST
     })
     // The narration's own sound, while it is heard (the browser voice's cannot be read)
-    setPresenterWaveSource(videoId, (out) => {
+    setPresenterSoundSource(videoId, () => {
       const el = audioRef.current
       const track = trackRef.current
-      if (!playingRef.current || !voicedRef.current || modeRef.current !== 'audio' || !el || !track || el.paused) return false
-      track.waveAt(heardTime(el), out)
-      return true
+      if (!playingRef.current || !voicedRef.current || modeRef.current !== 'audio' || !el || !track || el.paused) return null
+      return { track, seconds: heardTime(el) }
     })
     return () => {
       setPresenterMouthSource(videoId, null)
-      setPresenterWaveSource(videoId, null)
+      setPresenterSoundSource(videoId, null)
     }
   }, [videoId])
 

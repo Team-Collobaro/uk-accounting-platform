@@ -74,6 +74,17 @@ const SPEECH_DB = -25
 const SILENT_DB = -32
 // The sound kept for drawing: averaged down to this rate, which keeps the voice's pitch and lower harmonics
 const WAVE_RATE = 2400
+// The pitch ranges kept for drawing bars: BANDS ranges, evenly spaced on a musical (log) scale, in Hz
+export const BANDS = 16
+const BAND_EDGES = Array.from({ length: BANDS + 1 }, (_, i) => 90 * Math.pow(7000 / 90, i / BANDS))
+// How far below its loud moments a range goes quiet on the bars, in dB
+const BAND_RANGE_DB = 32
+
+/** The sound being heard right now: which clip, and how far into it. */
+export interface HeardSound {
+  track: AudioLipTrack
+  seconds: number
+}
 
 /** In-place radix-2 FFT. */
 function fft(re: Float32Array, im: Float32Array): void {
@@ -128,6 +139,8 @@ export class AudioLipTrack {
     private db: Float32Array,
     /** The sound itself at WAVE_RATE, scaled so the clip's loud parts reach about ±1 */
     private wave: Float32Array,
+    /** How strong each pitch range is every 10 ms (BANDS values per frame, 0 to 1) */
+    private bands: Float32Array,
   ) {}
 
   static async load(url: string): Promise<AudioLipTrack | null> {
@@ -149,6 +162,8 @@ export class AudioLipTrack {
     const f1 = new Float32Array(n)
     const re = new Float32Array(WIN)
     const im = new Float32Array(WIN)
+    const bandDb = new Float32Array(n * BANDS)
+    const bands = new Float32Array(n * BANDS)
     const hz = RATE / WIN
     const bin = (f: number) => Math.round(f / hz)
     for (let f = 0; f < n; f++) {
@@ -172,6 +187,18 @@ export class AudioLipTrack {
       let weight = 0
       for (let k = bin(250); k <= bin(1000); k++) { const p = power(k); moment += p * k * hz; weight += p }
       f1[f] = weight ? moment / weight : 400
+      // The voice split into pitch ranges, for drawing as bars
+      for (let b = 0; b < BANDS; b++) {
+        let s = 0
+        for (let k = bin(BAND_EDGES[b]); k < Math.max(bin(BAND_EDGES[b]) + 1, bin(BAND_EDGES[b + 1])); k++) s += power(k)
+        bandDb[f * BANDS + b] = 10 * Math.log10(s + 1e-12)
+      }
+    }
+    // Each range against its own loud moments, so every bar uses its full height
+    for (let b = 0; b < BANDS; b++) {
+      const values = Array.from({ length: n }, (_, f) => bandDb[f * BANDS + b]).sort((x, y) => x - y)
+      const top = values[Math.floor(values.length * 0.97)] ?? 0
+      for (let f = 0; f < n; f++) bands[f * BANDS + b] = Math.min(1, Math.max(0, 1 + (bandDb[f * BANDS + b] - top) / BAND_RANGE_DB))
     }
 
     // Loudness relative to this clip's own loud parts. Vowels sit within a few dB of the peak and
@@ -218,7 +245,23 @@ export class AudioLipTrack {
     const peak = sizes[Math.floor(sizes.length * 0.995)] || 1
     for (let i = 0; i < wave.length; i++) wave[i] /= peak
 
-    return new AudioLipTrack(blur(open, 1.5), blur(wide, 3), blur(round, 3), blur(press, 1.5), Float32Array.from(db), wave)
+    return new AudioLipTrack(blur(open, 1.5), blur(wide, 3), blur(round, 3), blur(press, 1.5), Float32Array.from(db), wave, bands)
+  }
+
+  /**
+   * How strong each pitch range is at a playback time (0 to 1 each, lowest first), for drawing the
+   * voice as bars: fills `out`, which holds BANDS values.
+   */
+  bandsAt(seconds: number, out: Float32Array): void {
+    const frames = this.bands.length / BANDS
+    const x = seconds * FPS
+    const f = Math.floor(x)
+    for (let b = 0; b < Math.min(BANDS, out.length); b++) {
+      if (f < 0 || f >= frames) { out[b] = 0; continue }
+      const a = this.bands[f * BANDS + b]
+      const c = f + 1 < frames ? this.bands[(f + 1) * BANDS + b] : a
+      out[b] = a + (c - a) * (x - f)
+    }
   }
 
   /**

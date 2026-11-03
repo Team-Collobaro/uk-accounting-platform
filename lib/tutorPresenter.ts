@@ -1,4 +1,4 @@
-import { MOUTH_REST, type MouthShape } from '@/lib/lipSync'
+import { MOUTH_REST, type HeardSound, type MouthShape } from '@/lib/lipSync'
 
 // Lets the AI tutor present the explainer videos (module intro and each lesson section): a video
 // publishes its narration state and mouth shape, the tutor's avatar speaks along with it, and the
@@ -63,18 +63,21 @@ export function presenterMouth(): MouthShape {
   return mouth
 }
 
-// The narration's sound itself, for the tutor's voice display: a source fills `out` and returns
-// true while its narration is heard
-const waveSources = new Map<string, (out: Float32Array) => boolean>()
+// The narration's sound itself, for the tutor's voice display: which clip is being heard and how far
+// into it, or null while nothing a source plays can be heard
+const soundSources = new Map<string, () => HeardSound | null>()
 
-export function setPresenterWaveSource(id: string, fn: ((out: Float32Array) => boolean) | null) {
-  if (fn) waveSources.set(id, fn)
-  else waveSources.delete(id)
+export function setPresenterSoundSource(id: string, fn: (() => HeardSound | null) | null) {
+  if (fn) soundSources.set(id, fn)
+  else soundSources.delete(id)
 }
 
-export function presenterWave(out: Float32Array): boolean {
-  for (const fn of waveSources.values()) {
-    try { if (fn(out)) return true } catch { /* ignore a broken source */ }
+export function presenterSound(): HeardSound | null {
+  for (const fn of soundSources.values()) {
+    try {
+      const sound = fn()
+      if (sound) return sound
+    } catch { /* ignore a broken source */ }
   }
-  return false
+  return null
 }
