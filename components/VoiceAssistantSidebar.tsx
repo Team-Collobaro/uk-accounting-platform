@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import TutorMessage from './TutorMessage'
-import type { VoiceMode as TutorMode } from './VoiceBars'
+import type { VoiceMode as TutorMode } from './VoiceRibbon'
 import { Volume2, VolumeX, Mic, MicOff, Send, Pause, Play } from 'lucide-react'
 import { startLocalTts, localSpeak, normaliseForSpeech, subscribeLocalTts, localTtsState, pickBrowserVoice, whenAudible } from '@/lib/localTts'
 import { EXPLAINER_EVENTS, SECTION_COMPLETE_EVENT, presenterMouth, presenterSound, type ExplainerStateDetail, type ExplainerControlDetail, type ExplainerIdDetail } from '@/lib/tutorPresenter'
@@ -68,7 +68,7 @@ function stripVisualBlocks(text: string): string {
     .trim()
 }
 
-const VoiceBars = dynamic(() => import('./VoiceBars'), { ssr: false })
+const VoiceRibbon = dynamic(() => import('./VoiceRibbon'), { ssr: false })
 
 export default function VoiceAssistantSidebar({
   moduleId,
@@ -832,8 +832,8 @@ export default function VoiceAssistantSidebar({
     }
     return sync ? sync.shape() : MOUTH_REST
   }, [])
-  // The bars follow the sound being heard: the clip itself for the neural voice and the videos'
-  // narration; the browser voice's sound cannot be read, so its bars follow the lip sync
+  // The voice display follows the sound being heard: the clip itself for the neural voice and the
+  // videos' narration; the browser voice's sound cannot be read, so it follows the lip sync
   const getSound = useCallback((): HeardSound | null => {
     if (presentingRef.current) return presenterSound()
     const el = audioElRef.current
@@ -887,7 +887,7 @@ export default function VoiceAssistantSidebar({
 
       {/* Animated tutor */}
       <div style={{ padding: '10px 12px 0', flexShrink: 0 }}>
-        <VoiceBars mode={tutorMode} getSound={getSound} getLevel={getLevel} height={150} />
+        <VoiceRibbon mode={tutorMode} getSound={getSound} getLevel={getLevel} height={150} />
         {localVoiceNote && (
           <div role="status" style={{ marginTop: 6, textAlign: 'center', fontFamily: '"Montserrat", sans-serif', fontSize: 11, color: '#94a3b8' }}>{localVoiceNote}</div>
         )}
